@@ -1,5 +1,6 @@
 import makeWASocket, {
   Browsers,
+  delay,
   DisconnectReason,
   downloadMediaMessage,
   fetchLatestBaileysVersion,
@@ -18,7 +19,14 @@ export class BaileysTransport implements MessagingTransport {
   private handler?: MessageHandler;
   private accountId = "";
 
-  constructor(private readonly authDir: string) {}
+  /**
+   * @param authDir   where session credentials are persisted
+   * @param pairPhone if set (digits incl. country code), pair via 8-char code instead of QR
+   */
+  constructor(
+    private readonly authDir: string,
+    private readonly pairPhone = "",
+  ) {}
 
   onMessage(handler: MessageHandler): void {
     this.handler = handler;
@@ -26,6 +34,22 @@ export class BaileysTransport implements MessagingTransport {
 
   getAccountId(): string {
     return this.accountId;
+  }
+
+  /** Request an 8-char pairing code (the "Link with phone number" path). */
+  private async requestPairing(sock: WASocket): Promise<void> {
+    try {
+      await delay(3000); // let the socket finish negotiating before requesting
+      const code = await sock.requestPairingCode(this.pairPhone);
+      const pretty = code.match(/.{1,4}/g)?.join("-") ?? code;
+      logger.info(
+        `\n\n  Pairing code for +${this.pairPhone}: ${pretty}\n` +
+          `  On the phone: WhatsApp → Linked Devices → Link a Device →\n` +
+          `  "Link with phone number instead" → enter this code.\n`,
+      );
+    } catch (err) {
+      logger.error({ err }, "failed to request pairing code");
+    }
   }
 
   async start(): Promise<void> {
@@ -44,9 +68,14 @@ export class BaileysTransport implements MessagingTransport {
 
         sock.ev.on("creds.update", saveCreds);
 
+        // Pairing-code mode: request a code instead of relying on the QR.
+        if (this.pairPhone && !sock.authState.creds.registered) {
+          void this.requestPairing(sock);
+        }
+
         sock.ev.on("connection.update", (update) => {
           const { connection, lastDisconnect, qr } = update;
-          if (qr) {
+          if (qr && !this.pairPhone) {
             logger.info("Scan this QR with WhatsApp (Linked Devices) to pair the bot:");
             qrcode.generate(qr, { small: true });
           }

@@ -9,6 +9,8 @@ export const config = {
   uploadsDir: resolve(process.env.UPLOADS_DIR ?? "./uploads"),
   logLevel: process.env.LOG_LEVEL ?? "info",
   handoffPauseHours: Number(process.env.HANDOFF_PAUSE_HOURS ?? "12"),
+  /** If set (bot's number, digits only w/ country code), pair via code instead of QR. */
+  pairPhone: (process.env.PAIR_PHONE ?? "").replace(/\D/g, ""),
 };
 
 export type Config = typeof config;

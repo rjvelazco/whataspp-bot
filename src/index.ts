@@ -109,7 +109,7 @@ async function main() {
   const store = seedStore(config.storeId);
   logger.info({ store: store.store_name }, "store ready");
 
-  const transport: MessagingTransport = new BaileysTransport(config.authDir);
+  const transport: MessagingTransport = new BaileysTransport(config.authDir, config.pairPhone);
   transport.onMessage((msg) => handleMessage(transport, msg));
 
   await transport.start();
