@@ -39,4 +39,50 @@ Baileys is unofficial and carries a small ban risk). Then message that number fr
 2. Fill in the store config + catalog (shapes documented in `whatsapp-store-bot-mvp-spec.md` §3).
 3. Set `STORE_ID` in `.env` and restart. No code changes.
 
-> Detailed setup (pairing, flows, multi-store notes) is filled in through Phase 6.
+## Conversation flows
+
+All menus are **numbered** (Baileys can't render WhatsApp's tappable buttons). The customer replies
+with a number *or* a keyword.
+
+- **Greeting** — `hola` / `menu` / `inicio` → main menu.
+- **Browse** — option 1 → pick a category → image cards with price, sizes, colors, and a `PEDIR <código>`.
+- **Availability** — option 2, or just ask naturally (*"¿tienen el vestido bohemio en M?"*). Answers are
+  variant-exact: M/negro can be sold out while M/beige is in stock.
+- **Size guide** — `medidas` anytime.
+- **Order** — `PEDIR <código>` → size → color → quantity → name → address → `confirmar`. Creates an
+  order with status `pending_payment`.
+- **Payment** — after confirming, the bot shows payment options; the customer sends a **photo** of the
+  receipt → saved to `uploads/`, order becomes `payment_submitted`, **owner is notified**.
+- **Human handoff** — `hablar con alguien` → owner is notified and the bot goes quiet for that customer
+  for `HANDOFF_PAUSE_HOURS`. The customer can re-summon it with `menu`.
+
+## How it's built
+
+The bot brain (`src/engine/stateMachine.ts`) is a **pure function**: `(conversation, message, store,
+catalog) → { replies, nextState, effects }`. It performs no IO — `src/index.ts` reads/writes SQLite and
+talks to WhatsApp around it. That's why the whole thing is unit-tested with no WhatsApp connection
+(`npm test`), and why swapping Baileys for the official Cloud API later is a new file under
+`src/transport/`, not a rewrite.
+
+| Layer | Files |
+|---|---|
+| Transport seam | `src/transport/types.ts`, `src/transport/baileys.ts` |
+| Engine (pure) | `src/engine/*` — `stateMachine`, `handlers`, `order`, `catalog`, `payment`, `intents`, `menus` |
+| Data | `src/db/*`, `src/services/seed.ts`, `src/data/*.json` |
+| Wiring | `src/index.ts` |
+
+## Configuration
+
+Copy `.env.example` → `.env`. Key vars: `STORE_ID`, `DB_PATH`, `AUTH_DIR`, `UPLOADS_DIR`,
+`HANDOFF_PAUSE_HOURS`. Per-store **content** lives in `src/data/<storeId>.store.json` and
+`src/data/<storeId>.catalog.json` (shapes documented in `whatsapp-store-bot-mvp-spec.md` §3).
+
+## Notes
+
+- **Always-on:** the process must keep running (your machine, a small VPS, or Railway Hobby). If it
+  restarts, it re-pairs automatically from the saved `auth/` credentials — no re-scan needed.
+- **Multi-store:** one Baileys process serves one number/store. The `resolveStore()` seam
+  (`src/stores/routing.ts`) is where Cloud API routing by `phone_number_id` plugs in to serve many
+  stores from one deployment.
+- **ToS / ban risk:** Baileys is unofficial — pilot on a non-critical number. Migrate to the official
+  Cloud API before selling to clients.
