@@ -74,6 +74,39 @@ The engine never changes. Migrating means:
 
 Everything in `src/engine/*` stays identical — that's the whole point of the transport seam.
 
+## Planned enhancement: interactive buttons (Cloud API only)
+
+On the Baileys pilot, all menus are **numbered text** ("responde 1, 2, 3…"). Tappable buttons are
+**not reliably possible on Baileys** — Meta deprecated interactive buttons/lists for the unofficial
+Web protocol and actively patches against the libraries that forge them. Community hacks exist but
+render inconsistently across phones and **raise ban risk**, so we don't use them.
+
+When we migrate to the Cloud API, buttons become a first-class, guaranteed-to-render feature. Revisit
+then:
+
+| Type | Limit | Good for |
+|---|---|---|
+| **Reply buttons** | up to 3 | `Confirmar` / `Cancelar`, `✅ Sí` / `❌ Ahora no`, sizes (S/M/L) |
+| **List messages** | up to 10 rows/section | category menu, picking a product |
+| **CTA buttons** | — | "Registrar producto", open-a-link |
+
+### How to add it without touching the engine
+
+1. Extend the transport seam (`src/transport/types.ts`) with optional capabilities, e.g.
+   `sendButtons(to, body, buttons[])` and `sendList(to, body, sections[])`, plus a
+   `capabilities` flag (`{ buttons: boolean }`).
+2. The Cloud API adapter implements them; the Baileys adapter leaves them undefined.
+3. The engine's **menu layer** (`src/engine/menus.ts`) renders buttons when the transport advertises
+   support, and falls back to the current numbered text otherwise. The state machine and handlers
+   (`stateMachine.ts`, `handlers.ts`, `order.ts`) **do not change** — they already accept both a
+   numbered choice and a keyword, and a button tap just arrives as that same value.
+
+### Realistic end state: hybrid
+
+Even with buttons, reply buttons cap at 3 and lists at 10 rows — too small for a long catalog. So the
+target UX is **hybrid**: buttons for small fixed choices (yes/no, confirm/cancel, size), and
+text/lists for browsing many products. Numbered text stays the right tool for long lists.
+
 ## Sources (June 2026)
 
 - https://blueticks.co/blog/whatsapp-business-api-pricing-2026
