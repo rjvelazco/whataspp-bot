@@ -4,6 +4,15 @@ import type { EngineInput, HandlerOutput, Outgoing } from "./stateMachine.js";
 import { text } from "./stateMachine.js";
 import { categoryMenu, shippingAndPayments } from "./menus.js";
 import { availabilityMessage, detectSize, itemCard, matchItem } from "./catalog.js";
+import {
+  handleConfirming,
+  handleOrderingAddress,
+  handleOrderingColor,
+  handleOrderingName,
+  handleOrderingQty,
+  handleOrderingSize,
+  startOrder,
+} from "./order.js";
 
 const stay = (input: EngineInput, replies: Outgoing[]): HandlerOutput => ({
   replies,
@@ -15,9 +24,9 @@ const dontUnderstand = (input: EngineInput): HandlerOutput =>
 
 /** Route a parsed intent through the per-state logic. */
 export function dispatch(intent: Intent, input: EngineInput): HandlerOutput {
-  // "PEDIR <code>" starts an order from any state — wired in Phase 4.
+  // "PEDIR <code>" starts an order from any state.
   if (intent.type === "order_code") {
-    return stay(input, [text("¡Genial! El flujo de pedido estará disponible muy pronto. 🛠️")]);
+    return startOrder(intent.code, input);
   }
   switch (input.conversation.state) {
     case "idle":
@@ -28,6 +37,18 @@ export function dispatch(intent: Intent, input: EngineInput): HandlerOutput {
       return handleBrowsing(intent, input);
     case "checking_size":
       return handleCheckingSize(intent, input);
+    case "ordering_size":
+      return handleOrderingSize(intent, input);
+    case "ordering_color":
+      return handleOrderingColor(intent, input);
+    case "ordering_qty":
+      return handleOrderingQty(intent, input);
+    case "ordering_name":
+      return handleOrderingName(intent, input);
+    case "ordering_address":
+      return handleOrderingAddress(intent, input);
+    case "confirming":
+      return handleConfirming(intent, input);
     default:
       return dontUnderstand(input);
   }
@@ -51,9 +72,17 @@ function handleIdle(intent: Intent, input: EngineInput): HandlerOutput {
         ],
         nextState: "checking_size",
       };
+    case 3: // Hacer pedido
+      return {
+        replies: [
+          text("Para pedir, escribe *PEDIR <código>* del producto (verás el código en el catálogo). Ej: *PEDIR VESTBOHEMIO*."),
+          text(categoryMenu(input.store)),
+        ],
+        nextState: "choosing_category",
+      };
     case 4: // Envíos y pagos
       return stay(input, [text(shippingAndPayments(input.store))]);
-    // Case 3 (hacer pedido) wired in Phase 4; case 5 (hablar) is a global intent.
+    // Case 5 (hablar con alguien) is handled as a global intent.
     default:
       return stay(input, [text("Esa opción aún no está disponible. Escribe *menu*.")]);
   }
