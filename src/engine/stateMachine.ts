@@ -77,6 +77,11 @@ export function reduce(input: EngineInput): EngineResult {
     return applyOutput(input, { replies: [], nextState: conv.state });
   }
 
+  // --- image (payment receipt) ---
+  if (input.message.hasImage) {
+    return applyOutput(input, handleImage(input));
+  }
+
   // --- global intents (interrupt from any state) ---
   switch (intent.type) {
     case "talk_human": {
@@ -115,6 +120,29 @@ export function reduce(input: EngineInput): EngineResult {
 
   // --- state-specific handling ---
   return applyOutput(input, dispatch(intent, input));
+}
+
+/** A customer sent a photo. In awaiting_payment it's their receipt (spec §2.5). */
+function handleImage(input: EngineInput): HandlerOutput {
+  const { conversation: conv, store } = input;
+  if (conv.state === "awaiting_payment" && conv.active_order_id) {
+    return {
+      replies: [
+        text(
+          `¡Gracias! Recibimos tu comprobante. ✅\n` +
+            `${store.store_name} lo verificará y te confirma el envío pronto.`,
+        ),
+      ],
+      nextState: "idle",
+      effects: [{ type: "saveReceipt" }, { type: "notifyOwner", orderId: conv.active_order_id }],
+    };
+  }
+  return {
+    replies: [
+      text("Recibí tu imagen 📷. Si es un comprobante de pago, primero haz tu pedido. Escribe *menu*."),
+    ],
+    nextState: conv.state,
+  };
 }
 
 const HOUR_MS = 60 * 60 * 1000;
