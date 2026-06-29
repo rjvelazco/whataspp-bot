@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# secrets & config
+.env
+
+# Baileys session credentials (re-pairing required if deleted)
+auth/
+
+# local database
+*.sqlite
+*.sqlite-journal
+*.db
+
+# uploaded receipt photos
+uploads/
+
+# build output
+dist/
+
+# logs / os
+*.log
+.DS_Store
