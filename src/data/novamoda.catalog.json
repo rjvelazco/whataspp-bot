@@ -1,0 +1,64 @@
+[
+  {
+    "item_id": "novamoda-vestbohemio",
+    "store_id": "novamoda",
+    "code": "VESTBOHEMIO",
+    "name": "Vestido Bohemio",
+    "category": "Vestidos",
+    "price": 25.0,
+    "photo_url": "https://images.unsplash.com/photo-1539008835657-9e8e9680c956?w=800&q=80",
+    "active": true,
+    "variants": [
+      { "size": "S", "color": "negro", "stock": 3 },
+      { "size": "M", "color": "negro", "stock": 0 },
+      { "size": "M", "color": "beige", "stock": 5 },
+      { "size": "L", "color": "beige", "stock": 2 }
+    ]
+  },
+  {
+    "item_id": "novamoda-vestflores",
+    "store_id": "novamoda",
+    "code": "VESTFLORES",
+    "name": "Vestido Floral",
+    "category": "Vestidos",
+    "price": 30.0,
+    "photo_url": "https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=800&q=80",
+    "active": true,
+    "variants": [
+      { "size": "S", "color": "azul", "stock": 4 },
+      { "size": "M", "color": "azul", "stock": 2 },
+      { "size": "L", "color": "rojo", "stock": 1 }
+    ]
+  },
+  {
+    "item_id": "novamoda-topbasico",
+    "store_id": "novamoda",
+    "code": "TOPBASICO",
+    "name": "Top Básico",
+    "category": "Tops",
+    "price": 12.0,
+    "photo_url": "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=800&q=80",
+    "active": true,
+    "variants": [
+      { "size": "S", "color": "blanco", "stock": 10 },
+      { "size": "M", "color": "blanco", "stock": 8 },
+      { "size": "M", "color": "negro", "stock": 6 },
+      { "size": "L", "color": "negro", "stock": 0 }
+    ]
+  },
+  {
+    "item_id": "novamoda-jeanslim",
+    "store_id": "novamoda",
+    "code": "JEANSLIM",
+    "name": "Jean Slim",
+    "category": "Pantalones",
+    "price": 28.0,
+    "photo_url": "https://images.unsplash.com/photo-1542272604-787c3835535d?w=800&q=80",
+    "active": true,
+    "variants": [
+      { "size": "S", "color": "azul", "stock": 5 },
+      { "size": "M", "color": "azul", "stock": 3 },
+      { "size": "L", "color": "azul", "stock": 2 }
+    ]
+  }
+]

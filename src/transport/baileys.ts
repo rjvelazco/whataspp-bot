@@ -24,6 +24,10 @@ export class BaileysTransport implements MessagingTransport {
     this.handler = handler;
   }
 
+  getAccountId(): string {
+    return this.accountId;
+  }
+
   async start(): Promise<void> {
     const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
     const { version } = await fetchLatestBaileysVersion();

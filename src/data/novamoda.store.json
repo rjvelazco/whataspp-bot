@@ -1,0 +1,20 @@
+{
+  "store_id": "novamoda",
+  "store_name": "Nova Moda",
+  "owner_name": "Ana",
+  "owner_whatsapp": "+58412XXXXXXX",
+  "hours": "Lun-Sab 9am-6pm",
+  "delivery_info": "Envíos nacionales por MRW/Zoom. Local en Maracaibo $2.",
+  "returns_policy": "Cambios dentro de 7 días con etiqueta.",
+  "payments": {
+    "pago_movil": "0102 / V-12345678 / 0412XXXXXXX",
+    "zelle": "ana@email.com",
+    "binance": "ana_usdt"
+  },
+  "size_guide": [
+    { "size": "S", "busto": 84, "cintura": 66 },
+    { "size": "M", "busto": 90, "cintura": 72 },
+    { "size": "L", "busto": 96, "cintura": 78 }
+  ],
+  "categories": ["Vestidos", "Tops", "Pantalones", "Ofertas"]
+}

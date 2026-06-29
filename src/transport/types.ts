@@ -33,4 +33,6 @@ export interface MessagingTransport {
   sendImage(to: string, url: string, caption?: string): Promise<void>;
   /** Connect (Baileys: restore creds / print pairing QR). Resolves once linked. */
   start(): Promise<void>;
+  /** The account/number this bot is connected as (known after start()). */
+  getAccountId(): string;
 }
