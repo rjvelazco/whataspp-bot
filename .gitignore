@@ -9,7 +9,7 @@ auth/
 
 # local database
 *.sqlite
-*.sqlite-journal
+*.sqlite-*
 *.db
 
 # uploaded receipt photos
