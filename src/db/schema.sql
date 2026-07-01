@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS assets (
 );
 CREATE INDEX IF NOT EXISTS idx_assets_store ON assets(store_id, category);
 
+CREATE TABLE IF NOT EXISTS menus (
+  store_id  TEXT PRIMARY KEY,
+  data_json TEXT NOT NULL   -- JSON array of FlowMenu
+);
+
 CREATE TABLE IF NOT EXISTS conversations (
   customer_wa      TEXT NOT NULL,
   store_id         TEXT NOT NULL,

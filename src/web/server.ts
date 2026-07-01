@@ -11,9 +11,11 @@ import {
   createAsset,
   deleteAsset,
   getAsset,
+  getMenus,
   getOrder,
   listAssets,
   listOrders,
+  saveMenus,
   updateOrder,
 } from "../db/repositories.js";
 import {
@@ -259,6 +261,22 @@ export class WebServer {
       deleteAsset(asset.id);
       logger.info({ id: asset.id }, "asset deleted");
       res.json({ ok: true });
+    });
+
+    // --- Menus (flow builder config) ---
+    app.get("/api/menus", (_req, res) => {
+      res.json(getMenus(this.deps.store.store_id));
+    });
+
+    app.put("/api/menus", (req, res) => {
+      const menus = req.body?.menus;
+      if (!Array.isArray(menus)) {
+        res.status(400).json({ error: "menus must be an array" });
+        return;
+      }
+      saveMenus(this.deps.store.store_id, menus);
+      logger.info({ count: menus.length }, "menus saved");
+      res.json({ ok: true, count: menus.length });
     });
 
     // --- Static Angular app + SPA fallback ---

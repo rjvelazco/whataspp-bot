@@ -104,6 +104,30 @@ export interface DraftOrder {
   delivery_address?: string | null;
 }
 
+/** Actions an editable menu option can trigger (bot flow builder). */
+export type FlowAction =
+  | "go_menu"
+  | "start_order"
+  | "show_category"
+  | "shipping_payments"
+  | "talk_human";
+
+export interface FlowOption {
+  label: string;
+  action: FlowAction;
+  /** Menu key (go_menu) or category name (show_category); unused otherwise. */
+  target?: string;
+}
+
+/** A configurable bot menu: a message + a set of options. Stored per store. */
+export interface FlowMenu {
+  key: string;
+  name: string;
+  trigger?: string;
+  message: string;
+  options: FlowOption[];
+}
+
 export type AssetCategory = "catalog" | "promo" | "story";
 
 /** An uploaded file (catalog/menu or promo/flyer) stored under uploads/assets/. */

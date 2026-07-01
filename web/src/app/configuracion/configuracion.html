@@ -1,0 +1,90 @@
+<header class="head">
+  <h1>Configuración · Menús</h1>
+  <div class="head-actions">
+    @if (dirty()) { <span class="dirty">Cambios sin guardar</span> }
+    <button class="btn primary" (click)="save()" [disabled]="!dirty() || saving()">
+      <i class="pi pi-save"></i> {{ saving() ? 'Guardando…' : 'Guardar cambios' }}
+    </button>
+  </div>
+</header>
+
+<p class="intro">
+  Define los menús del bot: el mensaje que envía y las opciones que ofrece. Usa
+  <code>&#123;store_name&#125;</code> para el nombre de la tienda. La edición se guarda aquí;
+  que el bot ejecute estos menús vendrá en un paso siguiente.
+</p>
+
+<div class="menu-list" cdkDropList (cdkDropListDropped)="dropMenu($event)">
+  @for (menu of menus(); track $index; let mi = $index) {
+    <div class="mcard" cdkDrag>
+      <div class="mcard-head" (click)="toggle(mi)">
+        <i class="grip pi pi-bars" cdkDragHandle (click)="$event.stopPropagation()"></i>
+        <i class="pi" [class.pi-chevron-down]="expanded() === mi" [class.pi-chevron-right]="expanded() !== mi"></i>
+        <i class="pi pi-comment accent"></i>
+        <span class="mname">{{ menu.name || 'Sin nombre' }}</span>
+        <span class="mkey">{{ menu.key }}</span>
+        @if (menu.trigger) { <span class="mtrigger">{{ menu.trigger }}</span> }
+        <span class="mcount">{{ menu.options.length }} opciones</span>
+        <button class="icon-btn danger" (click)="removeMenu(mi); $event.stopPropagation()" title="Eliminar menú">
+          <i class="pi pi-trash"></i>
+        </button>
+      </div>
+
+      @if (expanded() === mi) {
+        <div class="mcard-body">
+          <div class="row2">
+            <label>Nombre
+              <input type="text" [(ngModel)]="menu.name" (ngModelChange)="touch()" />
+            </label>
+            <label>Identificador
+              <input type="text" [(ngModel)]="menu.key" (ngModelChange)="touch()" />
+            </label>
+          </div>
+          <label class="full">Disparador (opcional)
+            <input type="text" [(ngModel)]="menu.trigger" (ngModelChange)="touch()" placeholder="ej: hola, inicio" />
+          </label>
+          <label class="full">Mensaje
+            <textarea rows="3" [(ngModel)]="menu.message" (ngModelChange)="touch()"
+                      placeholder="Texto del mensaje…"></textarea>
+          </label>
+
+          <div class="opt-label"><i class="pi pi-list"></i> Opciones</div>
+          <div cdkDropList (cdkDropListDropped)="dropOption($event, mi)">
+            @for (opt of menu.options; track $index; let oi = $index) {
+              <div class="opt-row" cdkDrag>
+                <i class="grip pi pi-bars" cdkDragHandle></i>
+                <input class="opt-text" type="text" [(ngModel)]="opt.label" (ngModelChange)="touch()"
+                       placeholder="Texto de la opción" />
+                <select [(ngModel)]="opt.action" (ngModelChange)="touch()">
+                  @for (a of actions; track a.value) { <option [value]="a.value">{{ a.label }}</option> }
+                </select>
+                @if (needsMenuTarget(opt.action)) {
+                  <select [(ngModel)]="opt.target" (ngModelChange)="touch()">
+                    <option value="">— menú destino —</option>
+                    @for (k of menuKeys(); track k) { <option [value]="k">{{ k }}</option> }
+                  </select>
+                } @else if (needsCategoryTarget(opt.action)) {
+                  <input type="text" [(ngModel)]="opt.target" (ngModelChange)="touch()"
+                         placeholder="Categoría (ej: Vestidos)" />
+                } @else {
+                  <span class="opt-dash">—</span>
+                }
+                <button class="icon-btn" (click)="removeOption(mi, oi)" title="Quitar opción">
+                  <i class="pi pi-times"></i>
+                </button>
+              </div>
+            }
+          </div>
+
+          <button class="link-btn" (click)="addOption(mi)"><i class="pi pi-plus"></i> Agregar opción</button>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+@if (menus().length === 0) {
+  <div class="empty-card">Aún no hay menús. Crea el primero con “Agregar menú”.</div>
+}
+
+<button class="add-menu" (click)="addMenu()"><i class="pi pi-plus"></i> Agregar menú</button>

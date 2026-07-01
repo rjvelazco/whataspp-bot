@@ -4,6 +4,7 @@ import type {
   CatalogItem,
   Conversation,
   ConvState,
+  FlowMenu,
   Order,
   OrderStatus,
   Store,
@@ -165,6 +166,22 @@ export function getAsset(id: string): Asset | undefined {
 
 export function deleteAsset(id: string): void {
   db.prepare(`DELETE FROM assets WHERE id = ?`).run(id);
+}
+
+// ---------- menus (flow builder) ----------
+
+export function getMenus(storeId: string): FlowMenu[] {
+  const row = db.prepare(`SELECT data_json FROM menus WHERE store_id = ?`).get(storeId) as
+    | { data_json: string }
+    | undefined;
+  return row ? (JSON.parse(row.data_json) as FlowMenu[]) : [];
+}
+
+export function saveMenus(storeId: string, menus: FlowMenu[]): void {
+  db.prepare(
+    `INSERT INTO menus (store_id, data_json) VALUES (?, ?)
+     ON CONFLICT(store_id) DO UPDATE SET data_json = excluded.data_json`,
+  ).run(storeId, JSON.stringify(menus));
 }
 
 // ---------- conversations ----------

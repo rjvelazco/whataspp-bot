@@ -19,7 +19,9 @@
         <i class="pi pi-folder-open"></i> Recursos
       </a>
       <span class="nav-item"><i class="pi pi-exclamation-circle"></i> Atención</span>
-      <span class="nav-item"><i class="pi pi-cog"></i> Configuración</span>
+      <a class="nav-item clickable" routerLink="configuracion" routerLinkActive="active">
+        <i class="pi pi-cog"></i> Configuración
+      </a>
     </nav>
 
     <div class="conn" [class.ok]="connected()">
