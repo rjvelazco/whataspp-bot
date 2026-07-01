@@ -16,6 +16,9 @@
         <i class="pi pi-shopping-bag"></i> Pedidos
         @if (toShip() > 0) { <span class="pill info">{{ toShip() }}</span> }
       </span>
+      <span class="nav-item clickable" [class.active]="view() === 'recursos'" (click)="view.set('recursos')">
+        <i class="pi pi-folder-open"></i> Recursos
+      </span>
       <span class="nav-item"><i class="pi pi-exclamation-circle"></i> Atención</span>
       <span class="nav-item"><i class="pi pi-cog"></i> Configuración</span>
     </nav>
@@ -27,10 +30,12 @@
 
   <main class="content">
     <header class="head">
-      <h1>{{ view() === 'pagos' ? 'Pagos' : 'Pedidos' }}</h1>
-      <button class="btn ghost" (click)="load()" [disabled]="loading()">
-        <i class="pi pi-refresh"></i> Actualizar
-      </button>
+      <h1>{{ view() === 'pagos' ? 'Pagos' : view() === 'pedidos' ? 'Pedidos' : 'Recursos' }}</h1>
+      @if (view() !== 'recursos') {
+        <button class="btn ghost" (click)="load()" [disabled]="loading()">
+          <i class="pi pi-refresh"></i> Actualizar
+        </button>
+      }
     </header>
 
     @switch (view()) {
@@ -243,6 +248,10 @@
             }
           </div>
         }
+      }
+
+      @case ('recursos') {
+        <app-recursos />
       }
     }
   </main>

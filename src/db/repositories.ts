@@ -1,5 +1,6 @@
 import { db } from "./index.js";
 import type {
+  Asset,
   CatalogItem,
   Conversation,
   ConvState,
@@ -141,6 +142,29 @@ export function setOrderStatus(orderId: string, status: OrderStatus): void {
   const order = getOrder(orderId);
   if (!order) return;
   updateOrder({ ...order, status });
+}
+
+// ---------- assets ----------
+
+export function createAsset(asset: Asset): void {
+  db.prepare(
+    `INSERT INTO assets (id, store_id, category, filename, original_name, mimetype, size, created_at)
+     VALUES (@id, @store_id, @category, @filename, @original_name, @mimetype, @size, @created_at)`,
+  ).run(asset);
+}
+
+export function listAssets(storeId: string): Asset[] {
+  return db
+    .prepare(`SELECT * FROM assets WHERE store_id = ? ORDER BY created_at DESC`)
+    .all(storeId) as Asset[];
+}
+
+export function getAsset(id: string): Asset | undefined {
+  return db.prepare(`SELECT * FROM assets WHERE id = ?`).get(id) as Asset | undefined;
+}
+
+export function deleteAsset(id: string): void {
+  db.prepare(`DELETE FROM assets WHERE id = ?`).run(id);
 }
 
 // ---------- conversations ----------

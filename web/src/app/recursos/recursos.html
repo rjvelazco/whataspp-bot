@@ -1,0 +1,79 @@
+<div class="recursos">
+  <!-- Catálogo / Menú -->
+  <section class="lib">
+    <div class="lib-head">
+      <div>
+        <h2><i class="pi pi-folder-open"></i> Catálogo / Menú</h2>
+        <p class="sub">Sube tu catálogo como imagen o PDF. Por ahora se guarda aquí; enviarlo al cliente por el bot vendrá después.</p>
+      </div>
+      <label class="upload-btn" [class.busy]="uploading() === 'catalog'">
+        <i class="pi pi-upload"></i>
+        {{ uploading() === 'catalog' ? 'Subiendo…' : 'Subir archivo' }}
+        <input type="file" accept="image/*,application/pdf" hidden
+               [disabled]="uploading() === 'catalog'" (change)="onFile($event, 'catalog')" />
+      </label>
+    </div>
+
+    @if (catalog().length === 0) {
+      <div class="empty">Aún no hay archivos de catálogo.</div>
+    } @else {
+      <div class="asset-grid">
+        @for (a of catalog(); track a.id) {
+          <div class="asset">
+            <a class="thumb" [href]="fileUrl(a.id)" target="_blank" rel="noopener">
+              @if (isImage(a)) {
+                <img [src]="fileUrl(a.id)" [alt]="a.original_name" />
+              } @else {
+                <div class="pdf"><i class="pi pi-file-pdf"></i><span>PDF</span></div>
+              }
+            </a>
+            <div class="meta">
+              <span class="name" [title]="a.original_name">{{ a.original_name }}</span>
+              <span class="size">{{ size(a.size) }}</span>
+            </div>
+            <button class="del" (click)="remove(a)" title="Eliminar"><i class="pi pi-trash"></i></button>
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <!-- Promociones / Flyers -->
+  <section class="lib">
+    <div class="lib-head">
+      <div>
+        <h2><i class="pi pi-images"></i> Promociones / Flyers</h2>
+        <p class="sub">Sube tus flyers y promociones como imágenes. Se guardan aquí para tu biblioteca.</p>
+      </div>
+      <label class="upload-btn" [class.busy]="uploading() === 'promo'">
+        <i class="pi pi-upload"></i>
+        {{ uploading() === 'promo' ? 'Subiendo…' : 'Subir flyer' }}
+        <input type="file" accept="image/*" hidden
+               [disabled]="uploading() === 'promo'" (change)="onFile($event, 'promo')" />
+      </label>
+    </div>
+
+    @if (promos().length === 0) {
+      <div class="empty">Aún no hay promociones.</div>
+    } @else {
+      <div class="asset-grid">
+        @for (a of promos(); track a.id) {
+          <div class="asset">
+            <a class="thumb" [href]="fileUrl(a.id)" target="_blank" rel="noopener">
+              @if (isImage(a)) {
+                <img [src]="fileUrl(a.id)" [alt]="a.original_name" />
+              } @else {
+                <div class="pdf"><i class="pi pi-file-pdf"></i><span>PDF</span></div>
+              }
+            </a>
+            <div class="meta">
+              <span class="name" [title]="a.original_name">{{ a.original_name }}</span>
+              <span class="size">{{ size(a.size) }}</span>
+            </div>
+            <button class="del" (click)="remove(a)" title="Eliminar"><i class="pi pi-trash"></i></button>
+          </div>
+        }
+      </div>
+    }
+  </section>
+</div>

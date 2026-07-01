@@ -1,10 +1,21 @@
 import express, { type Response } from "express";
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import multer from "multer";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+import { config } from "../config.js";
 import { logger } from "../logger.js";
-import type { Store } from "../domain/types.js";
-import { getOrder, listOrders, updateOrder } from "../db/repositories.js";
+import type { Asset, AssetCategory, Order, OrderStatus, Store } from "../domain/types.js";
+import {
+  createAsset,
+  deleteAsset,
+  getAsset,
+  getOrder,
+  listAssets,
+  listOrders,
+  updateOrder,
+} from "../db/repositories.js";
 import {
   customerCheckInMessage,
   customerDeliveredMessage,
@@ -12,7 +23,6 @@ import {
   customerPaymentConfirmedMessage,
   customerShippedMessage,
 } from "../services/notify.js";
-import type { Order, OrderStatus } from "../domain/types.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -31,6 +41,19 @@ export interface WebDeps {
 const here = dirname(fileURLToPath(import.meta.url));
 const webDir = join(here, "..", "..", "web", "dist", "store-admin", "browser");
 const indexHtml = join(webDir, "index.html");
+const assetsDir = join(config.uploadsDir, "assets");
+
+const ALLOWED_ASSET_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+
+/** Multer: store uploads under uploads/assets with a random, extension-preserving name. */
+const uploadAsset = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, assetsDir),
+    filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB
+  fileFilter: (_req, file, cb) => cb(null, ALLOWED_ASSET_TYPES.has(file.mimetype)),
+});
 
 /**
  * Serves the Angular admin UI, streams connection status over SSE, and exposes
@@ -96,6 +119,7 @@ export class WebServer {
   }
 
   listen(port: number): void {
+    mkdirSync(assetsDir, { recursive: true });
     const app = express();
     app.use(express.json());
 
@@ -186,6 +210,57 @@ export class WebServer {
       await this.advance(res, req.params.id, "shipped", "delivered", customerDeliveredMessage);
     });
 
+    // --- Assets (catalog / promo files) ---
+    app.get("/api/assets", (_req, res) => {
+      res.json(listAssets(this.deps.store.store_id));
+    });
+
+    app.post("/api/assets/:category", uploadAsset.single("file"), (req, res) => {
+      const category = req.params.category as AssetCategory;
+      if (category !== "catalog" && category !== "promo") {
+        res.status(400).json({ error: "invalid category" });
+        return;
+      }
+      if (!req.file) {
+        res.status(400).json({ error: "no file — must be JPG/PNG/WebP/PDF up to 15 MB" });
+        return;
+      }
+      const asset: Asset = {
+        id: randomUUID(),
+        store_id: this.deps.store.store_id,
+        category,
+        filename: req.file.filename,
+        original_name: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        created_at: new Date().toISOString(),
+      };
+      createAsset(asset);
+      logger.info({ id: asset.id, category }, "asset uploaded");
+      res.json(asset);
+    });
+
+    app.get("/api/assets/:id/file", (req, res) => {
+      const asset = getAsset(req.params.id);
+      if (!asset || asset.store_id !== this.deps.store.store_id) {
+        res.status(404).send("not found");
+        return;
+      }
+      res.sendFile(join(assetsDir, asset.filename));
+    });
+
+    app.delete("/api/assets/:id", (req, res) => {
+      const asset = getAsset(req.params.id);
+      if (!asset || asset.store_id !== this.deps.store.store_id) {
+        res.status(404).json({ error: "not found" });
+        return;
+      }
+      rmSync(join(assetsDir, asset.filename), { force: true });
+      deleteAsset(asset.id);
+      logger.info({ id: asset.id }, "asset deleted");
+      res.json({ ok: true });
+    });
+
     // --- Static Angular app + SPA fallback ---
     if (existsSync(webDir)) {
       app.use(express.static(webDir));
@@ -198,6 +273,13 @@ export class WebServer {
       );
       logger.warn({ webDir }, "web UI build not found — run `npm run build:web`");
     }
+
+    // Turn upload errors (too large, bad type) into a clean 400 instead of a 500.
+    const onError: express.ErrorRequestHandler = (err, _req, res, _next) => {
+      logger.error({ err }, "request error");
+      res.status(400).json({ error: "No se pudo subir el archivo (revisa tipo y tamaño)." });
+    };
+    app.use(onError);
 
     app.listen(port, () => logger.info(`Web UI on http://localhost:${port}`));
   }

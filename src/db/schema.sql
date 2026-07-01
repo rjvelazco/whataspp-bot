@@ -30,6 +30,18 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_store ON orders(store_id, status);
 
+CREATE TABLE IF NOT EXISTS assets (
+  id            TEXT PRIMARY KEY,
+  store_id      TEXT NOT NULL,
+  category      TEXT NOT NULL,   -- 'catalog' | 'promo'
+  filename      TEXT NOT NULL,   -- stored filename under uploads/assets/
+  original_name TEXT NOT NULL,
+  mimetype      TEXT NOT NULL,
+  size          INTEGER NOT NULL,
+  created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_assets_store ON assets(store_id, category);
+
 CREATE TABLE IF NOT EXISTS conversations (
   customer_wa      TEXT NOT NULL,
   store_id         TEXT NOT NULL,

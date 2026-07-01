@@ -9,6 +9,7 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConnectionService } from '../connection.service';
 import { OrdersService, type Order, type OrderStatus } from '../orders.service';
+import { Recursos } from '../recursos/recursos';
 
 type Severity = 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast';
 
@@ -37,6 +38,7 @@ const STATUS_META: Record<OrderStatus, { label: string; severity: Severity }> = 
     ImageModule,
     ToastModule,
     ConfirmDialogModule,
+    Recursos,
   ],
   providers: [MessageService, ConfirmationService],
   templateUrl: './dashboard.html',
@@ -58,7 +60,7 @@ export class Dashboard implements OnInit, OnDestroy {
   protected readonly connected = computed(() => this.conn.status().state === 'open');
 
   /** Active section in the nav rail. */
-  protected readonly view = signal<'pagos' | 'pedidos'>('pagos');
+  protected readonly view = signal<'pagos' | 'pedidos' | 'recursos'>('pagos');
 
   // ---- Pagos (payment verification) ----
   protected readonly filter = signal<'all' | 'pending' | 'verified'>('all');
