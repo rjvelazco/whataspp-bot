@@ -1,5 +1,6 @@
 import { DatePipe, CurrencyPipe } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ToolbarModule } from 'primeng/toolbar';
 import { CardModule } from 'primeng/card';
 import { TableModule } from 'primeng/table';
@@ -7,11 +8,17 @@ import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
 import { ImageModule } from 'primeng/image';
 import { ToastModule } from 'primeng/toast';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { MessageService } from 'primeng/api';
 import { ConnectionService } from '../connection.service';
 import { OrdersService, type Order, type OrderStatus } from '../orders.service';
 
 type Severity = 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast';
+
+/** An order counts as "verified" once the owner has confirmed the payment. */
+function isVerified(order: Order): boolean {
+  return order.status === 'confirmed' || order.status === 'shipped';
+}
 
 const STATUS_META: Record<OrderStatus, { label: string; severity: Severity }> = {
   pending_payment: { label: 'Esperando pago', severity: 'secondary' },
@@ -26,6 +33,7 @@ const STATUS_META: Record<OrderStatus, { label: string; severity: Severity }> = 
   imports: [
     DatePipe,
     CurrencyPipe,
+    FormsModule,
     ToolbarModule,
     CardModule,
     TableModule,
@@ -33,6 +41,7 @@ const STATUS_META: Record<OrderStatus, { label: string; severity: Severity }> = 
     ButtonModule,
     ImageModule,
     ToastModule,
+    SelectButtonModule,
   ],
   providers: [MessageService],
   templateUrl: './dashboard.html',
@@ -49,13 +58,27 @@ export class Dashboard implements OnInit, OnDestroy {
   private readonly verifying = signal<string | null>(null);
   private timer?: ReturnType<typeof setInterval>;
 
+  /** Which orders to show. "verified" = payment already confirmed (or shipped). */
+  protected readonly filter = signal<'all' | 'pending' | 'verified'>('all');
+  protected readonly filterOptions = [
+    { label: 'Todos', value: 'all' },
+    { label: 'Por verificar', value: 'pending' },
+    { label: 'Verificados', value: 'verified' },
+  ];
+
   protected readonly total = computed(() => this.rows().length);
   protected readonly pending = computed(
     () => this.rows().filter((o) => o.status === 'payment_submitted').length,
   );
-  protected readonly done = computed(
-    () => this.rows().filter((o) => o.status === 'confirmed' || o.status === 'shipped').length,
-  );
+  protected readonly done = computed(() => this.rows().filter(isVerified).length);
+
+  /** Rows after applying the current filter. */
+  protected readonly filteredRows = computed(() => {
+    const f = this.filter();
+    if (f === 'pending') return this.rows().filter((o) => o.status === 'payment_submitted');
+    if (f === 'verified') return this.rows().filter(isVerified);
+    return this.rows();
+  });
 
   ngOnInit(): void {
     this.load();
