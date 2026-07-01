@@ -1,0 +1,38 @@
+<p-toolbar class="topbar">
+  <ng-template pTemplate="start">
+    <span class="brand">🛍️ Store Bot — Panel</span>
+  </ng-template>
+  <ng-template pTemplate="end">
+    @if (conn.status().state === 'open') {
+      <p-tag severity="success" icon="pi pi-whatsapp"
+             [value]="'Conectado · ' + accountNumber($any(conn.status()).accountId)"></p-tag>
+    } @else {
+      <p-tag severity="warn" value="Desconectado"></p-tag>
+    }
+  </ng-template>
+</p-toolbar>
+
+<main class="content">
+  <div class="cards">
+    <p-card header="Pedidos">
+      <p class="metric">0</p>
+      <p class="muted">Aún no hay pedidos.</p>
+    </p-card>
+    <p-card header="Pagos por verificar">
+      <p class="metric">0</p>
+      <p class="muted">Nada pendiente por ahora.</p>
+    </p-card>
+    <p-card header="Enviados">
+      <p class="metric">0</p>
+      <p class="muted">Sin envíos todavía.</p>
+    </p-card>
+  </div>
+
+  <p-card header="Pagos">
+    <p class="muted">
+      Panel vacío por ahora. Aquí irá la lista de pagos con el comprobante de cada pedido
+      y un botón <strong>Verificar pago</strong>.
+    </p>
+    <p-button label="Actualizar" icon="pi pi-refresh" [outlined]="true" [disabled]="true" />
+  </p-card>
+</main>
