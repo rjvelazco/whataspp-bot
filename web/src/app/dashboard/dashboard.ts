@@ -14,14 +14,15 @@ type Severity = 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast
 
 /** An order counts as "verified" once the owner has confirmed the payment. */
 function isVerified(order: Order): boolean {
-  return order.status === 'confirmed' || order.status === 'shipped';
+  return order.status === 'confirmed' || order.status === 'shipped' || order.status === 'delivered';
 }
 
 const STATUS_META: Record<OrderStatus, { label: string; severity: Severity }> = {
   pending_payment: { label: 'Esperando pago', severity: 'secondary' },
   payment_submitted: { label: 'Por verificar', severity: 'warn' },
-  confirmed: { label: 'Confirmado', severity: 'success' },
-  shipped: { label: 'Enviado', severity: 'info' },
+  confirmed: { label: 'Confirmado', severity: 'info' },
+  shipped: { label: 'En camino', severity: 'contrast' },
+  delivered: { label: 'Entregado', severity: 'success' },
   cancelled: { label: 'Cancelado', severity: 'danger' },
 };
 
@@ -56,7 +57,10 @@ export class Dashboard implements OnInit, OnDestroy {
 
   protected readonly connected = computed(() => this.conn.status().state === 'open');
 
-  /** Which orders to show. "verified" = payment already confirmed (or shipped). */
+  /** Active section in the nav rail. */
+  protected readonly view = signal<'pagos' | 'pedidos'>('pagos');
+
+  // ---- Pagos (payment verification) ----
   protected readonly filter = signal<'all' | 'pending' | 'verified'>('all');
   protected readonly filterOptions: { label: string; value: 'all' | 'pending' | 'verified' }[] = [
     { label: 'Todos', value: 'all' },
@@ -70,12 +74,40 @@ export class Dashboard implements OnInit, OnDestroy {
   );
   protected readonly done = computed(() => this.rows().filter(isVerified).length);
 
-  /** Rows after applying the current filter. */
   protected readonly filteredRows = computed(() => {
     const f = this.filter();
     if (f === 'pending') return this.rows().filter((o) => o.status === 'payment_submitted');
     if (f === 'verified') return this.rows().filter(isVerified);
     return this.rows();
+  });
+
+  // ---- Pedidos (fulfillment) ----
+  protected readonly fulfillFilter = signal<'all' | 'toship' | 'shipped' | 'delivered'>('all');
+  protected readonly fulfillOptions: {
+    label: string;
+    value: 'all' | 'toship' | 'shipped' | 'delivered';
+  }[] = [
+    { label: 'Todos', value: 'all' },
+    { label: 'Por enviar', value: 'toship' },
+    { label: 'En camino', value: 'shipped' },
+    { label: 'Entregados', value: 'delivered' },
+  ];
+
+  protected readonly toShip = computed(() => this.rows().filter((o) => o.status === 'confirmed').length);
+  protected readonly inTransit = computed(() => this.rows().filter((o) => o.status === 'shipped').length);
+  protected readonly deliveredCount = computed(
+    () => this.rows().filter((o) => o.status === 'delivered').length,
+  );
+
+  /** Orders in the fulfillment pipeline (payment already verified). */
+  protected readonly fulfillRows = computed(() => {
+    const inPipeline = (o: Order) =>
+      o.status === 'confirmed' || o.status === 'shipped' || o.status === 'delivered';
+    const f = this.fulfillFilter();
+    if (f === 'toship') return this.rows().filter((o) => o.status === 'confirmed');
+    if (f === 'shipped') return this.rows().filter((o) => o.status === 'shipped');
+    if (f === 'delivered') return this.rows().filter((o) => o.status === 'delivered');
+    return this.rows().filter(inPipeline);
   });
 
   ngOnInit(): void {
@@ -140,6 +172,30 @@ export class Dashboard implements OnInit, OnDestroy {
           error: () => this.fail('No se pudo cancelar el pedido'),
         });
       },
+    });
+  }
+
+  protected ship(order: Order): void {
+    this.busy.set(order.order_id);
+    this.orders.ship(order.order_id).subscribe({
+      next: (res) => {
+        this.busy.set(null);
+        this.notifyResult(res.notified, `Pedido #${order.order_id} enviado`);
+        this.load();
+      },
+      error: () => this.fail('No se pudo marcar como enviado'),
+    });
+  }
+
+  protected deliver(order: Order): void {
+    this.busy.set(order.order_id);
+    this.orders.deliver(order.order_id).subscribe({
+      next: (res) => {
+        this.busy.set(null);
+        this.notifyResult(res.notified, `Pedido #${order.order_id} entregado`);
+        this.load();
+      },
+      error: () => this.fail('No se pudo marcar como entregado'),
     });
   }
 

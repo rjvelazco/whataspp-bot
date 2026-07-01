@@ -7,10 +7,12 @@ import type { Store } from "../domain/types.js";
 import { getOrder, listOrders, updateOrder } from "../db/repositories.js";
 import {
   customerCheckInMessage,
+  customerDeliveredMessage,
   customerOrderCancelledMessage,
   customerPaymentConfirmedMessage,
+  customerShippedMessage,
 } from "../services/notify.js";
-import type { Order } from "../domain/types.js";
+import type { Order, OrderStatus } from "../domain/types.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -51,6 +53,30 @@ export class WebServer {
   private findOrder(id: string): Order | undefined {
     const order = getOrder(id);
     return order && order.store_id === this.deps.store.store_id ? order : undefined;
+  }
+
+  /** Advance an order from one status to the next, notifying the customer. */
+  private async advance(
+    res: Response,
+    id: string,
+    from: OrderStatus,
+    to: OrderStatus,
+    message: (order: Order, store: Store) => string,
+  ): Promise<void> {
+    const order = this.findOrder(id);
+    if (!order) {
+      res.status(404).json({ error: "order not found" });
+      return;
+    }
+    if (order.status !== from) {
+      res.status(409).json({ error: `order is not ${from}` });
+      return;
+    }
+    const updated = { ...order, status: to };
+    updateOrder(updated);
+    const notified = await this.trySend(order.customer_wa, message(updated, this.deps.store));
+    logger.info({ orderId: order.order_id, to, notified }, "order advanced");
+    res.json({ order: updated, notified });
   }
 
   /** Send a WhatsApp message, reporting whether it went out. Skips when offline
@@ -148,6 +174,16 @@ export class WebServer {
       );
       logger.info({ orderId: order.order_id, notified }, "order cancelled");
       res.json({ order: updated, notified });
+    });
+
+    // Fulfillment: confirmed → shipped.
+    app.post("/api/orders/:id/ship", async (req, res) => {
+      await this.advance(res, req.params.id, "confirmed", "shipped", customerShippedMessage);
+    });
+
+    // Fulfillment: shipped → delivered.
+    app.post("/api/orders/:id/deliver", async (req, res) => {
+      await this.advance(res, req.params.id, "shipped", "delivered", customerDeliveredMessage);
     });
 
     // --- Static Angular app + SPA fallback ---

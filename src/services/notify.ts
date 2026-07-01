@@ -24,6 +24,23 @@ export function customerPaymentConfirmedMessage(order: Order, store: Store): str
   );
 }
 
+/** Message to the customer when their order ships. */
+export function customerShippedMessage(order: Order, store: Store): string {
+  return (
+    `🚚 ¡Tu pedido *#${order.order_id}* va en camino!\n` +
+    `Entrega: ${order.delivery_address}\n` +
+    `Gracias por comprar en ${store.store_name}. 💛`
+  );
+}
+
+/** Message to the customer when their order is marked delivered. */
+export function customerDeliveredMessage(order: Order, store: Store): string {
+  return (
+    `🎉 Tu pedido *#${order.order_id}* fue entregado.\n` +
+    `¡Esperamos que lo disfrutes! Gracias por elegir ${store.store_name}. 🙌`
+  );
+}
+
 /** Owner-initiated check-in when a customer hasn't paid yet. */
 export function customerCheckInMessage(order: Order, store: Store): string {
   return (

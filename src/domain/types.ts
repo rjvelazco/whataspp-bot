@@ -66,6 +66,7 @@ export type OrderStatus =
   | "payment_submitted"
   | "confirmed"
   | "shipped"
+  | "delivered"
   | "cancelled";
 
 export interface OrderItem {

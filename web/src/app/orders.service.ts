@@ -7,6 +7,7 @@ export type OrderStatus =
   | 'payment_submitted'
   | 'confirmed'
   | 'shipped'
+  | 'delivered'
   | 'cancelled';
 
 export interface OrderItem {
@@ -48,6 +49,14 @@ export class OrdersService {
 
   cancel(orderId: string): Observable<{ order: Order; notified: boolean }> {
     return this.http.post<{ order: Order; notified: boolean }>(`/api/orders/${orderId}/cancel`, {});
+  }
+
+  ship(orderId: string): Observable<{ order: Order; notified: boolean }> {
+    return this.http.post<{ order: Order; notified: boolean }>(`/api/orders/${orderId}/ship`, {});
+  }
+
+  deliver(orderId: string): Observable<{ order: Order; notified: boolean }> {
+    return this.http.post<{ order: Order; notified: boolean }>(`/api/orders/${orderId}/deliver`, {});
   }
 
   receiptUrl(orderId: string): string {

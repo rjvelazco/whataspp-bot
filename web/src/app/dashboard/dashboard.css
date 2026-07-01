@@ -54,7 +54,14 @@
 .nav-item .pi {
   font-size: 16px;
 }
-.nav-item.active {
+.nav-item.clickable {
+  cursor: pointer;
+}
+.nav-item.clickable:hover {
+  background: var(--surface-2);
+}
+.nav-item.active,
+.nav-item.active:hover {
   background: var(--bg-accent);
   color: var(--text-accent);
   font-weight: 500;
@@ -70,6 +77,17 @@
 .pill.warn {
   background: var(--bg-warning);
   color: var(--text-warning);
+}
+.pill.info {
+  background: var(--bg-accent);
+  color: var(--text-accent);
+}
+
+.addr-icon {
+  font-size: 12px;
+  margin-right: 5px;
+  color: var(--text-muted);
+  vertical-align: -1px;
 }
 
 .conn {
