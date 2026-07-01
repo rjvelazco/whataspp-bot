@@ -1,0 +1,124 @@
+<header class="head">
+  <h1>Pedidos</h1>
+  <button class="btn ghost" (click)="store.load()" [disabled]="store.loading()">
+    <i class="pi pi-refresh"></i> Actualizar
+  </button>
+</header>
+
+<section class="metrics">
+  <div class="metric">
+    <span class="label">Por enviar</span>
+    <span class="value" [class.alert]="store.toShip() > 0">{{ store.toShip() }}</span>
+    <span class="hint">Pago verificado, listos para preparar</span>
+  </div>
+  <div class="metric">
+    <span class="label">En camino</span><span class="value">{{ store.inTransit() }}</span>
+    <span class="hint">Enviados, aún no entregados</span>
+  </div>
+  <div class="metric">
+    <span class="label">Entregados</span><span class="value">{{ store.deliveredCount() }}</span>
+    <span class="hint">En manos del cliente</span>
+  </div>
+</section>
+
+<div class="chips bar">
+  @for (opt of fulfillOptions; track opt.value) {
+    <button class="chip" [class.active]="fulfillFilter() === opt.value"
+            (click)="fulfillFilter.set(opt.value)">{{ opt.label }}</button>
+  }
+</div>
+
+@if (fulfillRows().length === 0) {
+  <div class="empty-card">
+    @if (fulfillFilter() === 'toship') { Nada por enviar por ahora. }
+    @else if (fulfillFilter() === 'shipped') { Ningún pedido en camino. }
+    @else if (fulfillFilter() === 'delivered') { Aún no hay pedidos entregados. }
+    @else { No hay pedidos por preparar. Se listan aquí cuando verificas un pago en Pagos. }
+  </div>
+} @else {
+  <div class="cards-grid">
+    @for (order of fulfillRows(); track order.order_id) {
+      <article class="order-card">
+        <header class="oc-head">
+          <div class="oc-head-top">
+            <div>
+              <div class="oc-id">Pedido #{{ order.order_id }}</div>
+              <div class="oc-date">{{ order.created_at | date: 'd MMM y · h:mm a' }}</div>
+            </div>
+            <p-tag [severity]="statusSeverity(order.status)" [value]="statusLabel(order.status)" />
+          </div>
+          <div class="oc-cust">
+            <span class="avatar">{{ order.customer_name.slice(0, 2) }}</span>
+            <div>
+              <div class="cust-name">{{ order.customer_name }}</div>
+              <div class="cust-num">{{ customerNumber(order.customer_wa) }}</div>
+            </div>
+          </div>
+        </header>
+
+        <div class="oc-body">
+          @for (it of order.items; track it.code + it.size + it.color) {
+            <div class="oc-item">
+              <div class="oc-thumb"><i class="pi pi-image"></i></div>
+              <div class="oc-item-info">
+                <div class="oc-item-row">
+                  <span class="oc-item-name">{{ it.name || it.code }}</span>
+                  <span>{{ it.price * it.qty | currency: 'USD' }}</span>
+                </div>
+                <div class="oc-item-meta">Talla {{ it.size }} · {{ it.color }} · ×{{ it.qty }}</div>
+                <div class="oc-item-unit">{{ it.price | currency: 'USD' }} c/u</div>
+              </div>
+            </div>
+          }
+          <div class="oc-divider"></div>
+          <div class="oc-line"><span>Subtotal</span><span>{{ order.subtotal | currency: 'USD' }}</span></div>
+          <div class="oc-line"><span>Envío</span><span class="muted">a coordinar</span></div>
+          <div class="oc-total"><span>Total</span><span>{{ order.subtotal | currency: 'USD' }}</span></div>
+        </div>
+
+        <div class="oc-info">
+          <div class="oc-info-label"><i class="pi pi-map-marker"></i> Entrega</div>
+          <div class="oc-info-val">{{ order.delivery_address }}</div>
+          <div class="oc-info-label"><i class="pi pi-wallet"></i> Pago</div>
+          <div class="oc-pay">
+            @if (order.receipt_url) {
+              <span class="oc-pay-left">
+                <p-image [src]="store.receiptUrl(order.order_id)" [preview]="true" width="28" alt="Comprobante" />
+                Comprobante
+              </span>
+            } @else {
+              <span class="muted">Sin comprobante</span>
+            }
+            <span class="verified"><i class="pi pi-check-circle"></i> Verificado</span>
+          </div>
+        </div>
+
+        <div class="oc-actions">
+          <a class="ocbtn ghost" [href]="waLink(order.customer_wa)" target="_blank" rel="noopener">
+            <i class="pi pi-whatsapp"></i> Mensaje
+          </a>
+          @switch (order.status) {
+            @case ('confirmed') {
+              <button class="ocbtn primary" [disabled]="store.isBusy(order.order_id)" (click)="store.ship(order)">
+                <i class="pi pi-send"></i> Marcar enviado
+              </button>
+            }
+            @case ('shipped') {
+              <button class="ocbtn success" [disabled]="store.isBusy(order.order_id)" (click)="store.deliver(order)">
+                <i class="pi pi-check-circle"></i> Marcar entregado
+              </button>
+            }
+            @default {
+              <span class="ocbtn done"><i class="pi pi-check"></i> Entregado</span>
+            }
+          }
+        </div>
+        @if (order.status === 'confirmed') {
+          <button class="oc-cancel" [disabled]="store.isBusy(order.order_id)" (click)="store.cancel(order)">
+            Cancelar pedido
+          </button>
+        }
+      </article>
+    }
+  </div>
+}

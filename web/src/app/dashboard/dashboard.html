@@ -2,23 +2,22 @@
 <p-confirmdialog />
 
 <div class="admin">
-  <!-- Left nav rail -->
   <aside class="sidebar">
     <div class="brand"><i class="pi pi-shop"></i> Store Bot</div>
 
     <nav class="nav">
       <span class="nav-item"><i class="pi pi-comments"></i> Chats</span>
-      <span class="nav-item clickable" [class.active]="view() === 'pagos'" (click)="view.set('pagos')">
+      <a class="nav-item clickable" routerLink="pagos" routerLinkActive="active">
         <i class="pi pi-wallet"></i> Pagos
-        @if (pending() > 0) { <span class="pill warn">{{ pending() }}</span> }
-      </span>
-      <span class="nav-item clickable" [class.active]="view() === 'pedidos'" (click)="view.set('pedidos')">
+        @if (store.pendingVerify() > 0) { <span class="pill warn">{{ store.pendingVerify() }}</span> }
+      </a>
+      <a class="nav-item clickable" routerLink="pedidos" routerLinkActive="active">
         <i class="pi pi-shopping-bag"></i> Pedidos
-        @if (toShip() > 0) { <span class="pill info">{{ toShip() }}</span> }
-      </span>
-      <span class="nav-item clickable" [class.active]="view() === 'recursos'" (click)="view.set('recursos')">
+        @if (store.toShip() > 0) { <span class="pill info">{{ store.toShip() }}</span> }
+      </a>
+      <a class="nav-item clickable" routerLink="recursos" routerLinkActive="active">
         <i class="pi pi-folder-open"></i> Recursos
-      </span>
+      </a>
       <span class="nav-item"><i class="pi pi-exclamation-circle"></i> Atención</span>
       <span class="nav-item"><i class="pi pi-cog"></i> Configuración</span>
     </nav>
@@ -29,230 +28,6 @@
   </aside>
 
   <main class="content">
-    <header class="head">
-      <h1>{{ view() === 'pagos' ? 'Pagos' : view() === 'pedidos' ? 'Pedidos' : 'Recursos' }}</h1>
-      @if (view() !== 'recursos') {
-        <button class="btn ghost" (click)="load()" [disabled]="loading()">
-          <i class="pi pi-refresh"></i> Actualizar
-        </button>
-      }
-    </header>
-
-    @switch (view()) {
-      <!-- ============ PAGOS ============ -->
-      @case ('pagos') {
-        <section class="metrics">
-          <div class="metric">
-            <span class="label">Pedidos</span><span class="value">{{ total() }}</span>
-            <span class="hint">Total recibidos</span>
-          </div>
-          <div class="metric">
-            <span class="label">Por verificar</span>
-            <span class="value" [class.alert]="pending() > 0">{{ pending() }}</span>
-            <span class="hint">Requieren tu revisión</span>
-          </div>
-          <div class="metric">
-            <span class="label">Confirmados</span><span class="value">{{ done() }}</span>
-            <span class="hint">Pago verificado</span>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="chips">
-            @for (opt of filterOptions; track opt.value) {
-              <button class="chip" [class.active]="filter() === opt.value" (click)="filter.set(opt.value)">
-                {{ opt.label }}
-              </button>
-            }
-          </div>
-
-          <p-table [value]="filteredRows()" [paginator]="filteredRows().length > 10" [rows]="10"
-                   dataKey="order_id" styleClass="p-datatable-sm">
-            <ng-template pTemplate="header">
-              <tr>
-                <th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Artículos</th>
-                <th>Total</th><th>Estado</th><th>Comprobante</th><th>Acción</th>
-              </tr>
-            </ng-template>
-            <ng-template pTemplate="body" let-order>
-              <tr>
-                <td>#{{ order.order_id }}</td>
-                <td>{{ order.created_at | date: 'short' }}</td>
-                <td>
-                  <div class="cust">
-                    <span class="avatar">{{ order.customer_name.slice(0, 2) }}</span>
-                    <span>
-                      <span class="cust-name">{{ order.customer_name }}</span>
-                      <span class="cust-num">{{ customerNumber(order.customer_wa) }}</span>
-                    </span>
-                  </div>
-                </td>
-                <td class="items">{{ items(order) }}</td>
-                <td>{{ order.subtotal | currency: 'USD' }}</td>
-                <td><p-tag [severity]="statusSeverity(order.status)" [value]="statusLabel(order.status)" /></td>
-                <td>
-                  @if (order.receipt_url) {
-                    <p-image [src]="receiptUrl(order.order_id)" [preview]="true" width="44" alt="Comprobante" />
-                  } @else { <span class="muted">—</span> }
-                </td>
-                <td>
-                  <div class="row-actions">
-                    @switch (order.status) {
-                      @case ('payment_submitted') {
-                        <p-button label="Verificar" icon="pi pi-check" size="small"
-                                  [loading]="isBusy(order.order_id)" (onClick)="verify(order)" />
-                        <p-button label="Cancelar" icon="pi pi-times" size="small" severity="danger"
-                                  [outlined]="true" [disabled]="isBusy(order.order_id)" (onClick)="cancel(order)" />
-                      }
-                      @case ('pending_payment') {
-                        <p-button label="Recordatorio" icon="pi pi-bell" size="small" [outlined]="true"
-                                  [loading]="isBusy(order.order_id)" (onClick)="remind(order)" />
-                        <p-button label="Cancelar" icon="pi pi-times" size="small" severity="danger"
-                                  [outlined]="true" [disabled]="isBusy(order.order_id)" (onClick)="cancel(order)" />
-                      }
-                      @default { <span class="muted">—</span> }
-                    }
-                  </div>
-                </td>
-              </tr>
-            </ng-template>
-            <ng-template pTemplate="emptymessage">
-              <tr>
-                <td colspan="8" class="empty">
-                  @if (filter() === 'verified') { Aún no hay pagos verificados. }
-                  @else if (filter() === 'pending') { No hay pagos por verificar. ✅ }
-                  @else { Aún no hay pedidos. Cuando un cliente compre, aparecerá aquí. }
-                </td>
-              </tr>
-            </ng-template>
-          </p-table>
-        </section>
-      }
-
-      <!-- ============ PEDIDOS ============ -->
-      @case ('pedidos') {
-        <section class="metrics">
-          <div class="metric">
-            <span class="label">Por enviar</span>
-            <span class="value" [class.alert]="toShip() > 0">{{ toShip() }}</span>
-            <span class="hint">Pago verificado, listos para preparar</span>
-          </div>
-          <div class="metric">
-            <span class="label">En camino</span><span class="value">{{ inTransit() }}</span>
-            <span class="hint">Enviados, aún no entregados</span>
-          </div>
-          <div class="metric">
-            <span class="label">Entregados</span><span class="value">{{ deliveredCount() }}</span>
-            <span class="hint">En manos del cliente</span>
-          </div>
-        </section>
-
-        <div class="chips bar">
-          @for (opt of fulfillOptions; track opt.value) {
-            <button class="chip" [class.active]="fulfillFilter() === opt.value"
-                    (click)="fulfillFilter.set(opt.value)">{{ opt.label }}</button>
-          }
-        </div>
-
-        @if (fulfillRows().length === 0) {
-          <div class="empty-card">
-            @if (fulfillFilter() === 'toship') { Nada por enviar por ahora. }
-            @else if (fulfillFilter() === 'shipped') { Ningún pedido en camino. }
-            @else if (fulfillFilter() === 'delivered') { Aún no hay pedidos entregados. }
-            @else { No hay pedidos por preparar. Se listan aquí cuando verificas un pago en Pagos. }
-          </div>
-        } @else {
-          <div class="cards-grid">
-            @for (order of fulfillRows(); track order.order_id) {
-              <article class="order-card">
-                <header class="oc-head">
-                  <div class="oc-head-top">
-                    <div>
-                      <div class="oc-id">Pedido #{{ order.order_id }}</div>
-                      <div class="oc-date">{{ order.created_at | date: 'd MMM y · h:mm a' }}</div>
-                    </div>
-                    <p-tag [severity]="statusSeverity(order.status)" [value]="statusLabel(order.status)" />
-                  </div>
-                  <div class="oc-cust">
-                    <span class="avatar">{{ order.customer_name.slice(0, 2) }}</span>
-                    <div>
-                      <div class="cust-name">{{ order.customer_name }}</div>
-                      <div class="cust-num">{{ customerNumber(order.customer_wa) }}</div>
-                    </div>
-                  </div>
-                </header>
-
-                <div class="oc-body">
-                  @for (it of order.items; track it.code + it.size + it.color) {
-                    <div class="oc-item">
-                      <div class="oc-thumb"><i class="pi pi-image"></i></div>
-                      <div class="oc-item-info">
-                        <div class="oc-item-row">
-                          <span class="oc-item-name">{{ it.name || it.code }}</span>
-                          <span>{{ it.price * it.qty | currency: 'USD' }}</span>
-                        </div>
-                        <div class="oc-item-meta">Talla {{ it.size }} · {{ it.color }} · ×{{ it.qty }}</div>
-                        <div class="oc-item-unit">{{ it.price | currency: 'USD' }} c/u</div>
-                      </div>
-                    </div>
-                  }
-                  <div class="oc-divider"></div>
-                  <div class="oc-line"><span>Subtotal</span><span>{{ order.subtotal | currency: 'USD' }}</span></div>
-                  <div class="oc-line"><span>Envío</span><span class="muted">a coordinar</span></div>
-                  <div class="oc-total"><span>Total</span><span>{{ order.subtotal | currency: 'USD' }}</span></div>
-                </div>
-
-                <div class="oc-info">
-                  <div class="oc-info-label"><i class="pi pi-map-marker"></i> Entrega</div>
-                  <div class="oc-info-val">{{ order.delivery_address }}</div>
-                  <div class="oc-info-label"><i class="pi pi-wallet"></i> Pago</div>
-                  <div class="oc-pay">
-                    @if (order.receipt_url) {
-                      <span class="oc-pay-left">
-                        <p-image [src]="receiptUrl(order.order_id)" [preview]="true" width="28" alt="Comprobante" />
-                        Comprobante
-                      </span>
-                    } @else {
-                      <span class="muted">Sin comprobante</span>
-                    }
-                    <span class="verified"><i class="pi pi-check-circle"></i> Verificado</span>
-                  </div>
-                </div>
-
-                <div class="oc-actions">
-                  <a class="ocbtn ghost" [href]="waLink(order.customer_wa)" target="_blank" rel="noopener">
-                    <i class="pi pi-whatsapp"></i> Mensaje
-                  </a>
-                  @switch (order.status) {
-                    @case ('confirmed') {
-                      <button class="ocbtn primary" [disabled]="isBusy(order.order_id)" (click)="ship(order)">
-                        <i class="pi pi-send"></i> Marcar enviado
-                      </button>
-                    }
-                    @case ('shipped') {
-                      <button class="ocbtn success" [disabled]="isBusy(order.order_id)" (click)="deliver(order)">
-                        <i class="pi pi-check-circle"></i> Marcar entregado
-                      </button>
-                    }
-                    @default {
-                      <span class="ocbtn done"><i class="pi pi-check"></i> Entregado</span>
-                    }
-                  }
-                </div>
-                @if (order.status === 'confirmed') {
-                  <button class="oc-cancel" [disabled]="isBusy(order.order_id)" (click)="cancel(order)">
-                    Cancelar pedido
-                  </button>
-                }
-              </article>
-            }
-          </div>
-        }
-      }
-
-      @case ('recursos') {
-        <app-recursos />
-      }
-    }
+    <router-outlet />
   </main>
 </div>
