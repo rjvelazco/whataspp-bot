@@ -1,14 +1,10 @@
 import { DatePipe, CurrencyPipe } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { ToolbarModule } from 'primeng/toolbar';
-import { CardModule } from 'primeng/card';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
 import { ImageModule } from 'primeng/image';
 import { ToastModule } from 'primeng/toast';
-import { SelectButtonModule } from 'primeng/selectbutton';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConnectionService } from '../connection.service';
@@ -34,15 +30,11 @@ const STATUS_META: Record<OrderStatus, { label: string; severity: Severity }> = 
   imports: [
     DatePipe,
     CurrencyPipe,
-    FormsModule,
-    ToolbarModule,
-    CardModule,
     TableModule,
     TagModule,
     ButtonModule,
     ImageModule,
     ToastModule,
-    SelectButtonModule,
     ConfirmDialogModule,
   ],
   providers: [MessageService, ConfirmationService],
@@ -62,9 +54,11 @@ export class Dashboard implements OnInit, OnDestroy {
   private readonly busy = signal<string | null>(null);
   private timer?: ReturnType<typeof setInterval>;
 
+  protected readonly connected = computed(() => this.conn.status().state === 'open');
+
   /** Which orders to show. "verified" = payment already confirmed (or shipped). */
   protected readonly filter = signal<'all' | 'pending' | 'verified'>('all');
-  protected readonly filterOptions = [
+  protected readonly filterOptions: { label: string; value: 'all' | 'pending' | 'verified' }[] = [
     { label: 'Todos', value: 'all' },
     { label: 'Por verificar', value: 'pending' },
     { label: 'Verificados', value: 'verified' },

@@ -1,120 +1,136 @@
 <p-toast />
 <p-confirmdialog />
 
-<p-toolbar class="topbar">
-  <ng-template pTemplate="start">
-    <span class="brand">🛍️ Store Bot — Panel</span>
-  </ng-template>
-  <ng-template pTemplate="end">
-    @if (conn.status().state === 'open') {
-      <p-tag severity="success" icon="pi pi-whatsapp"
-             [value]="'Conectado · ' + accountNumber($any(conn.status()).accountId)" />
-    } @else {
-      <p-tag severity="warn" value="Desconectado" />
-    }
-  </ng-template>
-</p-toolbar>
+<div class="admin">
+  <!-- Left nav rail -->
+  <aside class="sidebar">
+    <div class="brand"><i class="pi pi-shop"></i> Store Bot</div>
 
-<main class="content">
-  <div class="cards">
-    <p-card header="Pedidos">
-      <p class="metric">{{ total() }}</p>
-      <p class="muted">Total recibidos</p>
-    </p-card>
-    <p-card header="Pagos por verificar">
-      <p class="metric" [class.alert]="pending() > 0">{{ pending() }}</p>
-      <p class="muted">Requieren tu revisión</p>
-    </p-card>
-    <p-card header="Confirmados">
-      <p class="metric">{{ done() }}</p>
-      <p class="muted">Pago verificado</p>
-    </p-card>
-  </div>
+    <nav class="nav">
+      <span class="nav-item"><i class="pi pi-comments"></i> Chats</span>
+      <span class="nav-item active"><i class="pi pi-wallet"></i> Pagos
+        @if (pending() > 0) { <span class="pill warn">{{ pending() }}</span> }
+      </span>
+      <span class="nav-item"><i class="pi pi-shopping-bag"></i> Pedidos</span>
+      <span class="nav-item"><i class="pi pi-exclamation-circle"></i> Atención</span>
+      <span class="nav-item"><i class="pi pi-cog"></i> Configuración</span>
+    </nav>
 
-  <p-card>
-    <ng-template pTemplate="header">
-      <div class="table-head">
-        <span>Pagos</span>
-        <div class="table-actions">
-          <p-selectButton [options]="filterOptions" [ngModel]="filter()"
-                          (onChange)="filter.set($event.value)" optionLabel="label"
-                          optionValue="value" [allowEmpty]="false" size="small" />
-          <p-button label="Actualizar" icon="pi pi-refresh" [outlined]="true"
-                    [loading]="loading()" (onClick)="load()" size="small" />
-        </div>
+    <div class="conn" [class.ok]="connected()">
+      <span class="dot"></span>{{ connected() ? 'Conectado' : 'Desconectado' }}
+    </div>
+  </aside>
+
+  <!-- Main content: Pagos -->
+  <main class="content">
+    <header class="head">
+      <h1>Pagos</h1>
+      <button class="btn ghost" (click)="load()" [disabled]="loading()">
+        <i class="pi pi-refresh"></i> Actualizar
+      </button>
+    </header>
+
+    <section class="metrics">
+      <div class="metric">
+        <span class="label">Pedidos</span>
+        <span class="value">{{ total() }}</span>
+        <span class="hint">Total recibidos</span>
       </div>
-    </ng-template>
+      <div class="metric">
+        <span class="label">Por verificar</span>
+        <span class="value" [class.alert]="pending() > 0">{{ pending() }}</span>
+        <span class="hint">Requieren tu revisión</span>
+      </div>
+      <div class="metric">
+        <span class="label">Confirmados</span>
+        <span class="value">{{ done() }}</span>
+        <span class="hint">Pago verificado</span>
+      </div>
+    </section>
 
-    <p-table [value]="filteredRows()" [paginator]="filteredRows().length > 10" [rows]="10"
-             dataKey="order_id" styleClass="p-datatable-sm">
-      <ng-template pTemplate="header">
-        <tr>
-          <th>Pedido</th>
-          <th>Fecha</th>
-          <th>Cliente</th>
-          <th>Artículos</th>
-          <th>Total</th>
-          <th>Estado</th>
-          <th>Comprobante</th>
-          <th>Acción</th>
-        </tr>
-      </ng-template>
+    <section class="panel">
+      <div class="chips">
+        @for (opt of filterOptions; track opt.value) {
+          <button class="chip" [class.active]="filter() === opt.value" (click)="filter.set(opt.value)">
+            {{ opt.label }}
+          </button>
+        }
+      </div>
 
-      <ng-template pTemplate="body" let-order>
-        <tr>
-          <td>#{{ order.order_id }}</td>
-          <td>{{ order.created_at | date: 'short' }}</td>
-          <td>
-            <div>{{ order.customer_name }}</div>
-            <div class="muted small">{{ customerNumber(order.customer_wa) }}</div>
-          </td>
-          <td class="items">{{ items(order) }}</td>
-          <td>{{ order.subtotal | currency: 'USD' }}</td>
-          <td><p-tag [severity]="statusSeverity(order.status)" [value]="statusLabel(order.status)" /></td>
-          <td>
-            @if (order.receipt_url) {
-              <p-image [src]="receiptUrl(order.order_id)" [preview]="true" width="48" alt="Comprobante" />
-            } @else {
-              <span class="muted">—</span>
-            }
-          </td>
-          <td>
-            <div class="row-actions">
-              @switch (order.status) {
-                @case ('payment_submitted') {
-                  <p-button label="Verificar" icon="pi pi-check" size="small"
-                            [loading]="isBusy(order.order_id)" (onClick)="verify(order)" />
-                  <p-button label="Cancelar" icon="pi pi-times" size="small" severity="danger"
-                            [outlined]="true" [disabled]="isBusy(order.order_id)" (onClick)="cancel(order)" />
-                }
-                @case ('pending_payment') {
-                  <p-button label="Recordatorio" icon="pi pi-bell" size="small" [outlined]="true"
-                            [loading]="isBusy(order.order_id)" (onClick)="remind(order)" />
-                  <p-button label="Cancelar" icon="pi pi-times" size="small" severity="danger"
-                            [outlined]="true" [disabled]="isBusy(order.order_id)" (onClick)="cancel(order)" />
-                }
-                @default {
-                  <span class="muted">—</span>
-                }
+      <p-table [value]="filteredRows()" [paginator]="filteredRows().length > 10" [rows]="10"
+               dataKey="order_id" styleClass="p-datatable-sm">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Pedido</th>
+            <th>Fecha</th>
+            <th>Cliente</th>
+            <th>Artículos</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th>Comprobante</th>
+            <th>Acción</th>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="body" let-order>
+          <tr>
+            <td>#{{ order.order_id }}</td>
+            <td>{{ order.created_at | date: 'short' }}</td>
+            <td>
+              <div class="cust">
+                <span class="avatar">{{ order.customer_name.slice(0, 2) }}</span>
+                <span>
+                  <span class="cust-name">{{ order.customer_name }}</span>
+                  <span class="cust-num">{{ customerNumber(order.customer_wa) }}</span>
+                </span>
+              </div>
+            </td>
+            <td class="items">{{ items(order) }}</td>
+            <td>{{ order.subtotal | currency: 'USD' }}</td>
+            <td><p-tag [severity]="statusSeverity(order.status)" [value]="statusLabel(order.status)" /></td>
+            <td>
+              @if (order.receipt_url) {
+                <p-image [src]="receiptUrl(order.order_id)" [preview]="true" width="44" alt="Comprobante" />
+              } @else {
+                <span class="muted">—</span>
               }
-            </div>
-          </td>
-        </tr>
-      </ng-template>
+            </td>
+            <td>
+              <div class="row-actions">
+                @switch (order.status) {
+                  @case ('payment_submitted') {
+                    <p-button label="Verificar" icon="pi pi-check" size="small"
+                              [loading]="isBusy(order.order_id)" (onClick)="verify(order)" />
+                    <p-button label="Cancelar" icon="pi pi-times" size="small" severity="danger"
+                              [outlined]="true" [disabled]="isBusy(order.order_id)" (onClick)="cancel(order)" />
+                  }
+                  @case ('pending_payment') {
+                    <p-button label="Recordatorio" icon="pi pi-bell" size="small" [outlined]="true"
+                              [loading]="isBusy(order.order_id)" (onClick)="remind(order)" />
+                    <p-button label="Cancelar" icon="pi pi-times" size="small" severity="danger"
+                              [outlined]="true" [disabled]="isBusy(order.order_id)" (onClick)="cancel(order)" />
+                  }
+                  @default { <span class="muted">—</span> }
+                }
+              </div>
+            </td>
+          </tr>
+        </ng-template>
 
-      <ng-template pTemplate="emptymessage">
-        <tr>
-          <td colspan="8" class="empty">
-            @if (filter() === 'verified') {
-              Aún no hay pagos verificados. Cuando confirmes uno, aparecerá aquí.
-            } @else if (filter() === 'pending') {
-              No hay pagos por verificar. ✅
-            } @else {
-              Aún no hay pedidos. Cuando un cliente compre, aparecerá aquí.
-            }
-          </td>
-        </tr>
-      </ng-template>
-    </p-table>
-  </p-card>
-</main>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="8" class="empty">
+              @if (filter() === 'verified') {
+                Aún no hay pagos verificados. Cuando confirmes uno, aparecerá aquí.
+              } @else if (filter() === 'pending') {
+                No hay pagos por verificar. ✅
+              } @else {
+                Aún no hay pedidos. Cuando un cliente compre, aparecerá aquí.
+              }
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </section>
+  </main>
+</div>
