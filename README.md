@@ -17,12 +17,27 @@ can be added later as a new adapter without touching the bot logic.
 
 ```bash
 npm install
+npm run build:web           # build the Angular web UI (first run / after UI changes)
 cp .env.example .env        # set STORE_ID (default: novamoda)
-npm run dev                 # prints a QR code in the terminal
+npm run dev                 # starts the bot + web UI on http://localhost:3000
 ```
 
-Scan the QR with the WhatsApp account that will *be* the bot (use a throwaway/non-critical number —
-Baileys is unofficial and carries a small ban risk). Then message that number from another phone.
+Open **http://localhost:3000** and scan the QR shown there with the WhatsApp account that will *be*
+the bot (use a throwaway/non-critical number — Baileys is unofficial and carries a small ban risk).
+The QR also prints in the terminal as a fallback. Once linked, the page shows **✅ Conectado**. Then
+message that number from another phone.
+
+> Prefer pairing by code instead of QR? Set `PAIR_PHONE` in `.env` (see comments there).
+
+## Web UI
+
+A small Angular app (in `web/`) runs on the same Node process as the bot:
+
+- **Now:** live QR pairing / connection status, streamed over Server-Sent Events (`/api/events`).
+- **Planned:** a payments dashboard — list orders with receipt photos and a "verify payment" button.
+
+Build it with `npm run build:web`; the bot serves the built files. For live UI development you can run
+`npm --prefix web start` (Angular dev server on :4200) alongside the bot — proxy `/api` to :3000.
 
 ## Scripts
 
@@ -31,6 +46,7 @@ Baileys is unofficial and carries a small ban risk). Then message that number fr
 | `npm run dev` | Run with file-watch + QR pairing |
 | `npm start` | Run once (production-style) |
 | `npm run build` | Type-check the project |
+| `npm run build:web` | Build the Angular web UI |
 | `npm test` | Run the state-machine unit tests |
 
 ## Onboarding a new store
