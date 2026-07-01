@@ -180,6 +180,8 @@
                       @case ('confirmed') {
                         <p-button label="Marcar enviado" icon="pi pi-send" size="small"
                                   [loading]="isBusy(order.order_id)" (onClick)="ship(order)" />
+                        <p-button label="Cancelar" icon="pi pi-times" size="small" severity="danger"
+                                  [outlined]="true" [disabled]="isBusy(order.order_id)" (onClick)="cancel(order)" />
                       }
                       @case ('shipped') {
                         <p-button label="Marcar entregado" icon="pi pi-check-circle" size="small"
