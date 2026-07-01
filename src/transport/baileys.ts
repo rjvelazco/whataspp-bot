@@ -11,12 +11,19 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
 import { logger } from "../logger.js";
-import type { IncomingMessage, MessageHandler, MessagingTransport } from "./types.js";
+import type {
+  ConnectionListener,
+  ConnectionUpdate,
+  IncomingMessage,
+  MessageHandler,
+  MessagingTransport,
+} from "./types.js";
 
 /** Baileys implementation of the transport seam. Pairs to a real number via QR. */
 export class BaileysTransport implements MessagingTransport {
   private sock?: WASocket;
   private handler?: MessageHandler;
+  private connectionListeners: ConnectionListener[] = [];
   private accountId = "";
 
   /**
@@ -30,6 +37,14 @@ export class BaileysTransport implements MessagingTransport {
 
   onMessage(handler: MessageHandler): void {
     this.handler = handler;
+  }
+
+  onConnectionUpdate(listener: ConnectionListener): void {
+    this.connectionListeners.push(listener);
+  }
+
+  private emitConnection(update: ConnectionUpdate): void {
+    for (const l of this.connectionListeners) l(update);
   }
 
   getAccountId(): string {
@@ -75,12 +90,19 @@ export class BaileysTransport implements MessagingTransport {
 
         sock.ev.on("connection.update", (update) => {
           const { connection, lastDisconnect, qr } = update;
-          if (qr && !this.pairPhone) {
-            logger.info("Scan this QR with WhatsApp (Linked Devices) to pair the bot:");
-            qrcode.generate(qr, { small: true });
+          if (qr) {
+            this.emitConnection({ state: "qr", qr });
+            if (!this.pairPhone) {
+              logger.info("Scan this QR with WhatsApp (Linked Devices) to pair the bot:");
+              qrcode.generate(qr, { small: true });
+            }
+          }
+          if (connection === "connecting") {
+            this.emitConnection({ state: "connecting" });
           }
           if (connection === "open") {
             this.accountId = jidNormalizedUser(sock.user?.id ?? "");
+            this.emitConnection({ state: "open", accountId: this.accountId });
             logger.info({ accountId: this.accountId }, "WhatsApp connected");
             resolveOpen();
           }

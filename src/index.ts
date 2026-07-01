@@ -1,7 +1,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import QRCode from "qrcode";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
+import { WebServer } from "./web/server.js";
 import { BaileysTransport } from "./transport/baileys.js";
 import type { IncomingMessage, MessagingTransport } from "./transport/types.js";
 import { seedStore } from "./services/seed.js";
@@ -109,8 +111,24 @@ async function main() {
   const store = seedStore(config.storeId);
   logger.info({ store: store.store_name }, "store ready");
 
+  const web = new WebServer();
+  web.listen(config.webPort);
+
   const transport: MessagingTransport = new BaileysTransport(config.authDir, config.pairPhone);
   transport.onMessage((msg) => handleMessage(transport, msg));
+
+  // Relay connection lifecycle to the web UI (render the QR string to an image).
+  transport.onConnectionUpdate((update) => {
+    if (update.state === "qr" && update.qr) {
+      QRCode.toDataURL(update.qr, { margin: 1, width: 320 })
+        .then((qrDataUrl) => web.setStatus({ state: "qr", qrDataUrl }))
+        .catch((err) => logger.error({ err }, "failed to render QR"));
+    } else if (update.state === "connecting") {
+      web.setStatus({ state: "connecting" });
+    } else if (update.state === "open") {
+      web.setStatus({ state: "open", accountId: update.accountId ?? "" });
+    }
+  });
 
   await transport.start();
 

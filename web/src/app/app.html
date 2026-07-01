@@ -1,0 +1,33 @@
+<main class="shell">
+  <div class="card">
+    <h1>🛍️ Store Bot</h1>
+
+    @switch (status().state) {
+      @case ('open') {
+        <div class="badge ok">✅ Conectado</div>
+        <p class="muted">El bot está enlazado y respondiendo mensajes.</p>
+        @if ($any(status()).accountId) {
+          <p class="account">{{ accountNumber($any(status()).accountId) }}</p>
+        }
+      }
+      @case ('qr') {
+        <p class="lead">Escanea este código para enlazar el bot</p>
+        <img class="qr" [src]="$any(status()).qrDataUrl" alt="Código QR de WhatsApp" />
+        <ol class="steps">
+          <li>Abre <strong>WhatsApp</strong> en el teléfono del bot</li>
+          <li>Ve a <strong>Ajustes → Dispositivos vinculados</strong></li>
+          <li>Toca <strong>Vincular un dispositivo</strong> y escanea</li>
+        </ol>
+        <p class="muted small">El código se renueva solo cada pocos segundos.</p>
+      }
+      @case ('connecting') {
+        <div class="spinner"></div>
+        <p class="muted">Conectando con WhatsApp…</p>
+      }
+      @default {
+        <div class="spinner"></div>
+        <p class="muted">Iniciando…</p>
+      }
+    }
+  </div>
+</main>

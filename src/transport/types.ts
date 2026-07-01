@@ -24,9 +24,22 @@ export interface IncomingMessage {
 
 export type MessageHandler = (message: IncomingMessage) => Promise<void>;
 
+/** Connection lifecycle, surfaced so a web UI can show the QR / linked state. */
+export interface ConnectionUpdate {
+  state: "connecting" | "qr" | "open";
+  /** Raw QR string to render (only when state === "qr"). */
+  qr?: string;
+  /** The linked account id (only when state === "open"). */
+  accountId?: string;
+}
+
+export type ConnectionListener = (update: ConnectionUpdate) => void;
+
 export interface MessagingTransport {
   /** Register the single handler that receives every inbound message. */
   onMessage(handler: MessageHandler): void;
+  /** Subscribe to connection lifecycle updates (QR string, linked state). */
+  onConnectionUpdate(listener: ConnectionListener): void;
   /** Send a plain text message. */
   sendText(to: string, body: string): Promise<void>;
   /** Send an image by URL with an optional caption. */
