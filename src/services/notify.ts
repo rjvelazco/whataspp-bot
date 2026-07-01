@@ -16,6 +16,14 @@ export function ownerOrderMessage(order: Order, store: Store): string {
   );
 }
 
+/** Message to the customer when the owner verifies their payment. */
+export function customerPaymentConfirmedMessage(order: Order, store: Store): string {
+  return (
+    `✅ ¡Pago verificado! Tu pedido *#${order.order_id}* está confirmado.\n` +
+    `${store.store_name} lo prepara para envío. ¡Gracias por tu compra! 🎉`
+  );
+}
+
 /** Owner message when a customer asks to talk to a human (spec §2.8). */
 export function ownerHandoffMessage(customerWa: string, store: Store): string {
   const number = customerWa.replace(/@.*$/, "");

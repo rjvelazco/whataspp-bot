@@ -111,11 +111,14 @@ async function main() {
   const store = seedStore(config.storeId);
   logger.info({ store: store.store_name }, "store ready");
 
-  const web = new WebServer();
-  web.listen(config.webPort);
-
   const transport: MessagingTransport = new BaileysTransport(config.authDir, config.pairPhone);
   transport.onMessage((msg) => handleMessage(transport, msg));
+
+  const web = new WebServer({
+    store,
+    sendMessage: (to, body) => transport.sendText(to, body),
+  });
+  web.listen(config.webPort);
 
   // Relay connection lifecycle to the web UI (render the QR string to an image).
   transport.onConnectionUpdate((update) => {

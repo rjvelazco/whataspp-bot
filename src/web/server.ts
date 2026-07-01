@@ -3,6 +3,9 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { logger } from "../logger.js";
+import type { Store } from "../domain/types.js";
+import { getOrder, listOrders, updateOrder } from "../db/repositories.js";
+import { customerPaymentConfirmedMessage } from "../services/notify.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -11,17 +14,26 @@ export type WebStatus =
   | { state: "qr"; qrDataUrl: string }
   | { state: "open"; accountId: string };
 
+/** What the web server needs from the rest of the app. */
+export interface WebDeps {
+  store: Store;
+  /** Send a WhatsApp message (used to notify the customer on payment verification). */
+  sendMessage: (to: string, body: string) => Promise<void>;
+}
+
 const here = dirname(fileURLToPath(import.meta.url));
 const webDir = join(here, "..", "..", "web", "dist", "store-admin", "browser");
 const indexHtml = join(webDir, "index.html");
 
 /**
- * Serves the Angular web UI and pushes live connection status over SSE.
- * Runs inside the bot process, so it shares the DB and transport.
+ * Serves the Angular admin UI, streams connection status over SSE, and exposes
+ * the orders API. Runs inside the bot process, so it shares the DB and transport.
  */
 export class WebServer {
   private readonly clients = new Set<Response>();
   private status: WebStatus = { state: "idle" };
+
+  constructor(private readonly deps: WebDeps) {}
 
   /** Update the current status and push it to every connected browser. */
   setStatus(status: WebStatus): void {
@@ -32,8 +44,9 @@ export class WebServer {
 
   listen(port: number): void {
     const app = express();
+    app.use(express.json());
 
-    // Server-Sent Events: send the current status now, then stream updates.
+    // --- Server-Sent Events: current status now, then live updates ---
     app.get("/api/events", (req, res) => {
       res.set({
         "Content-Type": "text/event-stream",
@@ -46,9 +59,51 @@ export class WebServer {
       req.on("close", () => this.clients.delete(res));
     });
 
+    // --- Orders API ---
+    app.get("/api/orders", (_req, res) => {
+      res.json(listOrders(this.deps.store.store_id));
+    });
+
+    app.get("/api/orders/:id/receipt", (req, res) => {
+      const order = getOrder(req.params.id);
+      if (
+        !order ||
+        order.store_id !== this.deps.store.store_id ||
+        !order.receipt_url ||
+        !existsSync(order.receipt_url)
+      ) {
+        res.status(404).send("no receipt");
+        return;
+      }
+      res.sendFile(order.receipt_url);
+    });
+
+    app.post("/api/orders/:id/verify", async (req, res) => {
+      const order = getOrder(req.params.id);
+      if (!order || order.store_id !== this.deps.store.store_id) {
+        res.status(404).json({ error: "order not found" });
+        return;
+      }
+      const updated = { ...order, status: "confirmed" as const };
+      updateOrder(updated);
+
+      let notified = true;
+      try {
+        await this.deps.sendMessage(
+          order.customer_wa,
+          customerPaymentConfirmedMessage(updated, this.deps.store),
+        );
+      } catch (err) {
+        notified = false;
+        logger.error({ err, orderId: order.order_id }, "failed to notify customer");
+      }
+      logger.info({ orderId: order.order_id, notified }, "payment verified");
+      res.json({ order: updated, notified });
+    });
+
+    // --- Static Angular app + SPA fallback ---
     if (existsSync(webDir)) {
       app.use(express.static(webDir));
-      // SPA fallback: any other route serves index.html.
       app.use((_req, res) => res.sendFile(indexHtml));
     } else {
       app.use((_req, res) =>

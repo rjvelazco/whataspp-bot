@@ -1,3 +1,5 @@
+<p-toast />
+
 <p-toolbar class="topbar">
   <ng-template pTemplate="start">
     <span class="brand">🛍️ Store Bot — Panel</span>
@@ -5,9 +7,9 @@
   <ng-template pTemplate="end">
     @if (conn.status().state === 'open') {
       <p-tag severity="success" icon="pi pi-whatsapp"
-             [value]="'Conectado · ' + accountNumber($any(conn.status()).accountId)"></p-tag>
+             [value]="'Conectado · ' + accountNumber($any(conn.status()).accountId)" />
     } @else {
-      <p-tag severity="warn" value="Desconectado"></p-tag>
+      <p-tag severity="warn" value="Desconectado" />
     }
   </ng-template>
 </p-toolbar>
@@ -15,24 +17,77 @@
 <main class="content">
   <div class="cards">
     <p-card header="Pedidos">
-      <p class="metric">0</p>
-      <p class="muted">Aún no hay pedidos.</p>
+      <p class="metric">{{ total() }}</p>
+      <p class="muted">Total recibidos</p>
     </p-card>
     <p-card header="Pagos por verificar">
-      <p class="metric">0</p>
-      <p class="muted">Nada pendiente por ahora.</p>
+      <p class="metric" [class.alert]="pending() > 0">{{ pending() }}</p>
+      <p class="muted">Requieren tu revisión</p>
     </p-card>
-    <p-card header="Enviados">
-      <p class="metric">0</p>
-      <p class="muted">Sin envíos todavía.</p>
+    <p-card header="Confirmados">
+      <p class="metric">{{ done() }}</p>
+      <p class="muted">Pago verificado</p>
     </p-card>
   </div>
 
-  <p-card header="Pagos">
-    <p class="muted">
-      Panel vacío por ahora. Aquí irá la lista de pagos con el comprobante de cada pedido
-      y un botón <strong>Verificar pago</strong>.
-    </p>
-    <p-button label="Actualizar" icon="pi pi-refresh" [outlined]="true" [disabled]="true" />
+  <p-card>
+    <ng-template pTemplate="header">
+      <div class="table-head">
+        <span>Pagos</span>
+        <p-button label="Actualizar" icon="pi pi-refresh" [outlined]="true"
+                  [loading]="loading()" (onClick)="load()" size="small" />
+      </div>
+    </ng-template>
+
+    <p-table [value]="rows()" [paginator]="rows().length > 10" [rows]="10" dataKey="order_id"
+             styleClass="p-datatable-sm">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Pedido</th>
+          <th>Fecha</th>
+          <th>Cliente</th>
+          <th>Artículos</th>
+          <th>Total</th>
+          <th>Estado</th>
+          <th>Comprobante</th>
+          <th>Acción</th>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="body" let-order>
+        <tr>
+          <td>#{{ order.order_id }}</td>
+          <td>{{ order.created_at | date: 'short' }}</td>
+          <td>
+            <div>{{ order.customer_name }}</div>
+            <div class="muted small">{{ customerNumber(order.customer_wa) }}</div>
+          </td>
+          <td class="items">{{ items(order) }}</td>
+          <td>{{ order.subtotal | currency: 'USD' }}</td>
+          <td><p-tag [severity]="statusSeverity(order.status)" [value]="statusLabel(order.status)" /></td>
+          <td>
+            @if (order.receipt_url) {
+              <p-image [src]="receiptUrl(order.order_id)" [preview]="true" width="48" alt="Comprobante" />
+            } @else {
+              <span class="muted">—</span>
+            }
+          </td>
+          <td>
+            @if (order.status === 'payment_submitted') {
+              <p-button label="Verificar pago" icon="pi pi-check" size="small"
+                        [loading]="isVerifying(order.order_id)" (onClick)="verify(order)" />
+            } @else {
+              <span class="muted">—</span>
+            }
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="8" class="empty">Aún no hay pedidos. Cuando un cliente compre, aparecerá aquí.</td>
+        </tr>
+      </ng-template>
+    </p-table>
   </p-card>
 </main>

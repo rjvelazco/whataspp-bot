@@ -112,6 +112,14 @@ export function createOrder(
   return order;
 }
 
+/** All orders for a store, newest first. */
+export function listOrders(storeId: string): Order[] {
+  const rows = db
+    .prepare(`SELECT data_json FROM orders WHERE store_id = ? ORDER BY seq DESC`)
+    .all(storeId) as { data_json: string }[];
+  return rows.map((r) => JSON.parse(r.data_json) as Order);
+}
+
 export function getOrder(orderId: string): Order | undefined {
   const row = db.prepare(`SELECT data_json FROM orders WHERE order_id = ?`).get(orderId) as
     | { data_json: string }
