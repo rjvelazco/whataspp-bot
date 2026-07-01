@@ -1,7 +1,7 @@
 import type { CatalogItem } from "../domain/types.js";
 import type { Intent } from "./intents.js";
 import type { EngineInput, HandlerOutput, Outgoing } from "./stateMachine.js";
-import { text } from "./stateMachine.js";
+import { handoff, text } from "./stateMachine.js";
 import { categoryMenu, shippingAndPayments } from "./menus.js";
 import { availabilityMessage, detectSize, itemCard, matchItem } from "./catalog.js";
 import {
@@ -82,7 +82,8 @@ function handleIdle(intent: Intent, input: EngineInput): HandlerOutput {
       };
     case 4: // Envíos y pagos
       return stay(input, [text(shippingAndPayments(input.store))]);
-    // Case 5 (hablar con alguien) is handled as a global intent.
+    case 5: // Hablar con alguien
+      return handoff(input);
     default:
       return stay(input, [text("Esa opción aún no está disponible. Escribe *menu*.")]);
   }

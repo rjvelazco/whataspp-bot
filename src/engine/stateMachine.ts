@@ -84,20 +84,8 @@ export function reduce(input: EngineInput): EngineResult {
 
   // --- global intents (interrupt from any state) ---
   switch (intent.type) {
-    case "talk_human": {
-      const until = new Date(now.getTime() + input.handoffPauseHours * HOUR_MS).toISOString();
-      return applyOutput(input, {
-        replies: [
-          text(
-            `Claro, le aviso a ${store.owner_name}. Te escribirá pronto. 🙌\n` +
-              `(El asistente automático se pausa mientras tanto.)`,
-          ),
-        ],
-        nextState: "paused",
-        pauseUntil: until,
-        effects: [{ type: "notifyOwnerHandoff", customerWa: conv.customer_wa }],
-      });
-    }
+    case "talk_human":
+      return applyOutput(input, handoff(input));
     case "greeting":
     case "menu":
       return applyOutput(input, {
@@ -120,6 +108,22 @@ export function reduce(input: EngineInput): EngineResult {
 
   // --- state-specific handling ---
   return applyOutput(input, dispatch(intent, input));
+}
+
+/** Human handoff: notify the owner and pause the bot for this customer (spec §2.8). */
+export function handoff(input: EngineInput): HandlerOutput {
+  const until = new Date(input.now.getTime() + input.handoffPauseHours * HOUR_MS).toISOString();
+  return {
+    replies: [
+      text(
+        `Claro, le aviso a ${input.store.owner_name}. Te escribirá pronto. 🙌\n` +
+          `(El asistente automático se pausa mientras tanto.)`,
+      ),
+    ],
+    nextState: "paused",
+    pauseUntil: until,
+    effects: [{ type: "notifyOwnerHandoff", customerWa: input.conversation.customer_wa }],
+  };
 }
 
 /** A customer sent a photo. In awaiting_payment it's their receipt (spec §2.5). */

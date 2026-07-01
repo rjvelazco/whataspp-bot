@@ -109,6 +109,12 @@ describe("human handoff", () => {
     expect(r.effects[0].type).toBe("notifyOwnerHandoff");
   });
 
+  it("triggers handoff from main-menu option 5", () => {
+    const r = run(["hola", "5"]);
+    expect(r.conversation.state).toBe("paused");
+    expect(r.effects[0].type).toBe("notifyOwnerHandoff");
+  });
+
   it("stays silent while paused, resumes on 'menu'", () => {
     const paused: Conversation = { ...freshConv(), state: "paused", bot_paused_until: "2026-06-29T20:00:00.000Z" };
     expect(run(["¿sigues ahí?"], paused).replies).toHaveLength(0);
