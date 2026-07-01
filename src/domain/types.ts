@@ -104,7 +104,7 @@ export interface DraftOrder {
   delivery_address?: string | null;
 }
 
-export type AssetCategory = "catalog" | "promo";
+export type AssetCategory = "catalog" | "promo" | "story";
 
 /** An uploaded file (catalog/menu or promo/flyer) stored under uploads/assets/. */
 export interface Asset {

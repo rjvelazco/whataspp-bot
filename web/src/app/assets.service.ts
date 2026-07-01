@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
-export type AssetCategory = 'catalog' | 'promo';
+export type AssetCategory = 'catalog' | 'promo' | 'story';
 
 export interface Asset {
   id: string;

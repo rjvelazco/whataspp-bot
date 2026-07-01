@@ -217,7 +217,7 @@ export class WebServer {
 
     app.post("/api/assets/:category", uploadAsset.single("file"), (req, res) => {
       const category = req.params.category as AssetCategory;
-      if (category !== "catalog" && category !== "promo") {
+      if (category !== "catalog" && category !== "promo" && category !== "story") {
         res.status(400).json({ error: "invalid category" });
         return;
       }

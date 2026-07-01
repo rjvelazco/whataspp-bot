@@ -19,6 +19,7 @@ export class Recursos implements OnInit {
 
   protected readonly catalog = computed(() => this.assets().filter((a) => a.category === 'catalog'));
   protected readonly promos = computed(() => this.assets().filter((a) => a.category === 'promo'));
+  protected readonly stories = computed(() => this.assets().filter((a) => a.category === 'story'));
 
   ngOnInit(): void {
     this.load();

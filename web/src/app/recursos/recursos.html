@@ -76,4 +76,43 @@
       </div>
     }
   </section>
+
+  <!-- Historias / Estados -->
+  <section class="lib">
+    <div class="lib-head">
+      <div>
+        <h2><i class="pi pi-history"></i> Historias / Estados</h2>
+        <p class="sub">Imágenes que el bot publicará como Estado de WhatsApp al iniciar. Por ahora solo se guardan aquí.</p>
+      </div>
+      <label class="upload-btn" [class.busy]="uploading() === 'story'">
+        <i class="pi pi-upload"></i>
+        {{ uploading() === 'story' ? 'Subiendo…' : 'Subir historia' }}
+        <input type="file" accept="image/*" hidden
+               [disabled]="uploading() === 'story'" (change)="onFile($event, 'story')" />
+      </label>
+    </div>
+
+    @if (stories().length === 0) {
+      <div class="empty">Aún no hay historias.</div>
+    } @else {
+      <div class="asset-grid">
+        @for (a of stories(); track a.id) {
+          <div class="asset">
+            <a class="thumb" [href]="fileUrl(a.id)" target="_blank" rel="noopener">
+              @if (isImage(a)) {
+                <img [src]="fileUrl(a.id)" [alt]="a.original_name" />
+              } @else {
+                <div class="pdf"><i class="pi pi-file-pdf"></i><span>PDF</span></div>
+              }
+            </a>
+            <div class="meta">
+              <span class="name" [title]="a.original_name">{{ a.original_name }}</span>
+              <span class="size">{{ size(a.size) }}</span>
+            </div>
+            <button class="del" (click)="remove(a)" title="Eliminar"><i class="pi pi-trash"></i></button>
+          </div>
+        }
+      </div>
+    }
+  </section>
 </div>
