@@ -145,7 +145,14 @@ function orderItem(draft: DraftOrder): OrderItem | undefined {
   if (!draft.code || !draft.size || !draft.color || !draft.qty || draft.price === undefined) {
     return undefined;
   }
-  return { code: draft.code, size: draft.size, color: draft.color, qty: draft.qty, price: draft.price };
+  return {
+    code: draft.code,
+    name: draft.name,
+    size: draft.size,
+    color: draft.color,
+    qty: draft.qty,
+    price: draft.price,
+  };
 }
 
 function summary(d: DraftOrder): string {

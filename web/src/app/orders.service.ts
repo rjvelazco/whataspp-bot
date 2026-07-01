@@ -12,6 +12,7 @@ export type OrderStatus =
 
 export interface OrderItem {
   code: string;
+  name?: string;
   size: string;
   color: string;
   qty: number;

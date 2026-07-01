@@ -233,6 +233,11 @@ export class Dashboard implements OnInit, OnDestroy {
     return '+' + wa.replace(/[:@].*$/, '');
   }
 
+  /** wa.me deep link so the owner can message the customer directly. */
+  protected waLink(wa: string): string {
+    return 'https://wa.me/' + wa.replace(/\D/g, '').replace(/^0+/, '');
+  }
+
   protected receiptUrl(orderId: string): string {
     return this.orders.receiptUrl(orderId);
   }

@@ -71,6 +71,8 @@ export type OrderStatus =
 
 export interface OrderItem {
   code: string;
+  /** Product display name, captured at order time (older orders may lack it). */
+  name?: string;
   size: string;
   color: string;
   qty: number;

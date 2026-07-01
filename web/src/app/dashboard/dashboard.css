@@ -266,3 +266,223 @@
   color: var(--text-muted);
   padding: 2rem 1rem;
 }
+
+/* ---- Pedidos: receipt-style order cards ---- */
+.chips.bar {
+  padding: 0 0 14px;
+  border-bottom: 0;
+}
+
+.empty-card {
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.order-card {
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.oc-head {
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.oc-head-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.oc-id {
+  font-size: 16px;
+  font-weight: 600;
+}
+.oc-date {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.oc-cust {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.oc-body {
+  padding: 14px 18px;
+}
+.oc-item {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.oc-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: var(--fill-control);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.oc-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.oc-item-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.oc-item-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.oc-item-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.oc-item-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.oc-divider {
+  border-top: 1px dashed var(--border-strong);
+  margin: 4px 0 12px;
+}
+.oc-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 5px;
+}
+.oc-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.oc-info {
+  margin: 0 18px 14px;
+  background: var(--surface-1);
+  border-radius: var(--radius);
+  padding: 11px 12px;
+}
+.oc-info-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.oc-info-label:not(:first-child) {
+  margin-top: 10px;
+}
+.oc-info-val {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.oc-pay {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.oc-pay-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-success);
+  font-weight: 500;
+}
+
+.oc-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 18px 14px;
+  margin-top: auto;
+}
+.ocbtn {
+  flex: 1;
+  height: 36px;
+  border-radius: var(--radius);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background: var(--surface-0);
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-decoration: none;
+}
+.ocbtn.ghost:hover {
+  background: var(--surface-1);
+}
+.ocbtn.primary {
+  background: var(--text-accent);
+  border-color: var(--text-accent);
+  color: #fff;
+}
+.ocbtn.success {
+  background: var(--text-success);
+  border-color: var(--text-success);
+  color: #fff;
+}
+.ocbtn.done {
+  background: var(--bg-success);
+  border-color: transparent;
+  color: var(--text-success);
+  cursor: default;
+}
+.ocbtn[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+.oc-cancel {
+  display: block;
+  width: calc(100% - 36px);
+  margin: 0 18px 16px;
+  background: transparent;
+  border: 0;
+  color: var(--text-danger);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px;
+}
+.oc-cancel:hover {
+  text-decoration: underline;
+}
