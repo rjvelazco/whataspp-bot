@@ -101,6 +101,14 @@ async function performEffects(
         await transport.sendText(store.owner_whatsapp, ownerHandoffMessage(effect.customerWa, store));
         break;
       }
+      case "cancelOrder": {
+        const order = getOrder(effect.orderId);
+        if (order && (order.status === "pending_payment" || order.status === "payment_submitted")) {
+          updateOrder({ ...order, status: "cancelled" });
+          logger.info({ orderId: order.order_id }, "order cancelled by customer");
+        }
+        break;
+      }
     }
   }
 }

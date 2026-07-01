@@ -42,6 +42,14 @@ export class OrdersService {
     return this.http.post<{ order: Order; notified: boolean }>(`/api/orders/${orderId}/verify`, {});
   }
 
+  remind(orderId: string): Observable<{ notified: boolean }> {
+    return this.http.post<{ notified: boolean }>(`/api/orders/${orderId}/remind`, {});
+  }
+
+  cancel(orderId: string): Observable<{ order: Order; notified: boolean }> {
+    return this.http.post<{ order: Order; notified: boolean }>(`/api/orders/${orderId}/cancel`, {});
+  }
+
   receiptUrl(orderId: string): string {
     return `/api/orders/${orderId}/receipt`;
   }

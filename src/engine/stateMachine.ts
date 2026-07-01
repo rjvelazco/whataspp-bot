@@ -13,7 +13,8 @@ export type Effect =
   | { type: "createOrder"; order: Omit<Order, "order_id" | "created_at"> }
   | { type: "saveReceipt" }
   | { type: "notifyOwner"; orderId: string }
-  | { type: "notifyOwnerHandoff"; customerWa: string };
+  | { type: "notifyOwnerHandoff"; customerWa: string }
+  | { type: "cancelOrder"; orderId: string };
 
 export interface EngineInput {
   conversation: Conversation;
@@ -96,12 +97,26 @@ export function reduce(input: EngineInput): EngineResult {
       });
     case "size_guide":
       return applyOutput(input, { replies: [text(sizeGuide(store))], nextState: conv.state });
-    case "cancel":
+    case "cancel": {
+      const activeId = conv.active_order_id;
+      if (activeId) {
+        // There's a real order in flight — cancel it, not just the chat.
+        return applyOutput(input, {
+          replies: [
+            text(`Listo, cancelamos tu pedido *#${activeId}*. Escribe *menu* para empezar de nuevo. 🙏`),
+          ],
+          nextState: "idle",
+          draft: {},
+          activeOrderId: null,
+          effects: [{ type: "cancelOrder", orderId: activeId }],
+        });
+      }
       return applyOutput(input, {
-        replies: [text("Pedido cancelado. Escribe *menu* para empezar de nuevo. 👍")],
+        replies: [text("Listo, cancelado. Escribe *menu* para empezar de nuevo. 👍")],
         nextState: "idle",
         draft: {},
       });
+    }
     default:
       break;
   }

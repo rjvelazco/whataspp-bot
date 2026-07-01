@@ -1,4 +1,5 @@
 <p-toast />
+<p-confirmdialog />
 
 <p-toolbar class="topbar">
   <ng-template pTemplate="start">
@@ -78,12 +79,25 @@
             }
           </td>
           <td>
-            @if (order.status === 'payment_submitted') {
-              <p-button label="Verificar pago" icon="pi pi-check" size="small"
-                        [loading]="isVerifying(order.order_id)" (onClick)="verify(order)" />
-            } @else {
-              <span class="muted">—</span>
-            }
+            <div class="row-actions">
+              @switch (order.status) {
+                @case ('payment_submitted') {
+                  <p-button label="Verificar" icon="pi pi-check" size="small"
+                            [loading]="isBusy(order.order_id)" (onClick)="verify(order)" />
+                  <p-button label="Cancelar" icon="pi pi-times" size="small" severity="danger"
+                            [outlined]="true" [disabled]="isBusy(order.order_id)" (onClick)="cancel(order)" />
+                }
+                @case ('pending_payment') {
+                  <p-button label="Recordatorio" icon="pi pi-bell" size="small" [outlined]="true"
+                            [loading]="isBusy(order.order_id)" (onClick)="remind(order)" />
+                  <p-button label="Cancelar" icon="pi pi-times" size="small" severity="danger"
+                            [outlined]="true" [disabled]="isBusy(order.order_id)" (onClick)="cancel(order)" />
+                }
+                @default {
+                  <span class="muted">—</span>
+                }
+              }
+            </div>
           </td>
         </tr>
       </ng-template>

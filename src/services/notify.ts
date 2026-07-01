@@ -24,6 +24,22 @@ export function customerPaymentConfirmedMessage(order: Order, store: Store): str
   );
 }
 
+/** Owner-initiated check-in when a customer hasn't paid yet. */
+export function customerCheckInMessage(order: Order, store: Store): string {
+  return (
+    `Hola 👋 ¿Todo bien con tu pedido *#${order.order_id}* de ${store.store_name}?\n` +
+    `¿Necesitas ayuda con algo o prefieres cancelarlo?`
+  );
+}
+
+/** Message to the customer when an order is cancelled (by owner or by the customer). */
+export function customerOrderCancelledMessage(order: Order, store: Store): string {
+  return (
+    `Tu pedido *#${order.order_id}* de ${store.store_name} fue cancelado.\n` +
+    `Si fue un error o quieres reordenar, escríbenos *menu*. 🙏`
+  );
+}
+
 /** Owner message when a customer asks to talk to a human (spec §2.8). */
 export function ownerHandoffMessage(customerWa: string, store: Store): string {
   const number = customerWa.replace(/@.*$/, "");

@@ -84,10 +84,22 @@ describe("order happy path", () => {
     expect(body(r)).toContain("Pago Móvil");
   });
 
-  it("cancels the order on 'cancelar'", () => {
+  it("resets the chat on 'cancelar' while still drafting (no order yet)", () => {
     const r = run(["PEDIR VESTBOHEMIO", "M", "cancelar"]);
     expect(r.conversation.state).toBe("idle");
-    expect(r.effects).toHaveLength(0);
+    expect(r.effects).toHaveLength(0); // no order created yet, nothing to cancel
+  });
+
+  it("cancels the actual order on 'cancelar' once one is in flight", () => {
+    const awaiting: Conversation = {
+      ...freshConv(),
+      state: "awaiting_payment",
+      active_order_id: "1042",
+    };
+    const r = run(["cancelar"], awaiting);
+    expect(r.conversation.state).toBe("idle");
+    expect(r.conversation.active_order_id).toBeNull();
+    expect(r.effects).toEqual([{ type: "cancelOrder", orderId: "1042" }]);
   });
 });
 

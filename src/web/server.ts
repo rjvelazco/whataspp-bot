@@ -5,7 +5,12 @@ import { fileURLToPath } from "node:url";
 import { logger } from "../logger.js";
 import type { Store } from "../domain/types.js";
 import { getOrder, listOrders, updateOrder } from "../db/repositories.js";
-import { customerPaymentConfirmedMessage } from "../services/notify.js";
+import {
+  customerCheckInMessage,
+  customerOrderCancelledMessage,
+  customerPaymentConfirmedMessage,
+} from "../services/notify.js";
+import type { Order } from "../domain/types.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -40,6 +45,28 @@ export class WebServer {
     this.status = status;
     const frame = `data: ${JSON.stringify(status)}\n\n`;
     for (const res of this.clients) res.write(frame);
+  }
+
+  /** Look up an order, scoped to this instance's store. */
+  private findOrder(id: string): Order | undefined {
+    const order = getOrder(id);
+    return order && order.store_id === this.deps.store.store_id ? order : undefined;
+  }
+
+  /** Send a WhatsApp message, reporting whether it went out. Skips when offline
+   *  (sending on a non-open socket would hang), so callers get an honest result. */
+  private async trySend(to: string, body: string): Promise<boolean> {
+    if (this.status.state !== "open") {
+      logger.warn("skipping send — WhatsApp not connected");
+      return false;
+    }
+    try {
+      await this.deps.sendMessage(to, body);
+      return true;
+    } catch (err) {
+      logger.error({ err }, "failed to send message");
+      return false;
+    }
   }
 
   listen(port: number): void {
@@ -86,18 +113,40 @@ export class WebServer {
       }
       const updated = { ...order, status: "confirmed" as const };
       updateOrder(updated);
-
-      let notified = true;
-      try {
-        await this.deps.sendMessage(
-          order.customer_wa,
-          customerPaymentConfirmedMessage(updated, this.deps.store),
-        );
-      } catch (err) {
-        notified = false;
-        logger.error({ err, orderId: order.order_id }, "failed to notify customer");
-      }
+      const notified = await this.trySend(
+        order.customer_wa,
+        customerPaymentConfirmedMessage(updated, this.deps.store),
+      );
       logger.info({ orderId: order.order_id, notified }, "payment verified");
+      res.json({ order: updated, notified });
+    });
+
+    // Send the customer a check-in (does not change the order).
+    app.post("/api/orders/:id/remind", async (req, res) => {
+      const order = this.findOrder(req.params.id);
+      if (!order) {
+        res.status(404).json({ error: "order not found" });
+        return;
+      }
+      const notified = await this.trySend(order.customer_wa, customerCheckInMessage(order, this.deps.store));
+      logger.info({ orderId: order.order_id, notified }, "reminder sent");
+      res.json({ notified });
+    });
+
+    // Cancel an order and tell the customer.
+    app.post("/api/orders/:id/cancel", async (req, res) => {
+      const order = this.findOrder(req.params.id);
+      if (!order) {
+        res.status(404).json({ error: "order not found" });
+        return;
+      }
+      const updated = { ...order, status: "cancelled" as const };
+      updateOrder(updated);
+      const notified = await this.trySend(
+        order.customer_wa,
+        customerOrderCancelledMessage(updated, this.deps.store),
+      );
+      logger.info({ orderId: order.order_id, notified }, "order cancelled");
       res.json({ order: updated, notified });
     });
 

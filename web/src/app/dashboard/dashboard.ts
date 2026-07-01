@@ -9,7 +9,8 @@ import { ButtonModule } from 'primeng/button';
 import { ImageModule } from 'primeng/image';
 import { ToastModule } from 'primeng/toast';
 import { SelectButtonModule } from 'primeng/selectbutton';
-import { MessageService } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConnectionService } from '../connection.service';
 import { OrdersService, type Order, type OrderStatus } from '../orders.service';
 
@@ -42,8 +43,9 @@ const STATUS_META: Record<OrderStatus, { label: string; severity: Severity }> = 
     ImageModule,
     ToastModule,
     SelectButtonModule,
+    ConfirmDialogModule,
   ],
-  providers: [MessageService],
+  providers: [MessageService, ConfirmationService],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })
@@ -51,11 +53,13 @@ export class Dashboard implements OnInit, OnDestroy {
   protected readonly conn = inject(ConnectionService);
   private readonly orders = inject(OrdersService);
   private readonly messages = inject(MessageService);
+  private readonly confirm = inject(ConfirmationService);
 
   protected readonly accountNumber = ConnectionService.accountNumber;
   protected readonly rows = signal<Order[]>([]);
   protected readonly loading = signal(false);
-  private readonly verifying = signal<string | null>(null);
+  /** Order id currently being acted on (disables its row buttons). */
+  private readonly busy = signal<string | null>(null);
   private timer?: ReturnType<typeof setInterval>;
 
   /** Which orders to show. "verified" = payment already confirmed (or shipped). */
@@ -101,28 +105,67 @@ export class Dashboard implements OnInit, OnDestroy {
   }
 
   protected verify(order: Order): void {
-    this.verifying.set(order.order_id);
+    this.busy.set(order.order_id);
     this.orders.verify(order.order_id).subscribe({
       next: (res) => {
-        this.verifying.set(null);
-        this.messages.add({
-          severity: res.notified ? 'success' : 'warn',
-          summary: `Pedido #${order.order_id} confirmado`,
-          detail: res.notified
-            ? 'El cliente fue notificado por WhatsApp.'
-            : 'Confirmado, pero no se pudo notificar al cliente.',
-        });
+        this.busy.set(null);
+        this.notifyResult(res.notified, `Pedido #${order.order_id} confirmado`);
         this.load();
       },
-      error: () => {
-        this.verifying.set(null);
-        this.messages.add({ severity: 'error', summary: 'No se pudo verificar el pago' });
+      error: () => this.fail('No se pudo verificar el pago'),
+    });
+  }
+
+  protected remind(order: Order): void {
+    this.busy.set(order.order_id);
+    this.orders.remind(order.order_id).subscribe({
+      next: (res) => {
+        this.busy.set(null);
+        this.notifyResult(res.notified, `Recordatorio enviado a #${order.order_id}`);
+      },
+      error: () => this.fail('No se pudo enviar el recordatorio'),
+    });
+  }
+
+  protected cancel(order: Order): void {
+    this.confirm.confirm({
+      header: 'Cancelar pedido',
+      message: `¿Cancelar el pedido #${order.order_id} de ${order.customer_name}? Se le avisará al cliente.`,
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'Sí, cancelar',
+      rejectLabel: 'No',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () => {
+        this.busy.set(order.order_id);
+        this.orders.cancel(order.order_id).subscribe({
+          next: (res) => {
+            this.busy.set(null);
+            this.notifyResult(res.notified, `Pedido #${order.order_id} cancelado`);
+            this.load();
+          },
+          error: () => this.fail('No se pudo cancelar el pedido'),
+        });
       },
     });
   }
 
-  protected isVerifying(orderId: string): boolean {
-    return this.verifying() === orderId;
+  protected isBusy(orderId: string): boolean {
+    return this.busy() === orderId;
+  }
+
+  private notifyResult(notified: boolean, summary: string): void {
+    this.messages.add({
+      severity: notified ? 'success' : 'warn',
+      summary,
+      detail: notified
+        ? 'El cliente fue notificado por WhatsApp.'
+        : 'Hecho, pero no se pudo notificar al cliente (¿bot desconectado?).',
+    });
+  }
+
+  private fail(summary: string): void {
+    this.busy.set(null);
+    this.messages.add({ severity: 'error', summary });
   }
 
   protected statusLabel(status: OrderStatus): string {

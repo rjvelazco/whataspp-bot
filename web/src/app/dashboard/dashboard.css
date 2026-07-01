@@ -67,6 +67,12 @@
   font-size: 0.9rem;
 }
 
+.row-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .empty {
   text-align: center;
   color: #667781;
