@@ -1,0 +1,26 @@
+[
+  {
+    "key": "menu_principal",
+    "name": "Menú principal",
+    "trigger": "hola, menu, inicio",
+    "message": "¡Hola! 👋 Bienvenid@ a {store_name}.\n¿En qué te puedo ayudar?",
+    "options": [
+      { "label": "Ver catálogo", "action": "go_menu", "target": "menu_catalogo" },
+      { "label": "Consultar talla / disponibilidad", "action": "go_menu", "target": "menu_catalogo" },
+      { "label": "Hacer pedido", "action": "start_order" },
+      { "label": "Envíos y pagos", "action": "shipping_payments" },
+      { "label": "Hablar con alguien", "action": "talk_human" }
+    ]
+  },
+  {
+    "key": "menu_catalogo",
+    "name": "Catálogo",
+    "message": "¿Qué te interesa? 🛍️",
+    "options": [
+      { "label": "Vestidos", "action": "show_category", "target": "Vestidos" },
+      { "label": "Tops", "action": "show_category", "target": "Tops" },
+      { "label": "Pantalones", "action": "show_category", "target": "Pantalones" },
+      { "label": "Ofertas", "action": "show_category", "target": "Ofertas" }
+    ]
+  }
+]
