@@ -3,6 +3,7 @@
 /** The per-customer conversation state (§3.4). */
 export type ConvState =
   | "idle"
+  | "in_menu"
   | "browsing"
   | "choosing_category"
   | "checking_size"
@@ -149,6 +150,8 @@ export interface Conversation {
   store_id: string;
   state: ConvState;
   draft_order: DraftOrder;
+  /** The configured menu currently shown (for interpreting numbered replies). */
+  menu_key: string | null;
   /** The order currently awaiting payment, so a receipt photo can be attached. */
   active_order_id: string | null;
   bot_paused_until: string | null;

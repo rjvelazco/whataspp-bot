@@ -3,11 +3,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { reduce, type EngineResult } from "../src/engine/stateMachine.js";
-import type { CatalogItem, Conversation, Store } from "../src/domain/types.js";
+import type { CatalogItem, Conversation, FlowMenu, Store } from "../src/domain/types.js";
 
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "data");
 const store = JSON.parse(readFileSync(join(dataDir, "novamoda.store.json"), "utf8")) as Store;
 const catalog = JSON.parse(readFileSync(join(dataDir, "novamoda.catalog.json"), "utf8")) as CatalogItem[];
+const menus = JSON.parse(readFileSync(join(dataDir, "novamoda.menus.json"), "utf8")) as FlowMenu[];
 const NOW = new Date("2026-06-29T12:00:00Z");
 
 function freshConv(): Conversation {
@@ -16,6 +17,7 @@ function freshConv(): Conversation {
     store_id: "novamoda",
     state: "idle",
     draft_order: {},
+    menu_key: null,
     active_order_id: null,
     bot_paused_until: null,
     updated_at: "",
@@ -28,20 +30,49 @@ function run(messages: Array<string | { image: true }>, start = freshConv()): En
   let result!: EngineResult;
   for (const m of messages) {
     const message = typeof m === "string" ? { text: m, hasImage: false } : { hasImage: true };
-    result = reduce({ conversation: conv, store, catalog, message, now: NOW, handoffPauseHours: 12 });
+    result = reduce({ conversation: conv, store, catalog, menus, message, now: NOW, handoffPauseHours: 12 });
     conv = result.conversation;
   }
   return result;
 }
 
-const body = (r: EngineResult) => r.replies.map((x) => (x.kind === "text" ? x.body : "[img]")).join("\n");
+const body = (r: EngineResult) =>
+  r.replies.map((x) => (x.kind === "text" ? x.body : x.kind === "image" ? "[img]" : "[asset]")).join("\n");
 
 describe("greeting & menu", () => {
-  it("shows the main menu on a greeting", () => {
+  it("shows the configured entry menu on a greeting", () => {
     const r = run(["hola"]);
-    expect(r.conversation.state).toBe("idle");
+    expect(r.conversation.state).toBe("in_menu");
+    expect(r.conversation.menu_key).toBe("menu_principal");
     expect(body(r)).toContain("Bienvenid@ a Nova Moda");
     expect(body(r)).toContain("Ver catálogo");
+  });
+
+  it("navigates main menu → catálogo (go_menu) → a category (show_category)", () => {
+    const cat = run(["hola", "1"]); // "Ver catálogo" → go_menu menu_catalogo
+    expect(cat.conversation.state).toBe("in_menu");
+    expect(cat.conversation.menu_key).toBe("menu_catalogo");
+    expect(body(cat)).toContain("Vestidos");
+
+    const items = run(["hola", "1", "1"]); // then "Vestidos" → show_category
+    expect(items.conversation.state).toBe("browsing");
+    expect(items.replies.some((x) => x.kind === "image")).toBe(true);
+  });
+
+  it("sends a menu's attachments as asset replies", () => {
+    const withAttachment: FlowMenu[] = [
+      { key: "m", name: "M", trigger: "hola", message: "Hola", options: [], attachments: ["a1"] },
+    ];
+    const r = reduce({
+      conversation: freshConv(),
+      store,
+      catalog,
+      menus: withAttachment,
+      message: { text: "hola", hasImage: false },
+      now: NOW,
+      handoffPauseHours: 12,
+    });
+    expect(r.replies.some((x) => x.kind === "asset" && x.assetId === "a1")).toBe(true);
   });
 });
 
@@ -131,7 +162,7 @@ describe("human handoff", () => {
     const paused: Conversation = { ...freshConv(), state: "paused", bot_paused_until: "2026-06-29T20:00:00.000Z" };
     expect(run(["¿sigues ahí?"], paused).replies).toHaveLength(0);
     const resumed = run(["menu"], paused);
-    expect(resumed.conversation.state).toBe("idle");
+    expect(resumed.conversation.state).toBe("in_menu");
     expect(resumed.conversation.bot_paused_until).toBeNull();
   });
 });

@@ -195,6 +195,7 @@ export function getConversation(customerWa: string, storeId: string): Conversati
         store_id: string;
         state: string;
         draft_json: string;
+        menu_key: string | null;
         active_order_id: string | null;
         bot_paused_until: string | null;
         updated_at: string;
@@ -206,6 +207,7 @@ export function getConversation(customerWa: string, storeId: string): Conversati
     store_id: row.store_id,
     state: row.state as ConvState,
     draft_order: JSON.parse(row.draft_json),
+    menu_key: row.menu_key,
     active_order_id: row.active_order_id,
     bot_paused_until: row.bot_paused_until,
     updated_at: row.updated_at,
@@ -214,11 +216,12 @@ export function getConversation(customerWa: string, storeId: string): Conversati
 
 export function saveConversation(conv: Conversation): void {
   db.prepare(
-    `INSERT INTO conversations (customer_wa, store_id, state, draft_json, active_order_id, bot_paused_until, updated_at)
-     VALUES (@customer_wa, @store_id, @state, @draft_json, @active_order_id, @bot_paused_until, @updated_at)
+    `INSERT INTO conversations (customer_wa, store_id, state, draft_json, menu_key, active_order_id, bot_paused_until, updated_at)
+     VALUES (@customer_wa, @store_id, @state, @draft_json, @menu_key, @active_order_id, @bot_paused_until, @updated_at)
      ON CONFLICT(customer_wa, store_id) DO UPDATE SET
        state = excluded.state,
        draft_json = excluded.draft_json,
+       menu_key = excluded.menu_key,
        active_order_id = excluded.active_order_id,
        bot_paused_until = excluded.bot_paused_until,
        updated_at = excluded.updated_at`,
@@ -227,6 +230,7 @@ export function saveConversation(conv: Conversation): void {
     store_id: conv.store_id,
     state: conv.state,
     draft_json: JSON.stringify(conv.draft_order),
+    menu_key: conv.menu_key,
     active_order_id: conv.active_order_id,
     bot_paused_until: conv.bot_paused_until,
     updated_at: conv.updated_at,

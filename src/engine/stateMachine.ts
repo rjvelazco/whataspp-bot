@@ -1,12 +1,21 @@
-import type { CatalogItem, Conversation, ConvState, DraftOrder, Order, Store } from "../domain/types.js";
+import type {
+  CatalogItem,
+  Conversation,
+  ConvState,
+  DraftOrder,
+  FlowMenu,
+  Order,
+  Store,
+} from "../domain/types.js";
 import { parseIntent } from "./intents.js";
-import { mainMenu, sizeGuide } from "./menus.js";
-import { dispatch } from "./handlers.js";
+import { sizeGuide } from "./menus.js";
+import { dispatch, findMenuByTrigger, showEntry, showMenu } from "./handlers.js";
 
 /** A message the bot wants to send back. */
 export type Outgoing =
   | { kind: "text"; body: string }
-  | { kind: "image"; url: string; caption?: string };
+  | { kind: "image"; url: string; caption?: string }
+  | { kind: "asset"; assetId: string };
 
 /** A DB/IO action the (pure) engine asks index.ts to perform. */
 export type Effect =
@@ -21,6 +30,8 @@ export interface EngineInput {
   store: Store;
   /** Active catalog items for this store (passed in so the engine stays pure/testable). */
   catalog: CatalogItem[];
+  /** Configured menus (flow builder). Drives the greeting + option routing. */
+  menus: FlowMenu[];
   message: { text?: string; hasImage: boolean };
   now: Date;
   /** How long to keep the bot quiet after a human handoff. */
@@ -31,6 +42,8 @@ export interface HandlerOutput {
   replies: Outgoing[];
   nextState: ConvState;
   draft?: DraftOrder;
+  /** When set, updates which configured menu the customer is currently viewing. */
+  menuKey?: string | null;
   effects?: Effect[];
   pauseUntil?: string | null;
   activeOrderId?: string | null;
@@ -54,6 +67,7 @@ function applyOutput(input: EngineInput, out: HandlerOutput): EngineResult {
       ...conv,
       state: out.nextState,
       draft_order: out.draft ?? conv.draft_order,
+      menu_key: out.menuKey !== undefined ? out.menuKey : conv.menu_key,
       active_order_id: out.activeOrderId !== undefined ? out.activeOrderId : conv.active_order_id,
       bot_paused_until: out.pauseUntil !== undefined ? out.pauseUntil : conv.bot_paused_until,
       updated_at: input.now.toISOString(),
@@ -89,12 +103,8 @@ export function reduce(input: EngineInput): EngineResult {
       return applyOutput(input, handoff(input));
     case "greeting":
     case "menu":
-      return applyOutput(input, {
-        replies: [text(mainMenu(store))],
-        nextState: "idle",
-        draft: {},
-        pauseUntil: null,
-      });
+      // Show the configured entry menu (from the builder), clearing any draft.
+      return applyOutput(input, { ...showEntry(input), draft: {}, pauseUntil: null });
     case "size_guide":
       return applyOutput(input, { replies: [text(sizeGuide(store))], nextState: conv.state });
     case "cancel": {
@@ -121,9 +131,19 @@ export function reduce(input: EngineInput): EngineResult {
       break;
   }
 
+  // A message matching a menu's trigger jumps to that menu — but only outside
+  // data-entry flows, so it can't derail an in-progress order.
+  if (intent.type === "text" && NAV_STATES.has(conv.state)) {
+    const triggered = findMenuByTrigger(input.menus, input.message.text ?? "");
+    if (triggered) return applyOutput(input, showMenu(triggered, input));
+  }
+
   // --- state-specific handling ---
   return applyOutput(input, dispatch(intent, input));
 }
+
+/** States where the customer is navigating menus (safe to jump via a trigger). */
+const NAV_STATES = new Set<ConvState>(["idle", "in_menu", "browsing", "checking_size"]);
 
 /** Human handoff: notify the owner and pause the bot for this customer (spec §2.8). */
 export function handoff(input: EngineInput): HandlerOutput {

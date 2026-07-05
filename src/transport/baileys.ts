@@ -185,4 +185,8 @@ export class BaileysTransport implements MessagingTransport {
   async sendImage(to: string, url: string, caption?: string): Promise<void> {
     await this.sock?.sendMessage(to, { image: { url }, caption });
   }
+
+  async sendDocument(to: string, path: string, fileName: string, mimetype: string): Promise<void> {
+    await this.sock?.sendMessage(to, { document: { url: path }, fileName, mimetype });
+  }
 }

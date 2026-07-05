@@ -12,25 +12,6 @@ export function numberedList(heading: string, options: string[]): string {
   return `${heading}\n\n${lines}\n\nResponde con el número de la opción.`;
 }
 
-export const MAIN_MENU_OPTIONS = [
-  "Ver catálogo",
-  "Consultar talla / disponibilidad",
-  "Hacer pedido",
-  "Envíos y pagos",
-  "Hablar con alguien",
-];
-
-export function mainMenu(store: Store): string {
-  return numberedList(
-    `¡Hola! 👋 Bienvenid@ a ${store.store_name}.\n¿En qué te puedo ayudar?`,
-    MAIN_MENU_OPTIONS,
-  );
-}
-
-export function categoryMenu(store: Store): string {
-  return numberedList("¿Qué te interesa? 🛍️", store.categories);
-}
-
 export function sizeGuide(store: Store): string {
   const rows = store.size_guide
     .map((s) => `${s.size} → busto ${s.busto}cm, cintura ${s.cintura}cm`)

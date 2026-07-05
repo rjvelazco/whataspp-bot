@@ -13,3 +13,11 @@ db.pragma("foreign_keys = ON");
 
 const schema = readFileSync(join(here, "schema.sql"), "utf8");
 db.exec(schema);
+
+// Lightweight migrations for DBs created before a column existed.
+const convCols = (db.prepare(`PRAGMA table_info(conversations)`).all() as { name: string }[]).map(
+  (c) => c.name,
+);
+if (!convCols.includes("menu_key")) {
+  db.exec(`ALTER TABLE conversations ADD COLUMN menu_key TEXT`);
+}

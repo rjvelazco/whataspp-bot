@@ -1,8 +1,9 @@
-import type { CatalogItem } from "../domain/types.js";
+import type { CatalogItem, FlowMenu, FlowOption, Store } from "../domain/types.js";
 import type { Intent } from "./intents.js";
+import { normalize } from "./intents.js";
 import type { EngineInput, HandlerOutput, Outgoing } from "./stateMachine.js";
 import { handoff, text } from "./stateMachine.js";
-import { categoryMenu, shippingAndPayments } from "./menus.js";
+import { keycap, shippingAndPayments } from "./menus.js";
 import { availabilityMessage, detectSize, itemCard, matchItem } from "./catalog.js";
 import {
   handleConfirming,
@@ -31,8 +32,8 @@ export function dispatch(intent: Intent, input: EngineInput): HandlerOutput {
   switch (input.conversation.state) {
     case "idle":
       return handleIdle(intent, input);
-    case "choosing_category":
-      return handleChoosingCategory(intent, input);
+    case "in_menu":
+      return handleMenu(intent, input);
     case "browsing":
       return handleBrowsing(intent, input);
     case "checking_size":
@@ -54,59 +55,121 @@ export function dispatch(intent: Intent, input: EngineInput): HandlerOutput {
   }
 }
 
-/** Main-menu selection. */
-function handleIdle(intent: Intent, input: EngineInput): HandlerOutput {
+// ---------- configured-menu flow ----------
+
+/** Replace {store_name} / {owner_name} placeholders in a configured message. */
+export function fillPlaceholders(message: string, store: Store): string {
+  return message.replaceAll("{store_name}", store.store_name).replaceAll("{owner_name}", store.owner_name);
+}
+
+export function findMenuByKey(menus: FlowMenu[], key: string): FlowMenu | undefined {
+  return menus.find((m) => m.key === key);
+}
+
+/** The "home" menu: one triggered by hola/menu/inicio, else the first. */
+export function findEntryMenu(menus: FlowMenu[]): FlowMenu | undefined {
+  const entry = menus.find((m) => {
+    const trigs = (m.trigger ?? "").split(",").map((t) => normalize(t));
+    return trigs.includes("menu") || trigs.includes("inicio") || trigs.includes("hola");
+  });
+  return entry ?? menus[0];
+}
+
+/** A menu whose trigger keywords exactly match the message (for keyword jumps). */
+export function findMenuByTrigger(menus: FlowMenu[], rawText: string): FlowMenu | undefined {
+  const norm = normalize(rawText);
+  if (!norm) return undefined;
+  return menus.find((m) =>
+    (m.trigger ?? "")
+      .split(",")
+      .map((t) => normalize(t))
+      .filter(Boolean)
+      .includes(norm),
+  );
+}
+
+/** Render a configured menu: message + numbered options, plus any attachments. */
+export function renderMenu(menu: FlowMenu, store: Store): Outgoing[] {
+  const body = fillPlaceholders(menu.message, store);
+  const full = menu.options.length
+    ? `${body}\n\n${menu.options.map((o, i) => `${keycap(i + 1)} ${o.label}`).join("\n")}` +
+      `\n\nResponde con el número de la opción.`
+    : body;
+  const replies: Outgoing[] = [text(full)];
+  for (const id of menu.attachments ?? []) replies.push({ kind: "asset", assetId: id });
+  return replies;
+}
+
+export function showMenu(menu: FlowMenu, input: EngineInput): HandlerOutput {
+  return { replies: renderMenu(menu, input.store), nextState: "in_menu", menuKey: menu.key };
+}
+
+export function showEntry(input: EngineInput): HandlerOutput {
+  const menu = findEntryMenu(input.menus);
+  if (!menu) {
+    return { replies: [text("¡Hola! 👋 Aún no hay un menú configurado.")], nextState: "idle", menuKey: null };
+  }
+  return showMenu(menu, input);
+}
+
+/** Execute an option's configured action. */
+function executeOption(opt: FlowOption, input: EngineInput): HandlerOutput {
+  switch (opt.action) {
+    case "go_menu": {
+      const target = opt.target ? findMenuByKey(input.menus, opt.target) : undefined;
+      return target ? showMenu(target, input) : reShowCurrent(input);
+    }
+    case "show_category": {
+      const category = opt.target ?? "";
+      const items = input.catalog.filter((it) => it.category === category);
+      if (!items.length) {
+        return { replies: [text(`Por ahora no hay productos en *${category}*.`)], nextState: "in_menu" };
+      }
+      return { replies: itemCards(items, category), nextState: "browsing" };
+    }
+    case "start_order":
+      return stay(input, [
+        text("Para pedir, escribe *PEDIR <código>* del producto (lo ves en el catálogo). Ej: *PEDIR VESTBOHEMIO*."),
+      ]);
+    case "shipping_payments":
+      return stay(input, [text(shippingAndPayments(input.store))]);
+    case "talk_human":
+      return handoff(input);
+  }
+}
+
+function reShowCurrent(input: EngineInput): HandlerOutput {
+  const menu = findMenuByKey(input.menus, input.conversation.menu_key ?? "");
+  return menu ? showMenu(menu, input) : showEntry(input);
+}
+
+/** At a configured menu: a numbered pick runs its option; free text tries availability. */
+function handleMenu(intent: Intent, input: EngineInput): HandlerOutput {
+  const menu = findMenuByKey(input.menus, input.conversation.menu_key ?? "");
+  if (!menu) return showEntry(input);
+
+  if (intent.type === "choice") {
+    const opt = menu.options[intent.index - 1];
+    if (!opt) return stay(input, [text("Esa opción no existe. Elige un número de la lista.")]);
+    return executeOption(opt, input);
+  }
   if (intent.type === "text") {
-    // Catch natural availability questions like "¿tienen el vestido bohemio en M?"
     const answer = tryAvailability(intent.value, input);
     if (answer) return answer;
   }
-  if (intent.type !== "choice") return dontUnderstand(input);
-  switch (intent.index) {
-    case 1: // Ver catálogo
-      return { replies: [text(categoryMenu(input.store))], nextState: "choosing_category" };
-    case 2: // Consultar talla / disponibilidad
-      return {
-        replies: [
-          text("¿Qué prenda y talla quieres consultar? Por ejemplo: *¿tienen el vestido bohemio en M?*"),
-        ],
-        nextState: "checking_size",
-      };
-    case 3: // Hacer pedido
-      return {
-        replies: [
-          text("Para pedir, escribe *PEDIR <código>* del producto (verás el código en el catálogo). Ej: *PEDIR VESTBOHEMIO*."),
-          text(categoryMenu(input.store)),
-        ],
-        nextState: "choosing_category",
-      };
-    case 4: // Envíos y pagos
-      return stay(input, [text(shippingAndPayments(input.store))]);
-    case 5: // Hablar con alguien
-      return handoff(input);
-    default:
-      return stay(input, [text("Esa opción aún no está disponible. Escribe *menu*.")]);
-  }
+  return showMenu(menu, input); // re-show the current menu
 }
 
-/** Pick a category → list its items as image cards (spec §2.2). */
-function handleChoosingCategory(intent: Intent, input: EngineInput): HandlerOutput {
-  const categories = input.store.categories;
-  if (intent.type !== "choice" || intent.index < 1 || intent.index > categories.length) {
-    return stay(input, [text(categoryMenu(input.store))]);
+/** First message with no menu shown yet → answer availability or show the entry menu. */
+function handleIdle(intent: Intent, input: EngineInput): HandlerOutput {
+  if (intent.type === "text") {
+    const answer = tryAvailability(intent.value, input);
+    if (answer) return answer;
   }
-  const category = categories[intent.index - 1];
-  const items = input.catalog.filter((it) => it.category === category);
-  if (!items.length) {
-    return {
-      replies: [text(`Por ahora no hay productos en *${category}*. Escribe *menu* para volver.`)],
-      nextState: "idle",
-    };
-  }
-  return { replies: itemCards(items, category), nextState: "browsing" };
+  return showEntry(input);
 }
 
-/** While browsing, an availability question or another category pick. */
+/** While browsing, an availability question or a nudge back to the menu. */
 function handleBrowsing(intent: Intent, input: EngineInput): HandlerOutput {
   if (intent.type === "text") {
     const answer = tryAvailability(intent.value, input);
@@ -123,9 +186,7 @@ function handleCheckingSize(intent: Intent, input: EngineInput): HandlerOutput {
   const answer = tryAvailability(query, input);
   if (answer) return answer;
   return stay(input, [
-    text(
-      "No encontré esa prenda 🔎. Dime el nombre como aparece en el catálogo, o escribe *menu*.",
-    ),
+    text("No encontré esa prenda 🔎. Dime el nombre como aparece en el catálogo, o escribe *menu*."),
   ]);
 }
 

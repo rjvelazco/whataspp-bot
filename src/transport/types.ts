@@ -42,8 +42,10 @@ export interface MessagingTransport {
   onConnectionUpdate(listener: ConnectionListener): void;
   /** Send a plain text message. */
   sendText(to: string, body: string): Promise<void>;
-  /** Send an image by URL with an optional caption. */
+  /** Send an image by URL/path with an optional caption. */
   sendImage(to: string, url: string, caption?: string): Promise<void>;
+  /** Send a document (e.g. a PDF catalog) by path. */
+  sendDocument(to: string, path: string, fileName: string, mimetype: string): Promise<void>;
   /** Connect (Baileys: restore creds / print pairing QR). Resolves once linked. */
   start(): Promise<void>;
   /** The account/number this bot is connected as (known after start()). */

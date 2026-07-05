@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   store_id         TEXT NOT NULL,
   state            TEXT NOT NULL,
   draft_json       TEXT NOT NULL DEFAULT '{}',
+  menu_key         TEXT,
   active_order_id  TEXT,
   bot_paused_until TEXT,
   updated_at       TEXT NOT NULL,

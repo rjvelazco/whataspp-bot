@@ -11,7 +11,9 @@ import { resolveStore } from "./stores/routing.js";
 import {
   createOrder,
   getAllItems,
+  getAsset,
   getConversation,
+  getMenus,
   getOrder,
   getStoreById,
   saveConversation,
@@ -28,6 +30,7 @@ function freshConversation(customerWa: string, storeId: string, now: Date): Conv
     store_id: storeId,
     state: "idle",
     draft_order: {},
+    menu_key: null,
     active_order_id: null,
     bot_paused_until: null,
     updated_at: now.toISOString(),
@@ -49,6 +52,7 @@ async function handleMessage(transport: MessagingTransport, msg: IncomingMessage
     conversation: conv,
     store,
     catalog: getAllItems(store.store_id),
+    menus: getMenus(store.store_id),
     message: { text: msg.text, hasImage: Boolean(msg.image) },
     now,
     handoffPauseHours: config.handoffPauseHours,
@@ -59,7 +63,20 @@ async function handleMessage(transport: MessagingTransport, msg: IncomingMessage
 
   for (const reply of result.replies) {
     if (reply.kind === "text") await transport.sendText(msg.from, reply.body);
-    else await transport.sendImage(msg.from, reply.url, reply.caption);
+    else if (reply.kind === "image") await transport.sendImage(msg.from, reply.url, reply.caption);
+    else await sendAsset(transport, msg.from, reply.assetId);
+  }
+}
+
+/** Send an uploaded asset (catalog/promo/story) as an image or document. */
+async function sendAsset(transport: MessagingTransport, to: string, assetId: string): Promise<void> {
+  const asset = getAsset(assetId);
+  if (!asset) return; // deleted from the library — skip silently
+  const path = join(config.uploadsDir, "assets", asset.filename);
+  if (asset.mimetype.startsWith("image/")) {
+    await transport.sendImage(to, path);
+  } else {
+    await transport.sendDocument(to, path, asset.original_name, asset.mimetype);
   }
 }
 
