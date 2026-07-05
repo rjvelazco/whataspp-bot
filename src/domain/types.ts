@@ -126,6 +126,8 @@ export interface FlowMenu {
   trigger?: string;
   message: string;
   options: FlowOption[];
+  /** Asset ids (catalog/promo/story) sent alongside the message. */
+  attachments?: string[];
 }
 
 export type AssetCategory = "catalog" | "promo" | "story";

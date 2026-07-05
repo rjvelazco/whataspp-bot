@@ -21,6 +21,8 @@ export interface FlowMenu {
   trigger?: string;
   message: string;
   options: FlowOption[];
+  /** Asset ids sent alongside the message. */
+  attachments?: string[];
 }
 
 @Injectable({ providedIn: 'root' })

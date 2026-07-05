@@ -164,6 +164,75 @@ textarea:focus {
   margin-top: 4px;
 }
 
+/* ---- attachments ---- */
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.att-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 6px 3px 4px;
+  max-width: 220px;
+}
+.att-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.att-icon {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-left: 3px;
+}
+.att-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.att-chip.missing {
+  color: var(--text-danger);
+  background: var(--bg-danger);
+  border-color: transparent;
+  padding-left: 10px;
+}
+.att-x {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 50%;
+}
+.att-x:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+.att-add {
+  font-size: 12px;
+  padding: 6px 10px;
+  color: var(--text-accent);
+  border: 1px dashed var(--border-accent);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+}
+.att-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
 .opt-row {
   display: flex;
   align-items: center;

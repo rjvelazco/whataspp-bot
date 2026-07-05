@@ -3,6 +3,13 @@ import { FormsModule } from '@angular/forms';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MessageService } from 'primeng/api';
 import { MenusService, type FlowAction, type FlowMenu } from '../menus.service';
+import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
+
+const CATEGORY_LABEL: Record<AssetCategory, string> = {
+  catalog: 'Catálogo',
+  promo: 'Promo',
+  story: 'Historia',
+};
 
 const ACTIONS: { value: FlowAction; label: string }[] = [
   { value: 'go_menu', label: 'Ir a menú' },
@@ -20,9 +27,11 @@ const ACTIONS: { value: FlowAction; label: string }[] = [
 })
 export class Configuracion implements OnInit {
   private readonly api = inject(MenusService);
+  private readonly assetsApi = inject(AssetsService);
   private readonly messages = inject(MessageService);
 
   protected readonly menus = signal<FlowMenu[]>([]);
+  protected readonly assets = signal<Asset[]>([]);
   protected readonly expanded = signal<number | null>(0);
   protected readonly dirty = signal(false);
   protected readonly saving = signal(false);
@@ -36,6 +45,45 @@ export class Configuracion implements OnInit {
         this.expanded.set(menus.length ? 0 : null);
       },
     });
+    this.assetsApi.list().subscribe({ next: (assets) => this.assets.set(assets) });
+  }
+
+  // ---- attachments ----
+  protected attachmentsOf(menu: FlowMenu): string[] {
+    return menu.attachments ?? [];
+  }
+  protected assetById(id: string): Asset | undefined {
+    return this.assets().find((a) => a.id === id);
+  }
+  protected availableAssets(menu: FlowMenu): Asset[] {
+    const attached = new Set(menu.attachments ?? []);
+    return this.assets().filter((a) => !attached.has(a.id));
+  }
+  protected assetLabel(a: Asset): string {
+    return `[${CATEGORY_LABEL[a.category]}] ${a.original_name}`;
+  }
+  protected assetIsImage(a: Asset): boolean {
+    return a.mimetype.startsWith('image/');
+  }
+  protected assetUrl(id: string): string {
+    return this.assetsApi.fileUrl(id);
+  }
+
+  protected addAttachment(mi: number, assetId: string): void {
+    if (!assetId) return;
+    const menus = [...this.menus()];
+    const current = menus[mi].attachments ?? [];
+    if (current.includes(assetId)) return;
+    menus[mi] = { ...menus[mi], attachments: [...current, assetId] };
+    this.menus.set(menus);
+    this.touch();
+  }
+
+  protected removeAttachment(mi: number, assetId: string): void {
+    const menus = [...this.menus()];
+    menus[mi] = { ...menus[mi], attachments: (menus[mi].attachments ?? []).filter((x) => x !== assetId) };
+    this.menus.set(menus);
+    this.touch();
   }
 
   protected touch(): void {

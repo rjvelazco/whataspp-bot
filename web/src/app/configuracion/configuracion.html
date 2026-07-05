@@ -48,6 +48,39 @@
                       placeholder="Texto del mensaje…"></textarea>
           </label>
 
+          <div class="opt-label"><i class="pi pi-paperclip"></i> Recursos a enviar</div>
+          <div class="attachments">
+            @for (id of attachmentsOf(menu); track id) {
+              @if (assetById(id); as a) {
+                <span class="att-chip">
+                  @if (assetIsImage(a)) {
+                    <img class="att-thumb" [src]="assetUrl(a.id)" alt="" />
+                  } @else {
+                    <i class="pi pi-file-pdf att-icon"></i>
+                  }
+                  <span class="att-name" [title]="a.original_name">{{ a.original_name }}</span>
+                  <button class="att-x" (click)="removeAttachment(mi, id)" title="Quitar"><i class="pi pi-times"></i></button>
+                </span>
+              } @else {
+                <span class="att-chip missing">
+                  <i class="pi pi-exclamation-triangle"></i> Recurso eliminado
+                  <button class="att-x" (click)="removeAttachment(mi, id)"><i class="pi pi-times"></i></button>
+                </span>
+              }
+            }
+            @if (availableAssets(menu).length > 0) {
+              <select class="att-add" #attSel (change)="addAttachment(mi, attSel.value); attSel.value = ''">
+                <option value="">+ Adjuntar recurso…</option>
+                @for (a of availableAssets(menu); track a.id) {
+                  <option [value]="a.id">{{ assetLabel(a) }}</option>
+                }
+              </select>
+            }
+          </div>
+          @if (assets().length === 0) {
+            <p class="att-hint">No hay recursos aún. Súbelos en <strong>Recursos</strong> para poder adjuntarlos.</p>
+          }
+
           <div class="opt-label"><i class="pi pi-list"></i> Opciones</div>
           <div cdkDropList (cdkDropListDropped)="dropOption($event, mi)">
             @for (opt of menu.options; track $index; let oi = $index) {
