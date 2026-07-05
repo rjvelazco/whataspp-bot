@@ -14,12 +14,20 @@ export class App {
 
   constructor() {
     this.conn.start();
-    // Route by connection status: enter the panel once linked, back to pairing if it drops.
+    // Route by connection status WITHOUT clobbering the current route on reload:
+    //  - only enter the panel from the pairing page (preserves a deep link like /dashboard/pedidos)
+    //  - only kick back to pairing on a real "needs pairing" (qr) signal, never on the
+    //    transient idle/connecting state that happens right after a reload.
     effect(() => {
-      const linked = this.conn.status().state === 'open';
-      const onDashboard = this.router.url.startsWith('/dashboard');
-      if (linked && !onDashboard) this.router.navigateByUrl('/dashboard');
-      else if (!linked && onDashboard) this.router.navigateByUrl('/');
+      const state = this.conn.status().state;
+      const url = this.router.url;
+      const onPairing = url === '/' || url === '';
+
+      if (state === 'open' && onPairing) {
+        this.router.navigateByUrl('/dashboard');
+      } else if (state === 'qr' && url.startsWith('/dashboard')) {
+        this.router.navigateByUrl('/');
+      }
     });
   }
 }
