@@ -45,7 +45,7 @@
               <div class="oc-id">Pedido #{{ order.order_id }}</div>
               <div class="oc-date">{{ order.created_at | date: 'd MMM y · h:mm a' }}</div>
             </div>
-            <p-tag [severity]="statusSeverity(order.status)" [value]="statusLabel(order.status)" />
+            <app-status-tag [status]="order.status" />
           </div>
           <div class="oc-cust">
             <span class="avatar">{{ order.customer_name.slice(0, 2) }}</span>

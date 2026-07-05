@@ -53,7 +53,7 @@
         </td>
         <td class="items">{{ items(order) }}</td>
         <td>{{ order.subtotal | currency: 'USD' }}</td>
-        <td><p-tag [severity]="statusSeverity(order.status)" [value]="statusLabel(order.status)" /></td>
+        <td><app-status-tag [status]="order.status" /></td>
         <td>
           @if (order.receipt_url) {
             <p-image [src]="store.receiptUrl(order.order_id)" [preview]="true" width="44" alt="Comprobante" />

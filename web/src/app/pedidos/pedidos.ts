@@ -1,15 +1,15 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { TagModule } from 'primeng/tag';
 import { ImageModule } from 'primeng/image';
 import { OrdersStore } from '../orders.store';
-import { customerNumber, statusLabel, statusSeverity, waLink } from '../order-display';
+import { customerNumber, waLink } from '../order-display';
+import { StatusTag } from '../status-tag/status-tag';
 
 type FulfillFilter = 'all' | 'toship' | 'shipped' | 'delivered';
 
 @Component({
   selector: 'app-pedidos',
-  imports: [DatePipe, CurrencyPipe, TagModule, ImageModule],
+  imports: [DatePipe, CurrencyPipe, ImageModule, StatusTag],
   templateUrl: './pedidos.html',
   styleUrl: './pedidos.css',
 })
@@ -35,8 +35,6 @@ export class Pedidos {
     );
   });
 
-  protected readonly statusLabel = statusLabel;
-  protected readonly statusSeverity = statusSeverity;
   protected readonly customerNumber = customerNumber;
   protected readonly waLink = waLink;
 }

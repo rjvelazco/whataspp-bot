@@ -114,8 +114,11 @@
   display: flex;
   flex-direction: column;
   padding: 8px 10px;
+  min-width: 0;
 }
 .name {
+  display: block;
+  max-width: 100%;
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;

@@ -27,8 +27,21 @@ export function itemsSummary(order: Order): string {
   return order.items.map((i) => `${i.name || i.code} ${i.size}/${i.color} ×${i.qty}`).join(', ');
 }
 
+/** Format a WhatsApp id into a readable phone number, e.g. +58 414 555 0172. */
 export function customerNumber(wa: string): string {
-  return '+' + wa.replace(/[:@].*$/, '');
+  const digits = wa.replace(/\D/g, '');
+  // Venezuela: 58 + 10 digits.
+  if (digits.startsWith('58') && digits.length === 12) {
+    const n = digits.slice(2);
+    return `+58 ${n.slice(0, 3)} ${n.slice(3, 6)} ${n.slice(6)}`;
+  }
+  // Generic: country code (2–3 digits) + groups of 3.
+  if (digits.length >= 8 && digits.length <= 15) {
+    const cc = digits.length > 11 ? digits.slice(0, 3) : digits.slice(0, 2);
+    const rest = digits.slice(cc.length).replace(/(\d{3})(?=\d)/g, '$1 ');
+    return `+${cc} ${rest}`;
+  }
+  return '+' + digits;
 }
 
 /** wa.me deep link so the owner can message the customer directly. */

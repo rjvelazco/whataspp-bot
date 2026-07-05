@@ -1,17 +1,17 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { TableModule } from 'primeng/table';
-import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
 import { ImageModule } from 'primeng/image';
 import { OrdersStore } from '../orders.store';
-import { customerNumber, isVerified, itemsSummary, statusLabel, statusSeverity } from '../order-display';
+import { customerNumber, isVerified, itemsSummary } from '../order-display';
+import { StatusTag } from '../status-tag/status-tag';
 
 type PagosFilter = 'all' | 'pending' | 'verified';
 
 @Component({
   selector: 'app-pagos',
-  imports: [DatePipe, CurrencyPipe, TableModule, TagModule, ButtonModule, ImageModule],
+  imports: [DatePipe, CurrencyPipe, TableModule, ButtonModule, ImageModule, StatusTag],
   templateUrl: './pagos.html',
   styleUrl: './pagos.css',
 })
@@ -33,8 +33,6 @@ export class Pagos {
     return rows;
   });
 
-  protected readonly statusLabel = statusLabel;
-  protected readonly statusSeverity = statusSeverity;
   protected readonly items = itemsSummary;
   protected readonly customerNumber = customerNumber;
 }
