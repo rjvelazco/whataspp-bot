@@ -17,9 +17,10 @@ import {
   getOrder,
   getStoreById,
   listAssets,
-  listCustomerJids,
+  listContacts,
   saveConversation,
   updateOrder,
+  upsertContact,
   upsertStore,
 } from "./db/repositories.js";
 import { reduce, type EngineResult } from "./engine/stateMachine.js";
@@ -48,6 +49,9 @@ async function handleMessage(transport: MessagingTransport, msg: IncomingMessage
   }
 
   const now = new Date();
+  // Record the sender as a known contact (cheap upsert) for the Status audience.
+  upsertContact(store.store_id, msg.from, msg.name ?? null, now.toISOString());
+
   const conv =
     getConversation(msg.from, store.store_id) ?? freshConversation(msg.from, store.store_id, now);
 
@@ -148,11 +152,13 @@ async function main() {
   const storyScheduler = new StoryScheduler({
     getStore: () => getStoreById(store.store_id),
     listStories: () => listAssets(store.store_id).filter((a) => a.category === "story"),
-    // Status recipients must be phone jids (@s.whatsapp.net). Drop legacy @lid entries
-    // and always include the bot's own number so the Status is valid and visible to the owner.
+    // Status recipients must be phone jids (@s.whatsapp.net). Use the contacts table,
+    // dropping legacy @lid entries, and always include the bot's own number.
     listAudience: () => {
       const own = transport.getAccountId();
-      const customers = listCustomerJids(store.store_id).filter((j) => j.endsWith("@s.whatsapp.net"));
+      const customers = listContacts(store.store_id)
+        .map((c) => c.wa_jid)
+        .filter((j) => j.endsWith("@s.whatsapp.net"));
       return [...new Set([own, ...customers].filter(Boolean))];
     },
     postImage: (path, audience, caption) => transport.postStatusImage(path, audience, caption),

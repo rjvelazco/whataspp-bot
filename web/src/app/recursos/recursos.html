@@ -82,7 +82,7 @@
     <div class="lib-head">
       <div>
         <h2><i class="pi pi-history"></i> Historias / Estados</h2>
-        <p class="sub">Imágenes que el bot publicará como Estado de WhatsApp automáticamente cada día a la hora que elijas. Se envían a los clientes que te han escrito.</p>
+        <p class="sub">Imágenes que el bot publicará como Estado de WhatsApp automáticamente cada día a la hora que elijas. Llega a los clientes que te han escrito <strong>y que te tienen agendado en sus contactos</strong> (regla de privacidad de WhatsApp).</p>
       </div>
       <label class="upload-btn" [class.busy]="uploading() === 'story'">
         <i class="pi pi-upload"></i>
@@ -99,6 +99,9 @@
         <span>Publicar automáticamente cada día</span>
       </label>
       <div class="schedule-right">
+        <span class="audience" title="Números que han escrito al bot">
+          <i class="pi pi-users"></i> {{ reachableContacts() }} contacto(s)
+        </span>
         <label class="time-field" [class.off]="!scheduleEnabled()">
           <i class="pi pi-clock"></i>
           <input type="time" [ngModel]="scheduleTime()" (ngModelChange)="scheduleTime.set($event)"

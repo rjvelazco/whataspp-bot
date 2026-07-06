@@ -154,6 +154,16 @@ export interface Asset {
   created_at: string;
 }
 
+/** A number that has messaged the bot — the audience for Status / broadcasts. */
+export interface Contact {
+  store_id: string;
+  wa_jid: string;
+  phone: string | null;
+  name: string | null;
+  first_seen: string;
+  last_seen: string;
+}
+
 export interface Conversation {
   customer_wa: string;
   store_id: string;

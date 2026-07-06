@@ -29,6 +29,8 @@ export class Recursos implements OnInit {
   protected readonly scheduleTime = signal('09:00');
   protected readonly savingSchedule = signal(false);
   protected readonly postingNow = signal(false);
+  /** How many contacts (with a phone number) the Status can reach. */
+  protected readonly reachableContacts = signal(0);
 
   ngOnInit(): void {
     this.load();
@@ -37,6 +39,9 @@ export class Recursos implements OnInit {
         this.scheduleEnabled.set(s.enabled);
         this.scheduleTime.set(s.time);
       },
+    });
+    this.settings.getContacts().subscribe({
+      next: (contacts) => this.reachableContacts.set(contacts.filter((c) => !!c.phone).length),
     });
   }
 

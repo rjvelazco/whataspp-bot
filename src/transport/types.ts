@@ -13,6 +13,8 @@ export interface IncomingMessage {
   accountId: string;
   /** Plain text, or the extracted label of a button/list reply. */
   text?: string;
+  /** The sender's WhatsApp display name (pushName), when provided. */
+  name?: string;
   /** Present when the customer sent an image (e.g. a payment receipt). */
   image?: {
     download: () => Promise<Buffer>;

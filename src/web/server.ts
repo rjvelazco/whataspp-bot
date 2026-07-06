@@ -22,6 +22,7 @@ import {
   getOrder,
   getStoreById,
   listAssets,
+  listContacts,
   listOrders,
   saveMenus,
   updateOrder,
@@ -286,6 +287,11 @@ export class WebServer {
       } catch (err) {
         logger.error({ err }, "disconnect failed");
       }
+    });
+
+    // --- Contacts (numbers that have messaged the bot = Status audience) ---
+    app.get("/api/contacts", (_req, res) => {
+      res.json(listContacts(this.deps.store.store_id));
     });
 
     // --- Settings: story (Estados) daily schedule ---

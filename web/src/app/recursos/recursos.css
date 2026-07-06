@@ -100,6 +100,16 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+.audience {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.audience .pi {
+  font-size: 12px;
+}
 .time-field {
   display: inline-flex;
   align-items: center;

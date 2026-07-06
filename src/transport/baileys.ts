@@ -216,6 +216,7 @@ export class BaileysTransport implements MessagingTransport {
       from,
       accountId: this.accountId,
       text: text ?? undefined,
+      name: msg.pushName ?? undefined,
       image,
       timestamp: Number(msg.messageTimestamp ?? 0),
     };

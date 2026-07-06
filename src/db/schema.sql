@@ -47,6 +47,19 @@ CREATE TABLE IF NOT EXISTS menus (
   data_json TEXT NOT NULL   -- JSON array of FlowMenu
 );
 
+-- Every number that has messaged the bot (the Status/broadcast audience).
+-- Upserted on each inbound message: inserts if new, else bumps last_seen.
+CREATE TABLE IF NOT EXISTS contacts (
+  store_id   TEXT NOT NULL,
+  wa_jid     TEXT NOT NULL,   -- phone jid (@s.whatsapp.net) or @lid fallback
+  phone      TEXT,            -- digits only, when a phone jid is known (for display)
+  name       TEXT,            -- WhatsApp pushName, if provided
+  first_seen TEXT NOT NULL,
+  last_seen  TEXT NOT NULL,
+  PRIMARY KEY (store_id, wa_jid)
+);
+CREATE INDEX IF NOT EXISTS idx_contacts_store ON contacts(store_id);
+
 CREATE TABLE IF NOT EXISTS conversations (
   customer_wa      TEXT NOT NULL,
   store_id         TEXT NOT NULL,

@@ -2,6 +2,7 @@ import { db } from "./index.js";
 import type {
   Asset,
   CatalogItem,
+  Contact,
   Conversation,
   ConvState,
   FlowMenu,
@@ -224,6 +225,33 @@ export function listCustomerJids(storeId: string): string[] {
     )
     .all(storeId, storeId) as { customer_wa: string }[];
   return rows.map((r) => r.customer_wa);
+}
+
+// ---------- contacts (Status / broadcast audience) ----------
+
+/** Record a number that messaged the bot. Inserts if new, else bumps last_seen. */
+export function upsertContact(
+  storeId: string,
+  waJid: string,
+  name: string | null,
+  now: string,
+): void {
+  const phone = waJid.endsWith("@s.whatsapp.net") ? waJid.split("@")[0] : null;
+  db.prepare(
+    `INSERT INTO contacts (store_id, wa_jid, phone, name, first_seen, last_seen)
+     VALUES (@store_id, @wa_jid, @phone, @name, @now, @now)
+     ON CONFLICT(store_id, wa_jid) DO UPDATE SET
+       last_seen = @now,
+       phone = COALESCE(excluded.phone, contacts.phone),
+       name = COALESCE(excluded.name, contacts.name)`,
+  ).run({ store_id: storeId, wa_jid: waJid, phone, name: name ?? null, now });
+}
+
+/** All known contacts for a store, most recently active first. */
+export function listContacts(storeId: string): Contact[] {
+  return db
+    .prepare(`SELECT * FROM contacts WHERE store_id = ? ORDER BY last_seen DESC`)
+    .all(storeId) as Contact[];
 }
 
 export function saveConversation(conv: Conversation): void {

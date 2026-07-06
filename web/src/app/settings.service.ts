@@ -14,6 +14,14 @@ export interface StoryPostResult {
   reason: string;
 }
 
+export interface Contact {
+  wa_jid: string;
+  phone: string | null;
+  name: string | null;
+  first_seen: string;
+  last_seen: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SettingsService {
   private readonly http = inject(HttpClient);
@@ -28,5 +36,9 @@ export class SettingsService {
 
   postStoryNow(): Observable<StoryPostResult> {
     return this.http.post<StoryPostResult>('/api/story/post-now', {});
+  }
+
+  getContacts(): Observable<Contact[]> {
+    return this.http.get<Contact[]>('/api/contacts');
   }
 }
