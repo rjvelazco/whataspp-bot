@@ -22,6 +22,12 @@ jids are rejected as Status recipients. The real phone jid arrives alongside as 
 - `onWhatsApp(number)` returns `{ jid, exists, lid }` — the phone↔lid mapping, if we ever need to
   backfill old `@lid` rows.
 
+## Audience is a snapshot at post time (operational gotcha)
+A Status reaches only the numbers in the audience **at the moment it is posted**. A customer who
+first messages the bot *after* a post won't be in that post — they're picked up on the next one.
+So the daily 22:15 post includes everyone registered by 22:15. Both text and image Status render
+correctly (verified 2026-07-06); an earlier "can't see it" was just this timing effect.
+
 ## Reach limit (WhatsApp rule, not our code)
 A Status only shows to recipients who **have the store's number saved as a contact**. Customers who
 messaged but never saved the number won't see it. Existing `@lid`-only customers won't be reached
