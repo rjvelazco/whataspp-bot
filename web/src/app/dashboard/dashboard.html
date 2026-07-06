@@ -25,6 +25,11 @@
     <div class="conn" [class.ok]="connected()">
       <span class="dot"></span>{{ connected() ? 'Conectado' : 'Desconectado' }}
     </div>
+    @if (connected()) {
+      <button class="disconnect-btn" (click)="disconnect()">
+        <i class="pi pi-power-off"></i> Desconectar
+      </button>
+    }
   </aside>
 
   <main class="content">

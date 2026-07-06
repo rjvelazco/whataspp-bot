@@ -48,6 +48,8 @@ export interface MessagingTransport {
   sendDocument(to: string, path: string, fileName: string, mimetype: string): Promise<void>;
   /** Connect (Baileys: restore creds / print pairing QR). Resolves once linked. */
   start(): Promise<void>;
+  /** Unlink from WhatsApp, wipe the session, and re-init for fresh pairing. */
+  logout(): Promise<void>;
   /** The account/number this bot is connected as (known after start()). */
   getAccountId(): string;
 }

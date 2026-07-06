@@ -142,6 +142,7 @@ async function main() {
   const web = new WebServer({
     store,
     sendMessage: (to, body) => transport.sendText(to, body),
+    disconnect: () => transport.logout(),
   });
   web.listen(config.webPort);
 

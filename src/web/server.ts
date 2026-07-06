@@ -38,6 +38,8 @@ export interface WebDeps {
   store: Store;
   /** Send a WhatsApp message (used to notify the customer on payment verification). */
   sendMessage: (to: string, body: string) => Promise<void>;
+  /** Unlink the bot from WhatsApp (shows a fresh QR to re-pair). */
+  disconnect: () => Promise<void>;
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -261,6 +263,16 @@ export class WebServer {
       deleteAsset(asset.id);
       logger.info({ id: asset.id }, "asset deleted");
       res.json({ ok: true });
+    });
+
+    // --- Disconnect / unlink the bot ---
+    app.post("/api/disconnect", async (_req, res) => {
+      res.json({ ok: true }); // respond first; logout tears down the socket
+      try {
+        await this.deps.disconnect();
+      } catch (err) {
+        logger.error({ err }, "disconnect failed");
+      }
     });
 
     // --- Menus (flow builder config) ---
