@@ -254,6 +254,11 @@ export function listContacts(storeId: string): Contact[] {
     .all(storeId) as Contact[];
 }
 
+/** Remove a contact (e.g. an @lid duplicate merged into a phone-jid contact). */
+export function deleteContact(storeId: string, waJid: string): void {
+  db.prepare(`DELETE FROM contacts WHERE store_id = ? AND wa_jid = ?`).run(storeId, waJid);
+}
+
 export function saveConversation(conv: Conversation): void {
   db.prepare(
     `INSERT INTO conversations (customer_wa, store_id, state, draft_json, menu_key, active_order_id, bot_paused_until, updated_at)
