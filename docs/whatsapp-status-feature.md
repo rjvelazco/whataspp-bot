@@ -1,6 +1,39 @@
 # WhatsApp Status (Estados) — daily auto-post
 
-**Status:** ✅ Built. Images uploaded under **Recursos → Historias / Estados** are posted
+**Status:** ✅ Working — with one inherent reach limit. The Status displays for recipients who are
+real phone contacts **and have the store's number saved**. The earlier "nothing shows" bug was an
+**audience problem**, now fixed.
+
+## Live finding (2026-07-05) — it was the audience, not the mechanism
+Diagnosed and then confirmed working on the pilot number:
+- Posting to a **self-only** or **`@lid`** audience returns `{reason:"ok"}` but **never displays** —
+  WhatsApp silently drops it (matches Baileys issues
+  [#2084](https://github.com/WhiskeySockets/Baileys/issues/2084),
+  [#2503](https://github.com/WhiskeySockets/Baileys/issues/2503)).
+- Posting an image + text Status to a **real customer's phone jid** (`58…@s.whatsapp.net`) who has
+  the store saved → **displayed correctly** on their phone. ✅
+
+**Root cause:** we stored customers by their `@lid` id (what `remoteJid` now carries), and `@lid`
+jids are rejected as Status recipients. The real phone jid arrives alongside as `msg.key.senderPn`.
+
+**Fixes (committed):**
+- `toIncoming` prefers `msg.key.senderPn` → customers are keyed on a `@s.whatsapp.net` phone jid.
+- Status audience = the bot's own jid + phone-jid customers, with legacy `@lid` entries filtered out.
+- `onWhatsApp(number)` returns `{ jid, exists, lid }` — the phone↔lid mapping, if we ever need to
+  backfill old `@lid` rows.
+
+## Reach limit (WhatsApp rule, not our code)
+A Status only shows to recipients who **have the store's number saved as a contact**. Customers who
+messaged but never saved the number won't see it. Existing `@lid`-only customers won't be reached
+until they message again (then `senderPn` records their phone jid). If broader/guaranteed reach is
+needed, a scheduled **direct-message broadcast** (send the story image as a normal message to
+everyone who's chatted) reaches 100% — at the cost of landing in the chat, not the Status.
+
+---
+
+## Original design (mechanism)
+
+**Goal:** Images uploaded under **Recursos → Historias / Estados** post
 automatically as WhatsApp **Status** every day at a time the owner configures.
 
 ## How it works

@@ -148,7 +148,13 @@ async function main() {
   const storyScheduler = new StoryScheduler({
     getStore: () => getStoreById(store.store_id),
     listStories: () => listAssets(store.store_id).filter((a) => a.category === "story"),
-    listAudience: () => listCustomerJids(store.store_id),
+    // Status recipients must be phone jids (@s.whatsapp.net). Drop legacy @lid entries
+    // and always include the bot's own number so the Status is valid and visible to the owner.
+    listAudience: () => {
+      const own = transport.getAccountId();
+      const customers = listCustomerJids(store.store_id).filter((j) => j.endsWith("@s.whatsapp.net"));
+      return [...new Set([own, ...customers].filter(Boolean))];
+    },
     postImage: (path, audience, caption) => transport.postStatusImage(path, audience, caption),
     isConnected: () => connected,
     uploadsDir: config.uploadsDir,

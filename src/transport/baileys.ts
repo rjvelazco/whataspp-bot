@@ -182,6 +182,10 @@ export class BaileysTransport implements MessagingTransport {
     const jid = msg.key.remoteJid ?? "";
     if (msg.key.fromMe) return undefined;
     if (jid === "status@broadcast" || jid.endsWith("@g.us")) return undefined; // skip status & groups
+    // WhatsApp now addresses contacts by @lid; the real phone jid arrives as senderPn.
+    // Prefer it so conversations/orders key on a phone jid that Status broadcasts accept.
+    const key = msg.key as typeof msg.key & { senderPn?: string };
+    const from = key.senderPn && key.senderPn.endsWith("@s.whatsapp.net") ? key.senderPn : jid;
     const m = msg.message;
     if (!m) return undefined;
 
@@ -209,7 +213,7 @@ export class BaileysTransport implements MessagingTransport {
     if (!text && !image) return undefined;
 
     return {
-      from: jid,
+      from,
       accountId: this.accountId,
       text: text ?? undefined,
       image,
