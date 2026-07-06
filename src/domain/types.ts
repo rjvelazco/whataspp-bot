@@ -46,6 +46,13 @@ export interface StorePayments {
   binance?: string;
 }
 
+/** Daily auto-post of "story" assets as WhatsApp Status (Estados). */
+export interface StorySchedule {
+  enabled: boolean;
+  /** Local time "HH:MM" (24h) when stories post each day, e.g. "09:00". */
+  time: string;
+}
+
 /** Per-store config — the "build once" payoff (§3.1). */
 export interface Store {
   store_id: string;
@@ -60,6 +67,8 @@ export interface Store {
   payments: StorePayments;
   size_guide: SizeGuideEntry[];
   categories: string[];
+  /** Daily WhatsApp Status auto-post config (edited from the admin panel). */
+  story_schedule?: StorySchedule;
 }
 
 export type OrderStatus =

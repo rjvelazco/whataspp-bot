@@ -228,4 +228,13 @@ export class BaileysTransport implements MessagingTransport {
   async sendDocument(to: string, path: string, fileName: string, mimetype: string): Promise<void> {
     await this.sock?.sendMessage(to, { document: { url: path }, fileName, mimetype });
   }
+
+  /** Post an image as a WhatsApp Status, scoped to the given audience (privacy list). */
+  async postStatusImage(path: string, audience: string[], caption?: string): Promise<void> {
+    await this.sock?.sendMessage(
+      "status@broadcast",
+      { image: { url: path }, caption },
+      { broadcast: true, statusJidList: audience },
+    );
+  }
 }

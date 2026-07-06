@@ -214,6 +214,18 @@ export function getConversation(customerWa: string, storeId: string): Conversati
   };
 }
 
+/** Distinct customer jids who've messaged or ordered — the default Status audience. */
+export function listCustomerJids(storeId: string): string[] {
+  const rows = db
+    .prepare(
+      `SELECT customer_wa FROM conversations WHERE store_id = ?
+       UNION
+       SELECT customer_wa FROM orders WHERE store_id = ?`,
+    )
+    .all(storeId, storeId) as { customer_wa: string }[];
+  return rows.map((r) => r.customer_wa);
+}
+
 export function saveConversation(conv: Conversation): void {
   db.prepare(
     `INSERT INTO conversations (customer_wa, store_id, state, draft_json, menu_key, active_order_id, bot_paused_until, updated_at)

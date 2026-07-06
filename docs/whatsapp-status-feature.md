@@ -1,29 +1,38 @@
-# WhatsApp Status (Estados) — Plan
+# WhatsApp Status (Estados) — daily auto-post
 
-**Goal:** the images uploaded under **Recursos → Historias / Estados** get posted
-automatically as WhatsApp **Status** when the bot starts.
+**Status:** ✅ Built. Images uploaded under **Recursos → Historias / Estados** are posted
+automatically as WhatsApp **Status** every day at a time the owner configures.
 
-Status (`story`) is a third **asset category** alongside `catalog` and `promo`. Today the
-Recursos section only **stores** these files (upload/preview/delete) — the auto-posting is
-not wired yet.
+## How it works
+- **Recursos → Historias** has a schedule bar: an on/off toggle, a time picker, a **Guardar**
+  button, and **Publicar ahora** (post immediately, for testing / on demand).
+- The schedule is stored on the store config as `story_schedule: { enabled, time }` (`time` is
+  `"HH:MM"`, 24h). It's persisted in SQLite and **preserved across reseeds** (like `account_id`),
+  so editing it in the panel survives a restart.
+- `StoryScheduler` (`src/services/storyScheduler.ts`) ticks every 30s. When `enabled` and the
+  current **server-local** time is at/just after the configured minute (within a ~2-min window),
+  it posts every `story` **image** to Status, once per day (guarded by a per-day marker).
+- **Audience:** every customer who has messaged or ordered from the store
+  (`listCustomerJids`). Status is privacy-scoped, so Baileys requires an explicit jid list.
+- Posting is skipped (not hung) when WhatsApp is offline; `Publicar ahora` reports the reason.
 
-## Feasibility
-- **Baileys supports it.** Status is posted by sending to the special `status@broadcast`
-  address with an image/video/text payload, plus an **audience list** (Status is
-  privacy-scoped — you must specify which contacts can see it).
-- The bot already knows customers who've messaged it (jids on orders/conversations), so the
-  audience could default to "customers who've contacted the store," or a chosen list.
+## API
+- `GET /api/settings/story-schedule` → `{ enabled, time }` (defaults to `{false, "09:00"}`)
+- `PUT /api/settings/story-schedule` `{ enabled, time }` → validates `HH:MM`, persists
+- `POST /api/story/post-now` → `{ posted, audience, reason }` (`ok | disconnected | no_stories | busy`)
 
-## Planned behavior (not built)
-- On bot startup (connection `open`), post each `story` asset as a WhatsApp Status.
-- Likely guard against re-posting the same asset every restart (track a `posted_at` per asset,
-  or only post assets added since last run).
-- Audience = interacted customers (or configurable).
+## Transport
+`MessagingTransport.postStatusImage(path, audience, caption?)` — Baileys sends to
+`status@broadcast` with `{ broadcast: true, statusJidList: audience }`.
 
 ## Caveats
+- **Time is server-local.** The bot posts at the configured time **in the server's timezone**.
+  A per-store timezone field is a future add if hosting moves off the owner's machine.
 - **Baileys-only.** The official WhatsApp **Cloud API does NOT support posting Status** — this
-  capability would be lost if we migrate to the Cloud API for scaling.
-- **ToS / ban risk.** Automated status posting is more active behavior than replying; pilot on a
+  capability would be lost on a Cloud API migration (the adapter would no-op/throw).
+- **ToS / ban risk.** Automated status posting is more active than replying; pilot on a
   non-critical number.
-- **Media:** images to start; video Status would need `video/mp4` added to the upload allow-list
-  and a video-aware preview in Recursos.
+- **Images only** for now. Video Status would need `video/mp4` in the upload allow-list, a
+  video-aware preview in Recursos, and a `postStatusVideo` transport method.
+- **Not yet live-verified end-to-end** (needs a paired session to confirm the Status actually
+  appears). Scheduler timing, persistence, validation, and the offline guard are verified.

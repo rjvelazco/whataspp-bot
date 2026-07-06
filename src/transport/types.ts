@@ -46,6 +46,11 @@ export interface MessagingTransport {
   sendImage(to: string, url: string, caption?: string): Promise<void>;
   /** Send a document (e.g. a PDF catalog) by path. */
   sendDocument(to: string, path: string, fileName: string, mimetype: string): Promise<void>;
+  /**
+   * Post an image to WhatsApp Status (Estados), visible to the given audience jids.
+   * Baileys-only; a Cloud API adapter would throw (Status isn't supported there).
+   */
+  postStatusImage(path: string, audience: string[], caption?: string): Promise<void>;
   /** Connect (Baileys: restore creds / print pairing QR). Resolves once linked. */
   start(): Promise<void>;
   /** Unlink from WhatsApp, wipe the session, and re-init for fresh pairing. */

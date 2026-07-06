@@ -19,9 +19,11 @@ export function seedStore(storeId: string): Store {
     readFileSync(join(dataDir, `${storeId}.catalog.json`), "utf8"),
   ) as CatalogItem[];
 
-  // Don't clobber an account_id that was bound at runtime in a previous session.
+  // Don't clobber values set at runtime in a previous session (bound account,
+  // story schedule edited from the admin panel).
   const existing = getStoreById(storeId);
   if (existing?.account_id) store.account_id = existing.account_id;
+  if (existing?.story_schedule) store.story_schedule = existing.story_schedule;
 
   upsertStore(store);
   replaceCatalog(storeId, items);

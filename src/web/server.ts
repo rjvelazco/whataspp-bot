@@ -6,17 +6,26 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import type { Asset, AssetCategory, Order, OrderStatus, Store } from "../domain/types.js";
+import type {
+  Asset,
+  AssetCategory,
+  Order,
+  OrderStatus,
+  Store,
+  StorySchedule,
+} from "../domain/types.js";
 import {
   createAsset,
   deleteAsset,
   getAsset,
   getMenus,
   getOrder,
+  getStoreById,
   listAssets,
   listOrders,
   saveMenus,
   updateOrder,
+  upsertStore,
 } from "../db/repositories.js";
 import {
   customerCheckInMessage,
@@ -40,7 +49,11 @@ export interface WebDeps {
   sendMessage: (to: string, body: string) => Promise<void>;
   /** Unlink the bot from WhatsApp (shows a fresh QR to re-pair). */
   disconnect: () => Promise<void>;
+  /** Post the store's "story" assets to WhatsApp Status right now. */
+  postStoryNow: () => Promise<{ posted: number; audience: number; reason: string }>;
 }
+
+const DEFAULT_STORY_SCHEDULE: StorySchedule = { enabled: false, time: "09:00" };
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webDir = join(here, "..", "..", "web", "dist", "store-admin", "browser");
@@ -273,6 +286,36 @@ export class WebServer {
       } catch (err) {
         logger.error({ err }, "disconnect failed");
       }
+    });
+
+    // --- Settings: story (Estados) daily schedule ---
+    app.get("/api/settings/story-schedule", (_req, res) => {
+      const store = getStoreById(this.deps.store.store_id);
+      res.json(store?.story_schedule ?? DEFAULT_STORY_SCHEDULE);
+    });
+
+    app.put("/api/settings/story-schedule", (req, res) => {
+      const enabled = Boolean(req.body?.enabled);
+      const time = String(req.body?.time ?? "");
+      if (!/^\d{1,2}:\d{2}$/.test(time)) {
+        res.status(400).json({ error: "time must be HH:MM" });
+        return;
+      }
+      const store = getStoreById(this.deps.store.store_id);
+      if (!store) {
+        res.status(404).json({ error: "store not found" });
+        return;
+      }
+      const schedule: StorySchedule = { enabled, time };
+      upsertStore({ ...store, story_schedule: schedule });
+      logger.info(schedule, "story schedule saved");
+      res.json(schedule);
+    });
+
+    // Publish stories to Status immediately (test / on-demand).
+    app.post("/api/story/post-now", async (_req, res) => {
+      const result = await this.deps.postStoryNow();
+      res.json(result);
     });
 
     // --- Menus (flow builder config) ---

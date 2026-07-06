@@ -16,11 +16,14 @@ import {
   getMenus,
   getOrder,
   getStoreById,
+  listAssets,
+  listCustomerJids,
   saveConversation,
   updateOrder,
   upsertStore,
 } from "./db/repositories.js";
 import { reduce, type EngineResult } from "./engine/stateMachine.js";
+import { StoryScheduler } from "./services/storyScheduler.js";
 import { ownerHandoffMessage, ownerOrderMessage } from "./services/notify.js";
 import type { Conversation, Store } from "./domain/types.js";
 
@@ -139,15 +142,29 @@ async function main() {
   const transport: MessagingTransport = new BaileysTransport(config.authDir, config.pairPhone);
   transport.onMessage((msg) => handleMessage(transport, msg));
 
+  let connected = false;
+
+  // Posts the store's "story" assets to WhatsApp Status daily at the configured time.
+  const storyScheduler = new StoryScheduler({
+    getStore: () => getStoreById(store.store_id),
+    listStories: () => listAssets(store.store_id).filter((a) => a.category === "story"),
+    listAudience: () => listCustomerJids(store.store_id),
+    postImage: (path, audience, caption) => transport.postStatusImage(path, audience, caption),
+    isConnected: () => connected,
+    uploadsDir: config.uploadsDir,
+  });
+
   const web = new WebServer({
     store,
     sendMessage: (to, body) => transport.sendText(to, body),
     disconnect: () => transport.logout(),
+    postStoryNow: () => storyScheduler.postNow(),
   });
   web.listen(config.webPort);
 
   // Relay connection lifecycle to the web UI (render the QR string to an image).
   transport.onConnectionUpdate((update) => {
+    connected = update.state === "open";
     if (update.state === "qr" && update.qr) {
       QRCode.toDataURL(update.qr, { margin: 1, width: 320 })
         .then((qrDataUrl) => web.setStatus({ state: "qr", qrDataUrl }))
@@ -160,6 +177,7 @@ async function main() {
   });
 
   await transport.start();
+  storyScheduler.start();
 
   // Bind this bot's account to the store so resolveStore() can route by account later.
   const accountId = transport.getAccountId();

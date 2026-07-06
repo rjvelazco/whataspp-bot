@@ -82,7 +82,7 @@
     <div class="lib-head">
       <div>
         <h2><i class="pi pi-history"></i> Historias / Estados</h2>
-        <p class="sub">Imágenes que el bot publicará como Estado de WhatsApp al iniciar. Por ahora solo se guardan aquí.</p>
+        <p class="sub">Imágenes que el bot publicará como Estado de WhatsApp automáticamente cada día a la hora que elijas. Se envían a los clientes que te han escrito.</p>
       </div>
       <label class="upload-btn" [class.busy]="uploading() === 'story'">
         <i class="pi pi-upload"></i>
@@ -90,6 +90,28 @@
         <input type="file" accept="image/*" hidden
                [disabled]="uploading() === 'story'" (change)="onFile($event, 'story')" />
       </label>
+    </div>
+
+    <!-- Daily auto-post schedule -->
+    <div class="schedule">
+      <label class="toggle">
+        <input type="checkbox" [ngModel]="scheduleEnabled()" (ngModelChange)="scheduleEnabled.set($event)" />
+        <span>Publicar automáticamente cada día</span>
+      </label>
+      <div class="schedule-right">
+        <label class="time-field" [class.off]="!scheduleEnabled()">
+          <i class="pi pi-clock"></i>
+          <input type="time" [ngModel]="scheduleTime()" (ngModelChange)="scheduleTime.set($event)"
+                 [disabled]="!scheduleEnabled()" />
+        </label>
+        <button class="btn-save" [disabled]="savingSchedule()" (click)="saveSchedule()">
+          {{ savingSchedule() ? 'Guardando…' : 'Guardar' }}
+        </button>
+        <button class="btn-now" [disabled]="postingNow() || stories().length === 0" (click)="postStoryNow()">
+          <i class="pi pi-send"></i>
+          {{ postingNow() ? 'Publicando…' : 'Publicar ahora' }}
+        </button>
+      </div>
     </div>
 
     @if (stories().length === 0) {
