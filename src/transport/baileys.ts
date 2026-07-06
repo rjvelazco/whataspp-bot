@@ -214,9 +214,6 @@ export class BaileysTransport implements MessagingTransport {
 
     return {
       from,
-      // When we resolved a phone jid, `jid` is the same sender's @lid — pass it so the
-      // app can merge any earlier @lid-keyed contact into this phone-jid one.
-      altJid: from !== jid ? jid : undefined,
       accountId: this.accountId,
       text: text ?? undefined,
       name: msg.pushName ?? undefined,

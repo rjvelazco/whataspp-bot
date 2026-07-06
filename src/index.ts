@@ -14,7 +14,6 @@ import {
   getAsset,
   getConversation,
   getMenus,
-  deleteContact,
   getOrder,
   getStoreById,
   listAssets,
@@ -50,10 +49,11 @@ async function handleMessage(transport: MessagingTransport, msg: IncomingMessage
   }
 
   const now = new Date();
-  // Record the sender as a known contact (cheap upsert) for the Status audience.
-  upsertContact(store.store_id, msg.from, msg.name ?? null, now.toISOString());
-  // If this message resolved a phone jid, drop any earlier @lid row for the same person.
-  if (msg.altJid && msg.altJid !== msg.from) deleteContact(store.store_id, msg.altJid);
+  // Record phone-jid senders as contacts (the Status audience). @lid-only senders can't
+  // receive a Status anyway, so we skip them — which also avoids duplicate contact rows.
+  if (msg.from.endsWith("@s.whatsapp.net")) {
+    upsertContact(store.store_id, msg.from, msg.name ?? null, now.toISOString());
+  }
 
   const conv =
     getConversation(msg.from, store.store_id) ?? freshConversation(msg.from, store.store_id, now);

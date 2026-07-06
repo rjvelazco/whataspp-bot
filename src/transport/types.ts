@@ -15,9 +15,6 @@ export interface IncomingMessage {
   text?: string;
   /** The sender's WhatsApp display name (pushName), when provided. */
   name?: string;
-  /** The sender's other id (the @lid) when `from` is the resolved phone jid — used to
-   *  merge a previously-stored @lid contact into the phone-jid one. */
-  altJid?: string;
   /** Present when the customer sent an image (e.g. a payment receipt). */
   image?: {
     download: () => Promise<Buffer>;
