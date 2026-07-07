@@ -120,7 +120,8 @@ function executeOption(opt: FlowOption, input: EngineInput): HandlerOutput {
       return target ? showMenu(target, input) : reShowCurrent(input);
     }
     case "show_category": {
-      const category = opt.target ?? "";
+      // 'value' holds the category; fall back to legacy 'target' for un-migrated data.
+      const category = opt.value ?? opt.target ?? "";
       const items = input.catalog.filter((it) => it.category === category);
       if (!items.length) {
         return { replies: [text(`Por ahora no hay productos en *${category}*.`)], nextState: "in_menu" };

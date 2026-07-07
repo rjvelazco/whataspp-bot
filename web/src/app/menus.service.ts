@@ -1,29 +1,9 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { FlowAction, FlowMenu, FlowOption } from './api-types';
 
-export type FlowAction =
-  | 'go_menu'
-  | 'start_order'
-  | 'show_category'
-  | 'shipping_payments'
-  | 'talk_human';
-
-export interface FlowOption {
-  label: string;
-  action: FlowAction;
-  target?: string;
-}
-
-export interface FlowMenu {
-  key: string;
-  name: string;
-  trigger?: string;
-  message: string;
-  options: FlowOption[];
-  /** Asset ids sent alongside the message. */
-  attachments?: string[];
-}
+export type { FlowAction, FlowMenu, FlowOption };
 
 @Injectable({ providedIn: 'root' })
 export class MenusService {

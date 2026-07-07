@@ -74,6 +74,29 @@ describe("greeting & menu", () => {
     });
     expect(r.replies.some((x) => x.kind === "asset" && x.assetId === "a1")).toBe(true);
   });
+
+  it("show_category still resolves a legacy target (pre-migration data)", () => {
+    const legacy: FlowMenu[] = [
+      {
+        key: "m",
+        name: "M",
+        trigger: "hola",
+        message: "Hola",
+        options: [{ label: "Vestidos", action: "show_category", target: "Vestidos" }],
+      },
+    ];
+    const base = {
+      store,
+      catalog,
+      menus: legacy,
+      now: NOW,
+      handoffPauseHours: 12,
+    };
+    const step1 = reduce({ ...base, conversation: freshConv(), message: { text: "hola", hasImage: false } });
+    const step2 = reduce({ ...base, conversation: step1.conversation, message: { text: "1", hasImage: false } });
+    expect(step2.conversation.state).toBe("browsing");
+    expect(step2.replies.some((x) => x.kind === "image")).toBe(true);
+  });
 });
 
 describe("availability (variant-level)", () => {

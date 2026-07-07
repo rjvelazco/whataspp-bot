@@ -10,8 +10,8 @@
 
 <p class="intro">
   Define los menús del bot: el mensaje que envía y las opciones que ofrece. Usa
-  <code>&#123;store_name&#125;</code> para el nombre de la tienda. La edición se guarda aquí;
-  que el bot ejecute estos menús vendrá en un paso siguiente.
+  <code>&#123;store_name&#125;</code> para el nombre de la tienda. Los cambios que guardes
+  aquí son los que el bot envía a tus clientes.
 </p>
 
 <div class="menu-list" cdkDropList (cdkDropListDropped)="dropMenu($event)">
@@ -88,7 +88,7 @@
                 <i class="grip pi pi-bars" cdkDragHandle></i>
                 <input class="opt-text" type="text" [(ngModel)]="opt.label" (ngModelChange)="touch()"
                        placeholder="Texto de la opción" />
-                <select [(ngModel)]="opt.action" (ngModelChange)="touch()">
+                <select [(ngModel)]="opt.action" (ngModelChange)="onActionChange(opt)">
                   @for (a of actions; track a.value) { <option [value]="a.value">{{ a.label }}</option> }
                 </select>
                 @if (needsMenuTarget(opt.action)) {
@@ -96,8 +96,8 @@
                     <option value="">— menú destino —</option>
                     @for (k of menuKeys(); track k) { <option [value]="k">{{ k }}</option> }
                   </select>
-                } @else if (needsCategoryTarget(opt.action)) {
-                  <input type="text" [(ngModel)]="opt.target" (ngModelChange)="touch()"
+                } @else if (needsCategoryValue(opt.action)) {
+                  <input type="text" [(ngModel)]="opt.value" (ngModelChange)="touch()"
                          placeholder="Categoría (ej: Vestidos)" />
                 } @else {
                   <span class="opt-dash">—</span>

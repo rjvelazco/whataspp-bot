@@ -17,10 +17,10 @@
     "name": "Catálogo",
     "message": "¿Qué te interesa? 🛍️",
     "options": [
-      { "label": "Vestidos", "action": "show_category", "target": "Vestidos" },
-      { "label": "Tops", "action": "show_category", "target": "Tops" },
-      { "label": "Pantalones", "action": "show_category", "target": "Pantalones" },
-      { "label": "Ofertas", "action": "show_category", "target": "Ofertas" }
+      { "label": "Vestidos", "action": "show_category", "value": "Vestidos" },
+      { "label": "Tops", "action": "show_category", "value": "Tops" },
+      { "label": "Pantalones", "action": "show_category", "value": "Pantalones" },
+      { "label": "Ofertas", "action": "show_category", "value": "Ofertas" }
     ]
   }
 ]
