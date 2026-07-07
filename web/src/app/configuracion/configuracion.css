@@ -307,3 +307,50 @@ textarea:focus {
 .cdk-drop-list-dragging .opt-row:not(.cdk-drag-placeholder) {
   transition: transform 180ms ease;
 }
+
+/* ---- flow validation panel ---- */
+.issues {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.issues-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.issues-x {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.issues ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.issues li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+}
+.issues li .pi {
+  margin-top: 2px;
+  font-size: 12px;
+}
+.issues li.err {
+  color: var(--text-danger);
+}
+.issues li.warn {
+  color: var(--text-warning);
+}

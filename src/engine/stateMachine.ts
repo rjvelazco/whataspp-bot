@@ -8,8 +8,8 @@ import type {
   Store,
 } from "../domain/types.js";
 import { parseIntent } from "./intents.js";
-import { sizeGuide } from "./menus.js";
-import { dispatch, findMenuByTrigger, handleInfoIntent, showEntry, showMenu } from "./handlers.js";
+import { dispatch, handleGlobal, handleInfoIntent, showMenu } from "./handlers.js";
+import { resolveIncoming } from "./routing.js";
 
 /** A message the bot wants to send back. */
 export type Outgoing =
@@ -80,7 +80,7 @@ function applyOutput(input: EngineInput, out: HandlerOutput): EngineResult {
  * returns replies, the next conversation, and side-effects to perform.
  */
 export function reduce(input: EngineInput): EngineResult {
-  const { conversation: conv, store, now } = input;
+  const { conversation: conv, now } = input;
   const intent = parseIntent(input.message.text ?? "");
 
   // --- handoff pause: stay quiet while a human is handling this chat ---
@@ -97,61 +97,21 @@ export function reduce(input: EngineInput): EngineResult {
     return applyOutput(input, handleImage(input));
   }
 
-  // --- global intents (interrupt from any state) ---
-  switch (intent.type) {
-    case "talk_human":
-      return applyOutput(input, handoff(input));
-    case "greeting":
-    case "menu":
-      // Show the configured entry menu (from the builder), clearing any draft.
-      return applyOutput(input, { ...showEntry(input), draft: {}, pauseUntil: null });
-    case "size_guide":
-      return applyOutput(input, { replies: [text(sizeGuide(store))], nextState: conv.state });
-    case "cancel": {
-      const activeId = conv.active_order_id;
-      if (activeId) {
-        // There's a real order in flight — cancel it, not just the chat.
-        return applyOutput(input, {
-          replies: [
-            text(`Listo, cancelamos tu pedido *#${activeId}*. Escribe *menu* para empezar de nuevo. 🙏`),
-          ],
-          nextState: "idle",
-          draft: {},
-          activeOrderId: null,
-          effects: [{ type: "cancelOrder", orderId: activeId }],
-        });
-      }
-      return applyOutput(input, {
-        replies: [text("Listo, cancelado. Escribe *menu* para empezar de nuevo. 👍")],
-        nextState: "idle",
-        draft: {},
-      });
-    }
-    default:
-      break;
+  // Route the message per the documented precedence (resolveIncoming is the single,
+  // pure source of that ordering), then run the matching handler.
+  const route = resolveIncoming(intent, conv, input.menus);
+  switch (route.kind) {
+    case "global":
+      return applyOutput(input, handleGlobal(intent, input));
+    case "info":
+      // resolveIncoming only returns "info" for info intents, so this is defined.
+      return applyOutput(input, handleInfoIntent(intent, input)!);
+    case "trigger":
+      return applyOutput(input, showMenu(route.menu, input));
+    case "dispatch":
+      return applyOutput(input, dispatch(intent, input));
   }
-
-  // Global informational keywords (tasa, dirección, envíos, pagos, ofertas, horario).
-  // Gated to nav states so a customer's order-entry answer can't be hijacked by a
-  // keyword that happens to appear in it (precedence is formalized in a later phase).
-  if (NAV_STATES.has(conv.state)) {
-    const info = handleInfoIntent(intent, input);
-    if (info) return applyOutput(input, info);
-  }
-
-  // A message matching a menu's trigger jumps to that menu — but only outside
-  // data-entry flows, so it can't derail an in-progress order.
-  if (intent.type === "text" && NAV_STATES.has(conv.state)) {
-    const triggered = findMenuByTrigger(input.menus, input.message.text ?? "");
-    if (triggered) return applyOutput(input, showMenu(triggered, input));
-  }
-
-  // --- state-specific handling ---
-  return applyOutput(input, dispatch(intent, input));
 }
-
-/** States where the customer is navigating menus (safe to jump via a trigger). */
-const NAV_STATES = new Set<ConvState>(["idle", "in_menu", "browsing", "checking_size"]);
 
 /** Human handoff: notify the owner and pause the bot for this customer (spec §2.8). */
 export function handoff(input: EngineInput): HandlerOutput {

@@ -9,6 +9,7 @@ import {
   paymentMethods,
   shippingAndPayments,
   shippingInfo,
+  sizeGuide,
   storeAddress,
   storeHours,
 } from "./menus.js";
@@ -60,6 +61,46 @@ export function dispatch(intent: Intent, input: EngineInput): HandlerOutput {
       return handleConfirming(intent, input);
     default:
       return dontUnderstand(input);
+  }
+}
+
+/**
+ * Global commands that interrupt from any state: human handoff, greeting/menu
+ * (returns to the entry menu, clearing any draft), the size guide, and cancel.
+ * Routing (resolveIncoming) guarantees only these intents reach here.
+ */
+export function handleGlobal(intent: Intent, input: EngineInput): HandlerOutput {
+  const conv = input.conversation;
+  switch (intent.type) {
+    case "talk_human":
+      return handoff(input);
+    case "greeting":
+    case "menu":
+      return { ...showEntry(input), draft: {}, pauseUntil: null };
+    case "size_guide":
+      return { replies: [text(sizeGuide(input.store))], nextState: conv.state };
+    case "cancel": {
+      const activeId = conv.active_order_id;
+      if (activeId) {
+        // A real order is in flight — cancel it, not just the chat.
+        return {
+          replies: [
+            text(`Listo, cancelamos tu pedido *#${activeId}*. Escribe *menu* para empezar de nuevo. 🙏`),
+          ],
+          nextState: "idle",
+          draft: {},
+          activeOrderId: null,
+          effects: [{ type: "cancelOrder", orderId: activeId }],
+        };
+      }
+      return {
+        replies: [text("Listo, cancelado. Escribe *menu* para empezar de nuevo. 👍")],
+        nextState: "idle",
+        draft: {},
+      };
+    }
+    default:
+      return stay(input, []);
   }
 }
 

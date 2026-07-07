@@ -42,6 +42,7 @@ import {
   customerPaymentConfirmedMessage,
   customerShippedMessage,
 } from "../services/notify.js";
+import { validateFlow } from "../engine/validateFlow.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -571,9 +572,16 @@ export class WebServer {
         res.status(400).json({ error: "menus must be an array" });
         return;
       }
+      // Validate the flow: block the save on errors, allow it with warnings.
+      const issues = validateFlow(menus);
+      const errors = issues.filter((i) => i.severity === "error");
+      if (errors.length) {
+        res.status(400).json({ error: "El flujo tiene errores", issues });
+        return;
+      }
       saveMenus(this.deps.store.store_id, menus);
-      logger.info({ count: menus.length }, "menus saved");
-      res.json({ ok: true, count: menus.length });
+      logger.info({ count: menus.length, warnings: issues.length }, "menus saved");
+      res.json({ ok: true, count: menus.length, issues });
     });
 
     // --- Static Angular app + SPA fallback ---

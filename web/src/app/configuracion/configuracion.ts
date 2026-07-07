@@ -2,7 +2,13 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MessageService } from 'primeng/api';
-import { MenusService, type FlowAction, type FlowMenu, type FlowOption } from '../menus.service';
+import {
+  MenusService,
+  type FlowAction,
+  type FlowIssue,
+  type FlowMenu,
+  type FlowOption,
+} from '../menus.service';
 import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
 
 const CATEGORY_LABEL: Record<AssetCategory, string> = {
@@ -36,6 +42,8 @@ export class Configuracion implements OnInit {
   protected readonly dirty = signal(false);
   protected readonly saving = signal(false);
   protected readonly actions = ACTIONS;
+  /** Validation issues from the last save attempt (errors block, warnings inform). */
+  protected readonly issues = signal<FlowIssue[]>([]);
 
   ngOnInit(): void {
     this.api.get().subscribe({
@@ -176,16 +184,35 @@ export class Configuracion implements OnInit {
     }
     this.saving.set(true);
     this.api.save(menus).subscribe({
-      next: () => {
+      next: (res) => {
         this.saving.set(false);
         this.dirty.set(false);
-        this.messages.add({ severity: 'success', summary: 'Configuración guardada' });
+        this.issues.set(res.issues ?? []);
+        if (res.issues?.length) {
+          this.messages.add({
+            severity: 'warn',
+            summary: 'Guardado con advertencias',
+            detail: `${res.issues.length} punto(s) a revisar más abajo.`,
+          });
+        } else {
+          this.messages.add({ severity: 'success', summary: 'Configuración guardada' });
+        }
       },
-      error: () => {
+      error: (e) => {
         this.saving.set(false);
-        this.messages.add({ severity: 'error', summary: 'No se pudo guardar' });
+        // Validation errors block the save; keep the form dirty and show them.
+        const serverIssues: FlowIssue[] = e?.error?.issues ?? [];
+        this.issues.set(serverIssues);
+        this.messages.add({
+          severity: 'error',
+          summary: serverIssues.length ? 'No se guardó: corrige los errores' : 'No se pudo guardar',
+        });
       },
     });
+  }
+
+  protected dismissIssues(): void {
+    this.issues.set([]);
   }
 
   private uniqueKey(base: string): string {

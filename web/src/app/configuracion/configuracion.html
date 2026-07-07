@@ -14,6 +14,24 @@
   aquí son los que el bot envía a tus clientes.
 </p>
 
+@if (issues().length) {
+  <div class="issues">
+    <div class="issues-head">
+      <span><i class="pi pi-exclamation-triangle"></i> Revisión del flujo</span>
+      <button class="issues-x" (click)="dismissIssues()" title="Ocultar"><i class="pi pi-times"></i></button>
+    </div>
+    <ul>
+      @for (issue of issues(); track $index) {
+        <li [class.err]="issue.severity === 'error'" [class.warn]="issue.severity === 'warning'">
+          <i class="pi" [class.pi-times-circle]="issue.severity === 'error'"
+             [class.pi-exclamation-circle]="issue.severity === 'warning'"></i>
+          {{ issue.message }}
+        </li>
+      }
+    </ul>
+  </div>
+}
+
 <div class="menu-list" cdkDropList (cdkDropListDropped)="dropMenu($event)">
   @for (menu of menus(); track $index; let mi = $index) {
     <div class="mcard" cdkDrag>
