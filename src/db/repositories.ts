@@ -89,6 +89,68 @@ export function getAllItems(storeId: string): CatalogItem[] {
   return rows.map(parseItem);
 }
 
+/** Every item for a store — active and inactive — for the admin Productos list. */
+export function listAllItems(storeId: string): CatalogItem[] {
+  const rows = db
+    .prepare(`SELECT data_json FROM catalog_items WHERE store_id = ? ORDER BY category, code`)
+    .all(storeId) as { data_json: string }[];
+  return rows.map(parseItem);
+}
+
+export function getItemById(storeId: string, itemId: string): CatalogItem | undefined {
+  const row = db
+    .prepare(`SELECT data_json FROM catalog_items WHERE store_id = ? AND item_id = ?`)
+    .get(storeId, itemId) as { data_json: string } | undefined;
+  return row ? parseItem(row) : undefined;
+}
+
+/** How many items a store has — used to seed the catalog only when empty. */
+export function countItems(storeId: string): number {
+  const row = db
+    .prepare(`SELECT COUNT(*) AS n FROM catalog_items WHERE store_id = ?`)
+    .get(storeId) as { n: number };
+  return row.n;
+}
+
+/** Insert one item. Throws on a duplicate (store_id, code) — callers map that to a 409. */
+export function createItem(item: CatalogItem): void {
+  db.prepare(
+    `INSERT INTO catalog_items (item_id, store_id, code, category, active, data_json)
+     VALUES (@item_id, @store_id, @code, @category, @active, @data_json)`,
+  ).run({
+    item_id: item.item_id,
+    store_id: item.store_id,
+    code: item.code,
+    category: item.category,
+    active: item.active ? 1 : 0,
+    data_json: JSON.stringify(item),
+  });
+}
+
+/** Update an existing item in place. Throws on a duplicate (store_id, code). */
+export function updateItem(item: CatalogItem): void {
+  db.prepare(
+    `UPDATE catalog_items
+     SET code = @code, category = @category, active = @active, data_json = @data_json
+     WHERE item_id = @item_id AND store_id = @store_id`,
+  ).run({
+    item_id: item.item_id,
+    store_id: item.store_id,
+    code: item.code,
+    category: item.category,
+    active: item.active ? 1 : 0,
+    data_json: JSON.stringify(item),
+  });
+}
+
+/** Soft delete: keep the row (orders reference codes) but hide it from the bot. */
+export function softDeleteItem(storeId: string, itemId: string): boolean {
+  const item = getItemById(storeId, itemId);
+  if (!item) return false;
+  updateItem({ ...item, active: false });
+  return true;
+}
+
 // ---------- orders ----------
 
 /** Create an order, assigning a human-friendly sequential order_id. */

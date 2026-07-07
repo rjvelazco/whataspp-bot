@@ -9,22 +9,29 @@ import { logger } from "../logger.js";
 import type {
   Asset,
   AssetCategory,
+  CatalogItem,
   Order,
   OrderStatus,
   Store,
   StorySchedule,
+  Variant,
 } from "../domain/types.js";
 import {
   createAsset,
+  createItem,
   deleteAsset,
   getAsset,
+  getItemById,
   getMenus,
   getOrder,
   getStoreById,
+  listAllItems,
   listAssets,
   listContacts,
   listOrders,
   saveMenus,
+  softDeleteItem,
+  updateItem,
   updateOrder,
   upsertStore,
 } from "../db/repositories.js";
@@ -60,8 +67,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webDir = join(here, "..", "..", "web", "dist", "store-admin", "browser");
 const indexHtml = join(webDir, "index.html");
 const assetsDir = join(config.uploadsDir, "assets");
+const productsDir = join(config.uploadsDir, "products");
 
 const ALLOWED_ASSET_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 /** Multer: store uploads under uploads/assets with a random, extension-preserving name. */
 const uploadAsset = multer({
@@ -72,6 +81,69 @@ const uploadAsset = multer({
   limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB
   fileFilter: (_req, file, cb) => cb(null, ALLOWED_ASSET_TYPES.has(file.mimetype)),
 });
+
+/** Multer for product photos: images only, stored under uploads/products. */
+const uploadProductPhoto = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, productsDir),
+    filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (_req, file, cb) => cb(null, IMAGE_TYPES.has(file.mimetype)),
+});
+
+const isHttpUrl = (s: string): boolean => /^https?:\/\//.test(s);
+
+/** better-sqlite3 raises this code when the (store_id, code) unique index is violated. */
+function isDuplicateCodeError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { code?: string }).code === "SQLITE_CONSTRAINT_UNIQUE"
+  );
+}
+
+/** Validate + normalize a product payload into a CatalogItem (throws on bad input). */
+function buildItemFromBody(
+  body: unknown,
+  storeId: string,
+  existing?: CatalogItem,
+): CatalogItem {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const name = String(b.name ?? "").trim();
+  const code = String(b.code ?? "").trim().toUpperCase();
+  const category = String(b.category ?? "").trim();
+  const price = Number(b.price);
+  if (!name) throw new Error("El nombre es obligatorio");
+  if (!code) throw new Error("El código es obligatorio");
+  if (!category) throw new Error("La categoría es obligatoria");
+  if (!Number.isFinite(price) || price < 0) throw new Error("El precio debe ser un número válido");
+
+  const variants: Variant[] = Array.isArray(b.variants)
+    ? (b.variants as unknown[])
+        .map((v) => {
+          const vv = (v ?? {}) as Record<string, unknown>;
+          return {
+            size: String(vv.size ?? "").trim(),
+            color: String(vv.color ?? "").trim(),
+            stock: Math.max(0, Math.floor(Number(vv.stock) || 0)),
+          };
+        })
+        .filter((v) => v.size && v.color)
+    : [];
+
+  return {
+    item_id: existing?.item_id ?? randomUUID(),
+    store_id: storeId,
+    code,
+    name,
+    category,
+    price,
+    photo_url: typeof b.photo_url === "string" ? b.photo_url : existing?.photo_url ?? "",
+    active: b.active === undefined ? existing?.active ?? true : Boolean(b.active),
+    variants,
+  };
+}
 
 /**
  * Serves the Angular admin UI, streams connection status over SSE, and exposes
@@ -138,6 +210,7 @@ export class WebServer {
 
   listen(port: number): void {
     mkdirSync(assetsDir, { recursive: true });
+    mkdirSync(productsDir, { recursive: true });
     const app = express();
     app.use(express.json());
 
@@ -277,6 +350,106 @@ export class WebServer {
       deleteAsset(asset.id);
       logger.info({ id: asset.id }, "asset deleted");
       res.json({ ok: true });
+    });
+
+    // --- Catalog (products) — DB is the source of truth the bot reads each message ---
+    app.get("/api/catalog", (_req, res) => {
+      res.json(listAllItems(this.deps.store.store_id));
+    });
+
+    app.post("/api/catalog", (req, res) => {
+      let item: CatalogItem;
+      try {
+        item = buildItemFromBody(req.body, this.deps.store.store_id);
+      } catch (err) {
+        res.status(400).json({ error: (err as Error).message });
+        return;
+      }
+      try {
+        createItem(item);
+      } catch (err) {
+        if (isDuplicateCodeError(err)) {
+          res.status(409).json({ error: `Ya existe un producto con el código ${item.code}` });
+          return;
+        }
+        throw err;
+      }
+      logger.info({ itemId: item.item_id, code: item.code }, "product created");
+      res.json(item);
+    });
+
+    app.put("/api/catalog/:id", (req, res) => {
+      const existing = getItemById(this.deps.store.store_id, req.params.id);
+      if (!existing) {
+        res.status(404).json({ error: "producto no encontrado" });
+        return;
+      }
+      let item: CatalogItem;
+      try {
+        item = buildItemFromBody(req.body, this.deps.store.store_id, existing);
+      } catch (err) {
+        res.status(400).json({ error: (err as Error).message });
+        return;
+      }
+      try {
+        updateItem(item);
+      } catch (err) {
+        if (isDuplicateCodeError(err)) {
+          res.status(409).json({ error: `Ya existe un producto con el código ${item.code}` });
+          return;
+        }
+        throw err;
+      }
+      logger.info({ itemId: item.item_id }, "product updated");
+      res.json(item);
+    });
+
+    // Soft delete: hide from the bot but keep the row so past orders still resolve.
+    app.delete("/api/catalog/:id", (req, res) => {
+      if (!softDeleteItem(this.deps.store.store_id, req.params.id)) {
+        res.status(404).json({ error: "producto no encontrado" });
+        return;
+      }
+      logger.info({ itemId: req.params.id }, "product soft-deleted");
+      res.json({ ok: true });
+    });
+
+    app.post("/api/catalog/:id/photo", uploadProductPhoto.single("file"), (req, res) => {
+      const existing = getItemById(this.deps.store.store_id, String(req.params.id));
+      if (!existing) {
+        res.status(404).json({ error: "producto no encontrado" });
+        return;
+      }
+      if (!req.file) {
+        res.status(400).json({ error: "no file — must be JPG/PNG/WebP up to 10 MB" });
+        return;
+      }
+      // Drop a previously uploaded local photo; leave seeded http(s) URLs untouched.
+      if (existing.photo_url && !isHttpUrl(existing.photo_url)) {
+        rmSync(existing.photo_url, { force: true });
+      }
+      const updated: CatalogItem = { ...existing, photo_url: join(productsDir, req.file.filename) };
+      updateItem(updated);
+      logger.info({ itemId: updated.item_id }, "product photo uploaded");
+      res.json(updated);
+    });
+
+    // Serve a product photo to the admin UI: redirect for seeded http URLs, file for uploads.
+    app.get("/api/catalog/:id/photo", (req, res) => {
+      const item = getItemById(this.deps.store.store_id, req.params.id);
+      if (!item || !item.photo_url) {
+        res.status(404).send("no photo");
+        return;
+      }
+      if (isHttpUrl(item.photo_url)) {
+        res.redirect(item.photo_url);
+        return;
+      }
+      if (!existsSync(item.photo_url)) {
+        res.status(404).send("no photo");
+        return;
+      }
+      res.sendFile(item.photo_url);
     });
 
     // --- Disconnect / unlink the bot ---
