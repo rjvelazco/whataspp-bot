@@ -67,6 +67,14 @@ export interface Store {
   payments: StorePayments;
   size_guide: SizeGuideEntry[];
   categories: string[];
+  /** Physical store address (shown for the `dirección` keyword). */
+  address?: string;
+  /** Optional Google Maps link paired with the address. */
+  maps_url?: string;
+  /** USD→Bs exchange rate (Bs per $1), edited manually from the admin. */
+  usd_rate?: number;
+  /** ISO timestamp of the last usd_rate update, for display. */
+  usd_rate_updated_at?: string;
   /** Daily WhatsApp Status auto-post config (edited from the admin panel). */
   story_schedule?: StorySchedule;
 }

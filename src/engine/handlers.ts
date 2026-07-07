@@ -3,7 +3,15 @@ import type { Intent } from "./intents.js";
 import { normalize } from "./intents.js";
 import type { EngineInput, HandlerOutput, Outgoing } from "./stateMachine.js";
 import { handoff, text } from "./stateMachine.js";
-import { keycap, shippingAndPayments } from "./menus.js";
+import {
+  exchangeRate,
+  keycap,
+  paymentMethods,
+  shippingAndPayments,
+  shippingInfo,
+  storeAddress,
+  storeHours,
+} from "./menus.js";
 import { availabilityMessage, detectSize, itemCard, matchItem } from "./catalog.js";
 import {
   handleConfirming,
@@ -53,6 +61,42 @@ export function dispatch(intent: Intent, input: EngineInput): HandlerOutput {
     default:
       return dontUnderstand(input);
   }
+}
+
+/**
+ * Global informational keywords (tasa, dirección, envíos, pagos, ofertas, horario).
+ * Returns undefined when the intent isn't one of them. Called only while the customer
+ * is navigating menus (see NAV_STATES) so it never hijacks an in-progress order.
+ */
+export function handleInfoIntent(intent: Intent, input: EngineInput): HandlerOutput | undefined {
+  const store = input.store;
+  switch (intent.type) {
+    case "show_rate":
+      return stay(input, [text(exchangeRate(store))]);
+    case "show_address":
+      return stay(input, [text(storeAddress(store))]);
+    case "show_shipping":
+      return stay(input, [text(shippingInfo(store))]);
+    case "show_payment":
+      return stay(input, [text(paymentMethods(store))]);
+    case "hours":
+      return stay(input, [text(storeHours(store))]);
+    case "show_offers":
+      return showOffers(input);
+    default:
+      return undefined;
+  }
+}
+
+/** Render the "Ofertas" category, or a friendly nudge when there are none. */
+function showOffers(input: EngineInput): HandlerOutput {
+  const items = input.catalog.filter((it) => it.category.toLowerCase() === "ofertas");
+  if (!items.length) {
+    return stay(input, [
+      text("Por ahora no tenemos ofertas activas. Escribe *catálogo* para ver todo. 🛍️"),
+    ]);
+  }
+  return { replies: itemCards(items, "Ofertas"), nextState: "browsing" };
 }
 
 // ---------- configured-menu flow ----------
