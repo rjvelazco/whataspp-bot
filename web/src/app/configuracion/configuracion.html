@@ -35,15 +35,18 @@
 <div class="menu-list" cdkDropList (cdkDropListDropped)="dropMenu($event)">
   @for (menu of menus(); track $index; let mi = $index) {
     <div class="mcard" cdkDrag>
-      <div class="mcard-head" (click)="toggle(mi)">
-        <i class="grip pi pi-bars" cdkDragHandle (click)="$event.stopPropagation()"></i>
-        <i class="pi" [class.pi-chevron-down]="expanded() === mi" [class.pi-chevron-right]="expanded() !== mi"></i>
-        <i class="pi pi-comment accent"></i>
-        <span class="mname">{{ menu.name || 'Sin nombre' }}</span>
+      <div class="mcard-head">
+        <i class="grip pi pi-bars" cdkDragHandle></i>
+        @if (isEntry(menu)) { <span class="star" title="Menú principal">&#9733;</span> }
+        <span class="mname" (click)="toggle(mi)">{{ menu.name || 'Sin nombre' }}</span>
         <span class="mkey">{{ menu.key }}</span>
-        @if (menu.trigger) { <span class="mtrigger">{{ menu.trigger }}</span> }
-        <span class="mcount">{{ menu.options.length }} opciones</span>
-        <button class="icon-btn danger" (click)="removeMenu(mi); $event.stopPropagation()" title="Eliminar menú">
+        <span class="status" [class.ok]="allWired(menu)" [class.warn]="!allWired(menu)">
+          <span class="dot"></span>{{ connectedCount(menu) }}/{{ menu.options.length }} conectadas
+        </span>
+        <button class="icon-btn" (click)="toggle(mi)" title="Expandir/contraer">
+          <i class="pi" [class.pi-chevron-down]="expanded() === mi" [class.pi-chevron-right]="expanded() !== mi"></i>
+        </button>
+        <button class="icon-btn danger" (click)="removeMenu(mi)" title="Eliminar menú">
           <i class="pi pi-trash"></i>
         </button>
       </div>
@@ -58,67 +61,90 @@
               <input type="text" [(ngModel)]="menu.key" (ngModelChange)="touch()" />
             </label>
           </div>
-          <label class="full">Disparador (opcional)
-            <input type="text" [(ngModel)]="menu.trigger" (ngModelChange)="touch()" placeholder="ej: hola, inicio" />
-          </label>
-          <label class="full">Mensaje
-            <textarea rows="3" [(ngModel)]="menu.message" (ngModelChange)="touch()"
-                      placeholder="Texto del mensaje…"></textarea>
-          </label>
 
-          <div class="opt-label"><i class="pi pi-paperclip"></i> Recursos a enviar</div>
-          <div class="attachments">
-            @for (id of attachmentsOf(menu); track id) {
-              @if (assetById(id); as a) {
-                <span class="att-chip">
-                  @if (assetIsImage(a)) {
-                    <img class="att-thumb" [src]="assetUrl(a.id)" alt="" />
-                  } @else {
-                    <i class="pi pi-file-pdf att-icon"></i>
-                  }
-                  <span class="att-name" [title]="a.original_name">{{ a.original_name }}</span>
-                  <button class="att-x" (click)="removeAttachment(mi, id)" title="Quitar"><i class="pi pi-times"></i></button>
-                </span>
-              } @else {
-                <span class="att-chip missing">
-                  <i class="pi pi-exclamation-triangle"></i> Recurso eliminado
-                  <button class="att-x" (click)="removeAttachment(mi, id)"><i class="pi pi-times"></i></button>
-                </span>
+          <div class="field">
+            <div class="field-label">
+              Palabras que activan este menú <span class="muted">aunque no sea su turno</span>
+            </div>
+            <div class="chip-input">
+              @for (w of triggerWords(menu); track w) {
+                <span class="chip">{{ w }}<button (click)="removeTrigger(mi, w)" title="Quitar">&#215;</button></span>
               }
-            }
-            @if (availableAssets(menu).length > 0) {
-              <select class="att-add" #attSel (change)="addAttachment(mi, attSel.value); attSel.value = ''">
-                <option value="">+ Adjuntar recurso…</option>
-                @for (a of availableAssets(menu); track a.id) {
-                  <option [value]="a.id">{{ assetLabel(a) }}</option>
+              <input class="chip-add" #trg placeholder="+ palabra"
+                     (keydown.enter)="addTrigger(mi, trg.value, trg); $event.preventDefault()"
+                     (keydown.,)="addTrigger(mi, trg.value, trg); $event.preventDefault()"
+                     (blur)="addTrigger(mi, trg.value, trg)" />
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">Mensaje</div>
+            <div class="msg-wrap">
+              <textarea #ta rows="3" [(ngModel)]="menu.message" (ngModelChange)="touch()"
+                        placeholder="Texto del mensaje…"></textarea>
+              <button type="button" class="var-btn" (click)="toggleVarMenu(mi)">
+                <span class="mono">&#123; &#125;</span> variable
+              </button>
+              @if (varMenu() === mi) {
+                <div class="var-menu">
+                  @for (v of variables; track v) {
+                    <button type="button" (click)="insertVariable(mi, ta, v)">{{ v }}</button>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label"><i class="pi pi-paperclip"></i> Recursos a enviar</div>
+            <div class="attachments">
+              @for (id of attachmentsOf(menu); track id) {
+                @if (assetById(id); as a) {
+                  <span class="att-chip">
+                    @if (assetIsImage(a)) {
+                      <img class="att-thumb" [src]="assetUrl(a.id)" alt="" />
+                    } @else {
+                      <i class="pi pi-file-pdf att-icon"></i>
+                    }
+                    <span class="att-name" [title]="a.original_name">{{ a.original_name }}</span>
+                    <button class="att-x" (click)="removeAttachment(mi, id)" title="Quitar"><i class="pi pi-times"></i></button>
+                  </span>
+                } @else {
+                  <span class="att-chip missing">
+                    <i class="pi pi-exclamation-triangle"></i> Recurso eliminado
+                    <button class="att-x" (click)="removeAttachment(mi, id)"><i class="pi pi-times"></i></button>
+                  </span>
                 }
-              </select>
+              }
+              @if (availableAssets(menu).length > 0) {
+                <select class="att-add" #attSel (change)="addAttachment(mi, attSel.value); attSel.value = ''">
+                  <option value="">+ Adjuntar recurso…</option>
+                  @for (a of availableAssets(menu); track a.id) {
+                    <option [value]="a.id">{{ assetLabel(a) }}</option>
+                  }
+                </select>
+              }
+            </div>
+            @if (assets().length === 0) {
+              <p class="att-hint">No hay recursos aún. Súbelos en <strong>Recursos</strong> para poder adjuntarlos.</p>
             }
           </div>
-          @if (assets().length === 0) {
-            <p class="att-hint">No hay recursos aún. Súbelos en <strong>Recursos</strong> para poder adjuntarlos.</p>
-          }
 
-          <div class="opt-label"><i class="pi pi-list"></i> Opciones</div>
+          <div class="field-label"><i class="pi pi-list"></i> Opciones</div>
           <div cdkDropList (cdkDropListDropped)="dropOption($event, mi)">
             @for (opt of menu.options; track $index; let oi = $index) {
               <div class="opt-row" cdkDrag>
                 <i class="grip pi pi-bars" cdkDragHandle></i>
                 <input class="opt-text" type="text" [(ngModel)]="opt.label" (ngModelChange)="touch()"
                        placeholder="Texto de la opción" />
-                <select [(ngModel)]="opt.action" (ngModelChange)="onActionChange(opt)">
-                  @for (a of actions; track a.value) { <option [value]="a.value">{{ a.label }}</option> }
-                </select>
-                @if (needsMenuTarget(opt.action)) {
-                  <select [(ngModel)]="opt.target" (ngModelChange)="touch()">
-                    <option value="">— menú destino —</option>
-                    @for (k of menuKeys(); track k) { <option [value]="k">{{ k }}</option> }
-                  </select>
-                } @else if (needsCategoryValue(opt.action)) {
-                  <input type="text" [(ngModel)]="opt.value" (ngModelChange)="touch()"
-                         placeholder="Categoría (ej: Vestidos)" />
-                } @else {
-                  <span class="opt-dash">—</span>
+                <button type="button" class="connect" [class.wired]="optionConnected(opt)"
+                        [class.unset]="!optionConnected(opt)" (click)="openConnect(mi, oi)">
+                  <i class="pi" [class.pi-arrow-right]="optionConnected(opt)" [class.pi-link]="!optionConnected(opt)"></i>
+                  {{ optionConnected(opt) ? connectLabel(opt) : 'Conectar' }}
+                </button>
+                @if (isCategory(opt)) {
+                  <input class="cat-input" type="text" [(ngModel)]="opt.value" (ngModelChange)="touch()"
+                         placeholder="categoría" />
                 }
                 <button class="icon-btn" (click)="removeOption(mi, oi)" title="Quitar opción">
                   <i class="pi pi-times"></i>
@@ -139,3 +165,33 @@
 }
 
 <button class="add-menu" (click)="addMenu()"><i class="pi pi-plus"></i> Agregar menú</button>
+
+@if (connecting(); as c) {
+  <div class="overlay" (click)="closeConnect()">
+    <div class="picker" (click)="$event.stopPropagation()">
+      <div class="picker-head">
+        <span>Conectar opción</span>
+        <button class="icon-btn" (click)="closeConnect()"><i class="pi pi-times"></i></button>
+      </div>
+      <input class="picker-search" [ngModel]="pickerSearch()" (ngModelChange)="pickerSearch.set($event)"
+             placeholder="Buscar menú o acción…" />
+      <div class="picker-body">
+        <div class="group-label">Menús</div>
+        @for (m of otherMenus(c.mi); track m.key) {
+          <button class="pick-item" (click)="pickMenu(m.key)">
+            <i class="pi pi-arrow-right"></i>
+            <span class="pick-name">{{ m.name || m.key }}</span>
+            <span class="mono">{{ m.key }}</span>
+          </button>
+        }
+        @if (otherMenus(c.mi).length === 0) { <div class="pick-empty">No hay otros menús.</div> }
+        <div class="group-label">Acciones</div>
+        @for (a of filteredActions(); track a.value) {
+          <button class="pick-item" (click)="pickAction(a.value)">
+            <i class="pi pi-bolt"></i> <span class="pick-name">{{ a.label }}</span>
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+}

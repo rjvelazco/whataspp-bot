@@ -217,6 +217,18 @@ function executeOption(opt: FlowOption, input: EngineInput): HandlerOutput {
       return stay(input, [
         text("Para pedir, escribe *PEDIR <código>* del producto (lo ves en el catálogo). Ej: *PEDIR VESTBOHEMIO*."),
       ]);
+    case "show_offers":
+      return showOffers(input);
+    case "show_payment":
+      return stay(input, [text(paymentMethods(input.store))]);
+    case "show_shipping":
+      return stay(input, [text(shippingInfo(input.store))]);
+    case "show_address":
+      return stay(input, [text(storeAddress(input.store))]);
+    case "show_rate":
+      return stay(input, [text(exchangeRate(input.store))]);
+    case "size_guide":
+      return stay(input, [text(sizeGuide(input.store))]);
     case "shipping_payments":
       return stay(input, [text(shippingAndPayments(input.store))]);
     case "talk_human":
