@@ -2,6 +2,15 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MessageService } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
+import { InputTextModule } from 'primeng/inputtext';
+import { TextareaModule } from 'primeng/textarea';
+import { ChipModule } from 'primeng/chip';
+import { SelectModule } from 'primeng/select';
+import { MessageModule } from 'primeng/message';
+import { PopoverModule } from 'primeng/popover';
+import { TooltipModule } from 'primeng/tooltip';
 import { MenusService, type FlowAction, type FlowIssue, type FlowMenu, type FlowOption } from '../menus.service';
 import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
 
@@ -50,7 +59,19 @@ function deepCopy(menu: FlowMenu): FlowMenu {
 
 @Component({
   selector: 'app-configuracion',
-  imports: [FormsModule, DragDropModule],
+  imports: [
+    FormsModule,
+    DragDropModule,
+    ButtonModule,
+    DialogModule,
+    InputTextModule,
+    TextareaModule,
+    ChipModule,
+    SelectModule,
+    MessageModule,
+    PopoverModule,
+    TooltipModule,
+  ],
   templateUrl: './configuracion.html',
   styleUrl: './configuracion.css',
 })
@@ -182,6 +203,11 @@ export class Configuracion implements OnInit {
   protected availableAssets(): Asset[] {
     const attached = new Set(this.draft.attachments ?? []);
     return this.assets().filter((a) => !attached.has(a.id));
+  }
+  /** Bound to the "+ Adjuntar recurso" p-select; reset to null after each pick. */
+  protected attachPick: string | null = null;
+  protected attachOptions(): { label: string; value: string }[] {
+    return this.availableAssets().map((a) => ({ label: this.assetLabel(a), value: a.id }));
   }
   protected assetLabel(a: Asset): string {
     return `[${CATEGORY_LABEL[a.category]}] ${a.original_name}`;

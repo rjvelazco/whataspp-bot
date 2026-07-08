@@ -1,3 +1,10 @@
+/* Layer order: PrimeNG sits between Tailwind's base and utilities so that
+   Tailwind utility classes always win over PrimeNG component defaults. */
+@layer theme, base, primeng, components, utilities;
+
+@import 'tailwindcss';
+@plugin 'tailwindcss-primeui';
+
 /* ---- Design tokens (inbox-style admin look & feel) ---- */
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
