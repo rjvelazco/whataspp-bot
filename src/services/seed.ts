@@ -45,5 +45,39 @@ export function seedStore(storeId: string): Store {
     logger.info({ storeId, menus: menus.length }, "seeded default menus");
   }
 
+  // One-off migration: move legacy show_category `target` onto `value` so the
+  // option/action model is consistent (target now means "menu key" only).
+  const persisted = getMenus(storeId);
+  if (persisted.length) {
+    const { menus: migrated, changed } = migrateShowCategoryValue(persisted);
+    if (changed) {
+      saveMenus(storeId, migrated);
+      logger.info({ storeId }, "migrated show_category options to value");
+    }
+  }
+
   return store;
+}
+
+/**
+ * Legacy menus stored the show_category's category in `target`. Move it to
+ * `value` (and drop the stray target). Pure + idempotent — returns whether it
+ * changed anything so callers only persist when needed.
+ */
+export function migrateShowCategoryValue(menus: FlowMenu[]): {
+  menus: FlowMenu[];
+  changed: boolean;
+} {
+  let changed = false;
+  const migrated = menus.map((m) => ({
+    ...m,
+    options: m.options.map((o) => {
+      if (o.action === "show_category" && o.value === undefined && o.target !== undefined) {
+        changed = true;
+        return { label: o.label, action: o.action, value: o.target };
+      }
+      return o;
+    }),
+  }));
+  return { menus: migrated, changed };
 }

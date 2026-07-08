@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MessageService } from 'primeng/api';
-import { MenusService, type FlowAction, type FlowMenu } from '../menus.service';
+import { MenusService, type FlowAction, type FlowMenu, type FlowOption } from '../menus.service';
 import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
 
 const CATEGORY_LABEL: Record<AssetCategory, string> = {
@@ -145,8 +145,19 @@ export class Configuracion implements OnInit {
   protected needsMenuTarget(a: FlowAction): boolean {
     return a === 'go_menu';
   }
-  protected needsCategoryTarget(a: FlowAction): boolean {
+  protected needsCategoryValue(a: FlowAction): boolean {
     return a === 'show_category';
+  }
+
+  /** Keep option data clean: target is only for go_menu, value only for show_category. */
+  protected onActionChange(opt: FlowOption): void {
+    if (opt.action === 'go_menu') delete opt.value;
+    else if (opt.action === 'show_category') delete opt.target;
+    else {
+      delete opt.target;
+      delete opt.value;
+    }
+    this.touch();
   }
   protected menuKeys(): string[] {
     return this.menus().map((m) => m.key);

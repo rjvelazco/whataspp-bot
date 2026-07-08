@@ -125,8 +125,10 @@ export type FlowAction =
 export interface FlowOption {
   label: string;
   action: FlowAction;
-  /** Menu key (go_menu) or category name (show_category); unused otherwise. */
+  /** Menu key to navigate to — only for action 'go_menu'. */
   target?: string;
+  /** Action data — e.g. the category name for 'show_category'. */
+  value?: string;
 }
 
 /** A configurable bot menu: a message + a set of options. Stored per store. */
