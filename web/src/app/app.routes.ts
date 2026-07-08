@@ -10,6 +10,7 @@ export const routes: Routes = [
       { path: '', redirectTo: 'pagos', pathMatch: 'full' },
       { path: 'pagos', loadComponent: () => import('./pagos/pagos').then((m) => m.Pagos) },
       { path: 'pedidos', loadComponent: () => import('./pedidos/pedidos').then((m) => m.Pedidos) },
+      { path: 'productos', loadComponent: () => import('./productos/productos').then((m) => m.Productos) },
       { path: 'recursos', loadComponent: () => import('./recursos/recursos').then((m) => m.Recursos) },
       {
         path: 'configuracion',

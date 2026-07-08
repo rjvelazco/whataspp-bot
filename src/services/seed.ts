@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CatalogItem, FlowMenu, Store } from "../domain/types.js";
-import { getMenus, getStoreById, replaceCatalog, saveMenus, upsertStore } from "../db/repositories.js";
+import { countItems, getMenus, getStoreById, replaceCatalog, saveMenus, upsertStore } from "../db/repositories.js";
 import { logger } from "../logger.js";
 
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
@@ -26,8 +26,16 @@ export function seedStore(storeId: string): Store {
   if (existing?.story_schedule) store.story_schedule = existing.story_schedule;
 
   upsertStore(store);
-  replaceCatalog(storeId, items);
-  logger.info({ storeId, items: items.length }, "seeded store config + catalog");
+
+  // Seed the catalog ONCE — after first boot the DB is authoritative, so edits
+  // made from the Productos admin (create/edit/delete) survive a restart. Re-import
+  // by clearing the catalog_items rows for the store (or deleting the DB) first.
+  if (countItems(storeId) === 0) {
+    replaceCatalog(storeId, items);
+    logger.info({ storeId, items: items.length }, "seeded store config + catalog");
+  } else {
+    logger.info({ storeId }, "seeded store config (catalog already present — kept DB copy)");
+  }
 
   // Seed the flow-builder menus ONCE — never clobber edits saved from the builder.
   const menusPath = join(dataDir, `${storeId}.menus.json`);

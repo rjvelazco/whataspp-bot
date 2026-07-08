@@ -14,6 +14,9 @@
         <i class="pi pi-shopping-bag"></i> Pedidos
         @if (store.toShip() > 0) { <span class="pill info">{{ store.toShip() }}</span> }
       </a>
+      <a class="nav-item clickable" routerLink="productos" routerLinkActive="active">
+        <i class="pi pi-box"></i> Productos
+      </a>
       <a class="nav-item clickable" routerLink="recursos" routerLinkActive="active">
         <i class="pi pi-folder-open"></i> Recursos
       </a>
