@@ -11,7 +11,6 @@ const CATEGORY_LABEL: Record<AssetCategory, string> = {
   story: 'Historia',
 };
 
-/** Human labels for every action (used to render the Conectar chip). */
 const ACTION_LABELS: Record<string, string> = {
   go_menu: 'Ir a menú',
   start_order: 'Iniciar pedido',
@@ -26,7 +25,6 @@ const ACTION_LABELS: Record<string, string> = {
   talk_human: 'Hablar con humano',
 };
 
-/** Actions offered in the "Acciones" group of the Conectar picker (no legacy combined). */
 const ACTION_ITEMS: { value: FlowAction; label: string }[] = [
   { value: 'start_order', label: 'Iniciar pedido' },
   { value: 'show_category', label: 'Mostrar productos' },
@@ -40,6 +38,15 @@ const ACTION_ITEMS: { value: FlowAction; label: string }[] = [
 ];
 
 const VARIABLES = ['{store_name}', '{owner_name}'];
+const ENTRY_TRIGGERS = ['hola', 'menu', 'inicio'];
+
+function deepCopy(menu: FlowMenu): FlowMenu {
+  return {
+    ...menu,
+    options: menu.options.map((o) => ({ ...o })),
+    attachments: [...(menu.attachments ?? [])],
+  };
+}
 
 @Component({
   selector: 'app-configuracion',
@@ -52,65 +59,45 @@ export class Configuracion implements OnInit {
   private readonly assetsApi = inject(AssetsService);
   private readonly messages = inject(MessageService);
 
+  /** The persisted flow (server truth). All mutations round-trip through PUT. */
   protected readonly menus = signal<FlowMenu[]>([]);
   protected readonly assets = signal<Asset[]>([]);
-  protected readonly expanded = signal<number | null>(0);
-  protected readonly dirty = signal(false);
   protected readonly saving = signal(false);
+  /** Flow-wide warnings from the last save (shown as a dismissible page panel). */
   protected readonly issues = signal<FlowIssue[]>([]);
   protected readonly variables = VARIABLES;
 
-  /** Which option's Conectar picker is open, plus its search text. */
-  protected readonly connecting = signal<{ mi: number; oi: number } | null>(null);
+  // ---- modal editor state ----
+  protected readonly modalOpen = signal(false);
+  protected readonly isNew = signal(false);
+  protected editIndex: number | null = null;
+  protected draft: FlowMenu = { key: '', name: '', message: '', options: [] };
+  /** Errors that blocked the current modal save (shown inside the modal). */
+  protected readonly modalIssues = signal<FlowIssue[]>([]);
+  protected readonly varMenuOpen = signal(false);
+
+  // ---- Conectar picker (nested over the modal) ----
+  protected readonly connecting = signal<number | null>(null);
   protected readonly pickerSearch = signal('');
-  /** Which menu's { } variable menu is open. */
-  protected readonly varMenu = signal<number | null>(null);
 
   ngOnInit(): void {
-    this.api.get().subscribe({
-      next: (menus) => {
-        this.menus.set(menus);
-        this.dirty.set(false);
-        this.expanded.set(menus.length ? 0 : null);
-      },
-    });
+    this.api.get().subscribe({ next: (menus) => this.menus.set(menus) });
     this.assetsApi.list().subscribe({ next: (assets) => this.assets.set(assets) });
   }
 
-  protected touch(): void {
-    this.dirty.set(true);
-  }
-  protected toggle(i: number): void {
-    this.expanded.set(this.expanded() === i ? null : i);
-  }
-
-  private patchMenu(mi: number, patch: Partial<FlowMenu>): void {
-    const menus = [...this.menus()];
-    menus[mi] = { ...menus[mi], ...patch };
-    this.menus.set(menus);
-  }
-  private patchOption(mi: number, oi: number, patch: Partial<FlowOption>): void {
-    const menus = [...this.menus()];
-    const options = [...menus[mi].options];
-    options[oi] = { ...options[oi], ...patch };
-    menus[mi] = { ...menus[mi], options };
-    this.menus.set(menus);
-  }
-
-  // ---- main-menu indicator (mirrors engine findEntryMenu) ----
+  // ---- list card helpers ----
   private entryKey(): string | undefined {
     const menus = this.menus();
-    const found = menus.find((m) => {
-      const t = (m.trigger ?? '').split(',').map((x) => x.trim().toLowerCase());
-      return t.includes('menu') || t.includes('inicio') || t.includes('hola');
-    });
+    const found = menus.find((m) => this.triggerWordsOf(m).some((t) => ENTRY_TRIGGERS.includes(t)));
     return (found ?? menus[0])?.key;
   }
   protected isEntry(menu: FlowMenu): boolean {
     return !!menu.key && menu.key === this.entryKey();
   }
+  protected isEntryDraft(): boolean {
+    return this.triggerWords().some((t) => ENTRY_TRIGGERS.includes(t.toLowerCase()));
+  }
 
-  // ---- connection status ----
   protected optionConnected(opt: FlowOption): boolean {
     if (opt.action === 'go_menu') return !!opt.target;
     if (opt.action === 'show_category') return !!opt.value;
@@ -126,43 +113,61 @@ export class Configuracion implements OnInit {
     if (opt.action === 'go_menu') return opt.target ?? '';
     return ACTION_LABELS[opt.action] ?? opt.action;
   }
-  protected isGoto(opt: FlowOption): boolean {
-    return opt.action === 'go_menu';
-  }
   protected isCategory(opt: FlowOption): boolean {
     return opt.action === 'show_category';
   }
 
-  // ---- triggers (chip input over the comma-string) ----
-  protected triggerWords(menu: FlowMenu): string[] {
-    return (menu.trigger ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+  // ---- open / close modal ----
+  protected openEdit(i: number): void {
+    this.editIndex = i;
+    this.isNew.set(false);
+    this.draft = deepCopy(this.menus()[i]);
+    this.modalIssues.set([]);
+    this.varMenuOpen.set(false);
+    this.modalOpen.set(true);
   }
-  protected addTrigger(mi: number, raw: string, input?: HTMLInputElement): void {
+  protected openNew(): void {
+    this.editIndex = null;
+    this.isNew.set(true);
+    this.draft = { key: this.uniqueKey('menu'), name: 'Nuevo menú', message: '', trigger: '', options: [] };
+    this.modalIssues.set([]);
+    this.varMenuOpen.set(false);
+    this.modalOpen.set(true);
+  }
+  protected cancelModal(): void {
+    this.modalOpen.set(false);
+    this.connecting.set(null);
+  }
+
+  // ---- triggers (chip input over the comma-string) ----
+  private triggerWordsOf(menu: FlowMenu): string[] {
+    return (menu.trigger ?? '').split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+  }
+  protected triggerWords(): string[] {
+    return (this.draft.trigger ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+  }
+  protected addTrigger(raw: string, input?: HTMLInputElement): void {
     const word = raw.trim().toLowerCase();
     if (input) input.value = '';
     if (!word) return;
-    const words = this.triggerWords(this.menus()[mi]);
+    const words = this.triggerWords();
     if (words.includes(word)) return;
-    this.patchMenu(mi, { trigger: [...words, word].join(', ') });
-    this.touch();
+    this.draft.trigger = [...words, word].join(', ');
   }
-  protected removeTrigger(mi: number, word: string): void {
-    const words = this.triggerWords(this.menus()[mi]).filter((w) => w !== word);
-    this.patchMenu(mi, { trigger: words.join(', ') });
-    this.touch();
+  protected removeTrigger(word: string): void {
+    this.draft.trigger = this.triggerWords().filter((w) => w !== word).join(', ');
   }
 
   // ---- message variables ----
-  protected toggleVarMenu(mi: number): void {
-    this.varMenu.set(this.varMenu() === mi ? null : mi);
+  protected toggleVarMenu(): void {
+    this.varMenuOpen.set(!this.varMenuOpen());
   }
-  protected insertVariable(mi: number, ta: HTMLTextAreaElement, variable: string): void {
-    const msg = this.menus()[mi].message ?? '';
+  protected insertVariable(ta: HTMLTextAreaElement, variable: string): void {
+    const msg = this.draft.message ?? '';
     const start = ta.selectionStart ?? msg.length;
     const end = ta.selectionEnd ?? start;
-    this.patchMenu(mi, { message: msg.slice(0, start) + variable + msg.slice(end) });
-    this.varMenu.set(null);
-    this.touch();
+    this.draft.message = msg.slice(0, start) + variable + msg.slice(end);
+    this.varMenuOpen.set(false);
     queueMicrotask(() => {
       ta.focus();
       const pos = start + variable.length;
@@ -171,14 +176,11 @@ export class Configuracion implements OnInit {
   }
 
   // ---- attachments (Recursos) ----
-  protected attachmentsOf(menu: FlowMenu): string[] {
-    return menu.attachments ?? [];
-  }
   protected assetById(id: string): Asset | undefined {
     return this.assets().find((a) => a.id === id);
   }
-  protected availableAssets(menu: FlowMenu): Asset[] {
-    const attached = new Set(menu.attachments ?? []);
+  protected availableAssets(): Asset[] {
+    const attached = new Set(this.draft.attachments ?? []);
     return this.assets().filter((a) => !attached.has(a.id));
   }
   protected assetLabel(a: Asset): string {
@@ -190,69 +192,41 @@ export class Configuracion implements OnInit {
   protected assetUrl(id: string): string {
     return this.assetsApi.fileUrl(id);
   }
-  protected addAttachment(mi: number, assetId: string): void {
+  protected addAttachment(assetId: string): void {
     if (!assetId) return;
-    const current = this.menus()[mi].attachments ?? [];
+    const current = this.draft.attachments ?? [];
     if (current.includes(assetId)) return;
-    this.patchMenu(mi, { attachments: [...current, assetId] });
-    this.touch();
+    this.draft.attachments = [...current, assetId];
   }
-  protected removeAttachment(mi: number, assetId: string): void {
-    this.patchMenu(mi, { attachments: (this.menus()[mi].attachments ?? []).filter((x) => x !== assetId) });
-    this.touch();
-  }
-
-  // ---- menus ----
-  protected addMenu(): void {
-    const menus = [...this.menus()];
-    menus.push({ key: this.uniqueKey('menu'), name: 'Nuevo menú', message: '', options: [] });
-    this.menus.set(menus);
-    this.expanded.set(menus.length - 1);
-    this.touch();
-  }
-  protected removeMenu(i: number): void {
-    const menus = [...this.menus()];
-    menus.splice(i, 1);
-    this.menus.set(menus);
-    this.touch();
-  }
-  protected dropMenu(event: CdkDragDrop<FlowMenu[]>): void {
-    const menus = [...this.menus()];
-    moveItemInArray(menus, event.previousIndex, event.currentIndex);
-    this.menus.set(menus);
-    this.expanded.set(null);
-    this.touch();
+  protected removeAttachment(assetId: string): void {
+    this.draft.attachments = (this.draft.attachments ?? []).filter((x) => x !== assetId);
   }
 
   // ---- options ----
-  protected addOption(mi: number): void {
-    this.patchMenu(mi, { options: [...this.menus()[mi].options, { label: '', action: 'go_menu', target: '' }] });
-    this.touch();
+  protected addOption(): void {
+    this.draft.options = [...this.draft.options, { label: '', action: 'go_menu', target: '' }];
   }
-  protected removeOption(mi: number, oi: number): void {
-    this.patchMenu(mi, { options: this.menus()[mi].options.filter((_, k) => k !== oi) });
-    this.touch();
+  protected removeOption(oi: number): void {
+    this.draft.options = this.draft.options.filter((_, k) => k !== oi);
   }
-  protected dropOption(event: CdkDragDrop<unknown>, mi: number): void {
-    const options = [...this.menus()[mi].options];
+  protected dropOption(event: CdkDragDrop<unknown>): void {
+    const options = [...this.draft.options];
     moveItemInArray(options, event.previousIndex, event.currentIndex);
-    this.patchMenu(mi, { options });
-    this.touch();
+    this.draft.options = options;
   }
 
   // ---- Conectar picker ----
-  protected openConnect(mi: number, oi: number): void {
+  protected openConnect(oi: number): void {
     this.pickerSearch.set('');
-    this.connecting.set({ mi, oi });
+    this.connecting.set(oi);
   }
   protected closeConnect(): void {
     this.connecting.set(null);
   }
-  protected otherMenus(mi: number): FlowMenu[] {
-    const self = this.menus()[mi]?.key;
+  protected otherMenus(): FlowMenu[] {
     const q = this.pickerSearch().trim().toLowerCase();
     return this.menus().filter(
-      (m) => m.key !== self && (!q || m.name.toLowerCase().includes(q) || m.key.toLowerCase().includes(q)),
+      (m) => m.key !== this.draft.key && (!q || m.name.toLowerCase().includes(q) || m.key.toLowerCase().includes(q)),
     );
   }
   protected filteredActions(): { value: FlowAction; label: string }[] {
@@ -260,59 +234,82 @@ export class Configuracion implements OnInit {
     return ACTION_ITEMS.filter((a) => !q || a.label.toLowerCase().includes(q));
   }
   protected pickMenu(menuKey: string): void {
-    const c = this.connecting();
-    if (!c) return;
-    this.patchOption(c.mi, c.oi, { action: 'go_menu', target: menuKey, value: undefined });
-    this.touch();
+    const oi = this.connecting();
+    if (oi === null) return;
+    this.draft.options[oi] = { ...this.draft.options[oi], action: 'go_menu', target: menuKey, value: undefined };
     this.closeConnect();
   }
   protected pickAction(action: FlowAction): void {
-    const c = this.connecting();
-    if (!c) return;
-    this.patchOption(c.mi, c.oi, { action, target: undefined, value: undefined });
-    this.touch();
+    const oi = this.connecting();
+    if (oi === null) return;
+    this.draft.options[oi] = { ...this.draft.options[oi], action, target: undefined, value: undefined };
     this.closeConnect();
   }
 
-  // ---- save / validation ----
-  protected save(): void {
-    const menus = this.menus();
-    const keys = menus.map((m) => m.key.trim());
-    if (keys.some((k) => !k)) {
-      this.messages.add({ severity: 'error', summary: 'Cada menú necesita un identificador' });
-      return;
-    }
-    if (new Set(keys).size !== keys.length) {
-      this.messages.add({ severity: 'error', summary: 'Los identificadores deben ser únicos' });
-      return;
-    }
+  // ---- persistence ----
+  private persist(candidate: FlowMenu[], opts: { fromModal?: boolean } = {}): void {
     this.saving.set(true);
-    this.api.save(menus).subscribe({
+    this.api.save(candidate).subscribe({
       next: (res) => {
         this.saving.set(false);
-        this.dirty.set(false);
-        this.issues.set(res.issues ?? []);
-        if (res.issues?.length) {
-          this.messages.add({
-            severity: 'warn',
-            summary: 'Guardado con advertencias',
-            detail: `${res.issues.length} punto(s) a revisar más abajo.`,
-          });
-        } else {
-          this.messages.add({ severity: 'success', summary: 'Configuración guardada' });
+        this.menus.set(candidate);
+        const warnings = (res.issues ?? []).filter((i) => i.severity === 'warning');
+        this.issues.set(warnings);
+        if (opts.fromModal) {
+          this.modalIssues.set([]);
+          this.modalOpen.set(false);
         }
+        this.messages.add(
+          warnings.length
+            ? { severity: 'warn', summary: 'Guardado', detail: `${warnings.length} advertencia(s) — revisa el flujo.` }
+            : { severity: 'success', summary: 'Guardado' },
+        );
       },
       error: (e) => {
         this.saving.set(false);
         const serverIssues: FlowIssue[] = e?.error?.issues ?? [];
-        this.issues.set(serverIssues);
-        this.messages.add({
-          severity: 'error',
-          summary: serverIssues.length ? 'No se guardó: corrige los errores' : 'No se pudo guardar',
-        });
+        if (opts.fromModal) {
+          this.modalIssues.set(serverIssues.length ? serverIssues : [{ severity: 'error', message: 'No se pudo guardar.' }]);
+        } else {
+          this.messages.add({
+            severity: 'error',
+            summary: 'No se pudo guardar',
+            detail: serverIssues[0]?.message ?? 'Revisa el flujo.',
+          });
+        }
       },
     });
   }
+
+  protected saveModal(): void {
+    const key = this.draft.key.trim();
+    if (!key) {
+      this.modalIssues.set([{ severity: 'error', message: 'El menú necesita un identificador.' }]);
+      return;
+    }
+    const clash = this.menus().some((m, i) => m.key === key && i !== this.editIndex);
+    if (clash) {
+      this.modalIssues.set([{ severity: 'error', message: `Ya existe un menú con el identificador "${key}".` }]);
+      return;
+    }
+    const candidate = [...this.menus()];
+    if (this.isNew()) candidate.push(this.draft);
+    else if (this.editIndex !== null) candidate[this.editIndex] = this.draft;
+    this.persist(candidate, { fromModal: true });
+  }
+
+  protected deleteMenu(i: number, event: Event): void {
+    event.stopPropagation();
+    this.persist(this.menus().filter((_, k) => k !== i));
+  }
+
+  protected dropMenu(event: CdkDragDrop<FlowMenu[]>): void {
+    const menus = [...this.menus()];
+    moveItemInArray(menus, event.previousIndex, event.currentIndex);
+    this.menus.set(menus); // optimistic; reorder never fails validation
+    this.persist(menus);
+  }
+
   protected dismissIssues(): void {
     this.issues.set([]);
   }

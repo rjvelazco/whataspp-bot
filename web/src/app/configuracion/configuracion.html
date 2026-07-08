@@ -1,17 +1,11 @@
 <header class="head">
   <h1>Configuración · Menús</h1>
-  <div class="head-actions">
-    @if (dirty()) { <span class="dirty">Cambios sin guardar</span> }
-    <button class="btn primary" (click)="save()" [disabled]="!dirty() || saving()">
-      <i class="pi pi-save"></i> {{ saving() ? 'Guardando…' : 'Guardar cambios' }}
-    </button>
-  </div>
+  <button class="btn primary" (click)="openNew()"><i class="pi pi-plus"></i> Agregar menú</button>
 </header>
 
 <p class="intro">
-  Define los menús del bot: el mensaje que envía y las opciones que ofrece. Usa
-  <code>&#123;store_name&#125;</code> para el nombre de la tienda. Los cambios que guardes
-  aquí son los que el bot envía a tus clientes.
+  Cada tarjeta es un menú del bot. Ábrela para editar su mensaje, palabras que lo activan y
+  opciones. Los cambios que guardes son los que el bot envía a tus clientes.
 </p>
 
 @if (issues().length) {
@@ -22,140 +16,29 @@
     </div>
     <ul>
       @for (issue of issues(); track $index) {
-        <li [class.err]="issue.severity === 'error'" [class.warn]="issue.severity === 'warning'">
-          <i class="pi" [class.pi-times-circle]="issue.severity === 'error'"
-             [class.pi-exclamation-circle]="issue.severity === 'warning'"></i>
-          {{ issue.message }}
-        </li>
+        <li class="warn"><i class="pi pi-exclamation-circle"></i> {{ issue.message }}</li>
       }
     </ul>
   </div>
 }
 
+<!-- Clean list of menu cards -->
 <div class="menu-list" cdkDropList (cdkDropListDropped)="dropMenu($event)">
-  @for (menu of menus(); track $index; let mi = $index) {
-    <div class="mcard" cdkDrag>
-      <div class="mcard-head">
-        <i class="grip pi pi-bars" cdkDragHandle></i>
-        @if (isEntry(menu)) { <span class="star" title="Menú principal">&#9733;</span> }
-        <span class="mname" (click)="toggle(mi)">{{ menu.name || 'Sin nombre' }}</span>
-        <span class="mkey">{{ menu.key }}</span>
-        <span class="status" [class.ok]="allWired(menu)" [class.warn]="!allWired(menu)">
-          <span class="dot"></span>{{ connectedCount(menu) }}/{{ menu.options.length }} conectadas
-        </span>
-        <button class="icon-btn" (click)="toggle(mi)" title="Expandir/contraer">
-          <i class="pi" [class.pi-chevron-down]="expanded() === mi" [class.pi-chevron-right]="expanded() !== mi"></i>
-        </button>
-        <button class="icon-btn danger" (click)="removeMenu(mi)" title="Eliminar menú">
-          <i class="pi pi-trash"></i>
-        </button>
-      </div>
-
-      @if (expanded() === mi) {
-        <div class="mcard-body">
-          <div class="row2">
-            <label>Nombre
-              <input type="text" [(ngModel)]="menu.name" (ngModelChange)="touch()" />
-            </label>
-            <label>Identificador
-              <input type="text" [(ngModel)]="menu.key" (ngModelChange)="touch()" />
-            </label>
-          </div>
-
-          <div class="field">
-            <div class="field-label">
-              Palabras que activan este menú <span class="muted">aunque no sea su turno</span>
-            </div>
-            <div class="chip-input">
-              @for (w of triggerWords(menu); track w) {
-                <span class="chip">{{ w }}<button (click)="removeTrigger(mi, w)" title="Quitar">&#215;</button></span>
-              }
-              <input class="chip-add" #trg placeholder="+ palabra"
-                     (keydown.enter)="addTrigger(mi, trg.value, trg); $event.preventDefault()"
-                     (keydown.,)="addTrigger(mi, trg.value, trg); $event.preventDefault()"
-                     (blur)="addTrigger(mi, trg.value, trg)" />
-            </div>
-          </div>
-
-          <div class="field">
-            <div class="field-label">Mensaje</div>
-            <div class="msg-wrap">
-              <textarea #ta rows="3" [(ngModel)]="menu.message" (ngModelChange)="touch()"
-                        placeholder="Texto del mensaje…"></textarea>
-              <button type="button" class="var-btn" (click)="toggleVarMenu(mi)">
-                <span class="mono">&#123; &#125;</span> variable
-              </button>
-              @if (varMenu() === mi) {
-                <div class="var-menu">
-                  @for (v of variables; track v) {
-                    <button type="button" (click)="insertVariable(mi, ta, v)">{{ v }}</button>
-                  }
-                </div>
-              }
-            </div>
-          </div>
-
-          <div class="field">
-            <div class="field-label"><i class="pi pi-paperclip"></i> Recursos a enviar</div>
-            <div class="attachments">
-              @for (id of attachmentsOf(menu); track id) {
-                @if (assetById(id); as a) {
-                  <span class="att-chip">
-                    @if (assetIsImage(a)) {
-                      <img class="att-thumb" [src]="assetUrl(a.id)" alt="" />
-                    } @else {
-                      <i class="pi pi-file-pdf att-icon"></i>
-                    }
-                    <span class="att-name" [title]="a.original_name">{{ a.original_name }}</span>
-                    <button class="att-x" (click)="removeAttachment(mi, id)" title="Quitar"><i class="pi pi-times"></i></button>
-                  </span>
-                } @else {
-                  <span class="att-chip missing">
-                    <i class="pi pi-exclamation-triangle"></i> Recurso eliminado
-                    <button class="att-x" (click)="removeAttachment(mi, id)"><i class="pi pi-times"></i></button>
-                  </span>
-                }
-              }
-              @if (availableAssets(menu).length > 0) {
-                <select class="att-add" #attSel (change)="addAttachment(mi, attSel.value); attSel.value = ''">
-                  <option value="">+ Adjuntar recurso…</option>
-                  @for (a of availableAssets(menu); track a.id) {
-                    <option [value]="a.id">{{ assetLabel(a) }}</option>
-                  }
-                </select>
-              }
-            </div>
-            @if (assets().length === 0) {
-              <p class="att-hint">No hay recursos aún. Súbelos en <strong>Recursos</strong> para poder adjuntarlos.</p>
-            }
-          </div>
-
-          <div class="field-label"><i class="pi pi-list"></i> Opciones</div>
-          <div cdkDropList (cdkDropListDropped)="dropOption($event, mi)">
-            @for (opt of menu.options; track $index; let oi = $index) {
-              <div class="opt-row" cdkDrag>
-                <i class="grip pi pi-bars" cdkDragHandle></i>
-                <input class="opt-text" type="text" [(ngModel)]="opt.label" (ngModelChange)="touch()"
-                       placeholder="Texto de la opción" />
-                <button type="button" class="connect" [class.wired]="optionConnected(opt)"
-                        [class.unset]="!optionConnected(opt)" (click)="openConnect(mi, oi)">
-                  <i class="pi" [class.pi-arrow-right]="optionConnected(opt)" [class.pi-link]="!optionConnected(opt)"></i>
-                  {{ optionConnected(opt) ? connectLabel(opt) : 'Conectar' }}
-                </button>
-                @if (isCategory(opt)) {
-                  <input class="cat-input" type="text" [(ngModel)]="opt.value" (ngModelChange)="touch()"
-                         placeholder="categoría" />
-                }
-                <button class="icon-btn" (click)="removeOption(mi, oi)" title="Quitar opción">
-                  <i class="pi pi-times"></i>
-                </button>
-              </div>
-            }
-          </div>
-
-          <button class="link-btn" (click)="addOption(mi)"><i class="pi pi-plus"></i> Agregar opción</button>
-        </div>
-      }
+  @for (menu of menus(); track menu.key; let i = $index) {
+    <div class="mrow" cdkDrag (click)="openEdit(i)">
+      <i class="grip pi pi-bars" cdkDragHandle (click)="$event.stopPropagation()"></i>
+      @if (isEntry(menu)) { <span class="star" title="Menú principal">&#9733;</span> }
+      <span class="mname">{{ menu.name || 'Sin nombre' }}</span>
+      <span class="mkey">{{ menu.key }}</span>
+      <span class="status" [class.ok]="allWired(menu)" [class.warn]="!allWired(menu)">
+        <span class="dot"></span>{{ connectedCount(menu) }}/{{ menu.options.length }} conectadas
+      </span>
+      <button class="icon-btn" (click)="openEdit(i); $event.stopPropagation()" title="Editar">
+        <i class="pi pi-pencil"></i>
+      </button>
+      <button class="icon-btn danger" (click)="deleteMenu(i, $event)" title="Eliminar">
+        <i class="pi pi-trash"></i>
+      </button>
     </div>
   }
 </div>
@@ -164,10 +47,138 @@
   <div class="empty-card">Aún no hay menús. Crea el primero con “Agregar menú”.</div>
 }
 
-<button class="add-menu" (click)="addMenu()"><i class="pi pi-plus"></i> Agregar menú</button>
+<!-- Editor modal -->
+@if (modalOpen()) {
+  <div class="overlay" (click)="cancelModal()">
+    <div class="card" (click)="$event.stopPropagation()">
+      <div class="card-head">
+        @if (isEntryDraft()) { <span class="star" title="Menú principal">&#9733;</span> }
+        <input class="title-input" [(ngModel)]="draft.name" placeholder="Nombre del menú" />
+        <input class="id-input mono" [(ngModel)]="draft.key" placeholder="identificador" />
+        <span class="status" [class.ok]="allWired(draft)" [class.warn]="!allWired(draft)">
+          <span class="dot"></span>{{ connectedCount(draft) }}/{{ draft.options.length }} conectadas
+        </span>
+        <button class="icon-btn" (click)="cancelModal()" title="Cerrar"><i class="pi pi-times"></i></button>
+      </div>
 
-@if (connecting(); as c) {
-  <div class="overlay" (click)="closeConnect()">
+      <div class="card-body">
+        @if (modalIssues().length) {
+          <div class="issues in-modal">
+            <ul>
+              @for (issue of modalIssues(); track $index) {
+                <li [class.err]="issue.severity === 'error'" [class.warn]="issue.severity === 'warning'">
+                  <i class="pi" [class.pi-times-circle]="issue.severity === 'error'"
+                     [class.pi-exclamation-circle]="issue.severity === 'warning'"></i>
+                  {{ issue.message }}
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        <div class="field">
+          <div class="field-label">
+            Palabras que activan este menú <span class="muted">aunque no sea su turno</span>
+          </div>
+          <div class="chip-input">
+            @for (w of triggerWords(); track w) {
+              <span class="chip">{{ w }}<button (click)="removeTrigger(w)" title="Quitar">&#215;</button></span>
+            }
+            <input class="chip-add" #trg placeholder="+ palabra"
+                   (keydown.enter)="addTrigger(trg.value, trg); $event.preventDefault()"
+                   (keydown.,)="addTrigger(trg.value, trg); $event.preventDefault()"
+                   (blur)="addTrigger(trg.value, trg)" />
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Mensaje</div>
+          <div class="msg-wrap">
+            <textarea #ta rows="3" [(ngModel)]="draft.message" placeholder="Texto del mensaje…"></textarea>
+            <button type="button" class="var-btn" (click)="toggleVarMenu()">
+              <span class="mono">&#123; &#125;</span> variable
+            </button>
+            @if (varMenuOpen()) {
+              <div class="var-menu">
+                @for (v of variables; track v) {
+                  <button type="button" (click)="insertVariable(ta, v)">{{ v }}</button>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label"><i class="pi pi-paperclip"></i> Recursos a enviar</div>
+          <div class="attachments">
+            @for (id of draft.attachments ?? []; track id) {
+              @if (assetById(id); as a) {
+                <span class="att-chip">
+                  @if (assetIsImage(a)) {
+                    <img class="att-thumb" [src]="assetUrl(a.id)" alt="" />
+                  } @else {
+                    <i class="pi pi-file-pdf att-icon"></i>
+                  }
+                  <span class="att-name" [title]="a.original_name">{{ a.original_name }}</span>
+                  <button class="att-x" (click)="removeAttachment(id)" title="Quitar"><i class="pi pi-times"></i></button>
+                </span>
+              } @else {
+                <span class="att-chip missing">
+                  <i class="pi pi-exclamation-triangle"></i> Recurso eliminado
+                  <button class="att-x" (click)="removeAttachment(id)"><i class="pi pi-times"></i></button>
+                </span>
+              }
+            }
+            @if (availableAssets().length > 0) {
+              <select class="att-add" #attSel (change)="addAttachment(attSel.value); attSel.value = ''">
+                <option value="">+ Adjuntar recurso…</option>
+                @for (a of availableAssets(); track a.id) {
+                  <option [value]="a.id">{{ assetLabel(a) }}</option>
+                }
+              </select>
+            }
+          </div>
+          @if (assets().length === 0) {
+            <p class="att-hint">No hay recursos aún. Súbelos en <strong>Recursos</strong> para poder adjuntarlos.</p>
+          }
+        </div>
+
+        <div class="field-label"><i class="pi pi-list"></i> Opciones</div>
+        <div cdkDropList (cdkDropListDropped)="dropOption($event)">
+          @for (opt of draft.options; track $index; let oi = $index) {
+            <div class="opt-row" cdkDrag>
+              <i class="grip pi pi-bars" cdkDragHandle></i>
+              <input class="opt-text" type="text" [(ngModel)]="opt.label" placeholder="Texto de la opción" />
+              <button type="button" class="connect" [class.wired]="optionConnected(opt)"
+                      [class.unset]="!optionConnected(opt)" (click)="openConnect(oi)">
+                <i class="pi" [class.pi-arrow-right]="optionConnected(opt)" [class.pi-link]="!optionConnected(opt)"></i>
+                {{ optionConnected(opt) ? connectLabel(opt) : 'Conectar' }}
+              </button>
+              @if (isCategory(opt)) {
+                <input class="cat-input" type="text" [(ngModel)]="opt.value" placeholder="categoría" />
+              }
+              <button class="icon-btn" (click)="removeOption(oi)" title="Quitar opción">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
+          }
+        </div>
+        <button class="link-btn" (click)="addOption()"><i class="pi pi-plus"></i> Agregar opción</button>
+      </div>
+
+      <div class="card-foot">
+        <button class="btn ghost" (click)="cancelModal()">Cancelar</button>
+        <button class="btn primary" [disabled]="saving()" (click)="saveModal()">
+          {{ saving() ? 'Guardando…' : 'Guardar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Conectar picker (nested over the modal) -->
+@if (connecting() !== null) {
+  <div class="overlay picker-overlay" (click)="closeConnect()">
     <div class="picker" (click)="$event.stopPropagation()">
       <div class="picker-head">
         <span>Conectar opción</span>
@@ -177,14 +188,14 @@
              placeholder="Buscar menú o acción…" />
       <div class="picker-body">
         <div class="group-label">Menús</div>
-        @for (m of otherMenus(c.mi); track m.key) {
+        @for (m of otherMenus(); track m.key) {
           <button class="pick-item" (click)="pickMenu(m.key)">
             <i class="pi pi-arrow-right"></i>
             <span class="pick-name">{{ m.name || m.key }}</span>
             <span class="mono">{{ m.key }}</span>
           </button>
         }
-        @if (otherMenus(c.mi).length === 0) { <div class="pick-empty">No hay otros menús.</div> }
+        @if (otherMenus().length === 0) { <div class="pick-empty">No hay otros menús.</div> }
         <div class="group-label">Acciones</div>
         @for (a of filteredActions(); track a.value) {
           <button class="pick-item" (click)="pickAction(a.value)">

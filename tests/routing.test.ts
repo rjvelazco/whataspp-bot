@@ -66,7 +66,7 @@ describe("validateFlow", () => {
     expect(warns(menus)).toHaveLength(0);
   });
 
-  it("flags a dangling go_menu target and a missing one", () => {
+  it("errors on a dangling go_menu target; only warns on an unwired one", () => {
     const bad: FlowMenu[] = [
       {
         key: "m",
@@ -74,14 +74,13 @@ describe("validateFlow", () => {
         trigger: "hola",
         message: "",
         options: [
-          { label: "A", action: "go_menu", target: "nope" },
-          { label: "B", action: "go_menu" },
+          { label: "A", action: "go_menu", target: "nope" }, // dangling → error
+          { label: "B", action: "go_menu" }, // unwired → warning
         ],
       },
     ];
-    const e = errs(bad);
-    expect(e.some((i) => i.message.includes("inexistente"))).toBe(true);
-    expect(e.some((i) => i.message.includes("no tiene destino"))).toBe(true);
+    expect(errs(bad).some((i) => i.message.includes("inexistente"))).toBe(true);
+    expect(warns(bad).some((i) => i.message.includes("no está conectada"))).toBe(true);
   });
 
   it("flags duplicate and empty keys", () => {
@@ -95,11 +94,11 @@ describe("validateFlow", () => {
     expect(e.some((i) => i.message.includes("sin identificador"))).toBe(true);
   });
 
-  it("flags a show_category with no category", () => {
+  it("warns on a show_category with no category", () => {
     const bad: FlowMenu[] = [
       { key: "m", name: "M", trigger: "hola", message: "", options: [{ label: "X", action: "show_category" }] },
     ];
-    expect(errs(bad).some((i) => i.message.includes("no indica cuál"))).toBe(true);
+    expect(warns(bad).some((i) => i.message.includes("no indica la categoría"))).toBe(true);
   });
 
   it("warns about an unreachable menu", () => {
