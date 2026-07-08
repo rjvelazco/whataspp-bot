@@ -42,10 +42,11 @@ export function validateFlow(menus: FlowMenu[]): FlowIssue[] {
     for (const opt of menu.options) {
       if (opt.action === "go_menu") {
         if (!opt.target || !opt.target.trim()) {
+          // Not wired yet — allowed while authoring (the X/Y status shows it); warn only.
           issues.push({
-            severity: "error",
+            severity: "warning",
             menuKey: menu.key,
-            message: `La opción "${opt.label || "(sin texto)"}" va a un menú pero no tiene destino.`,
+            message: `La opción "${opt.label || "(sin texto)"}" aún no está conectada.`,
           });
         } else if (!findMenuByKey(menus, opt.target)) {
           issues.push({
@@ -58,9 +59,9 @@ export function validateFlow(menus: FlowMenu[]): FlowIssue[] {
         const category = opt.value ?? opt.target;
         if (!category || !category.trim()) {
           issues.push({
-            severity: "error",
+            severity: "warning",
             menuKey: menu.key,
-            message: `La opción "${opt.label || "(sin texto)"}" muestra una categoría pero no indica cuál.`,
+            message: `La opción "${opt.label || "(sin texto)"}" no indica la categoría a mostrar.`,
           });
         }
       }

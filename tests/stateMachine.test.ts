@@ -148,6 +148,39 @@ describe("informational keywords", () => {
   });
 });
 
+describe("menu options can trigger info actions", () => {
+  const infoMenus: FlowMenu[] = [
+    {
+      key: "m",
+      name: "M",
+      trigger: "hola",
+      message: "Elige",
+      options: [
+        { label: "Tasa", action: "show_rate" },
+        { label: "Pago", action: "show_payment" },
+        { label: "Envío", action: "show_shipping" },
+        { label: "Dónde", action: "show_address" },
+        { label: "Tallas", action: "size_guide" },
+        { label: "Ofertas", action: "show_offers" },
+      ],
+    },
+  ];
+  const pick = (num: string) => {
+    const base = { store, catalog, menus: infoMenus, now: NOW, handoffPauseHours: 12 };
+    const s1 = reduce({ ...base, conversation: freshConv(), message: { text: "hola", hasImage: false } });
+    return reduce({ ...base, conversation: s1.conversation, message: { text: num, hasImage: false } });
+  };
+
+  it("runs the wired action for the chosen number", () => {
+    expect(body(pick("1"))).toContain("Tasa del día");
+    expect(body(pick("2"))).toContain("Métodos de pago");
+    expect(body(pick("3"))).toContain("Envíos:");
+    expect(body(pick("4"))).toContain("Maracaibo");
+    expect(body(pick("5"))).toContain("Guía de tallas");
+    expect(body(pick("6"))).toContain("no tenemos ofertas");
+  });
+});
+
 describe("order happy path", () => {
   it("collects details and emits a createOrder effect with correct subtotal", () => {
     const r = run([

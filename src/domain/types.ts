@@ -127,7 +127,13 @@ export type FlowAction =
   | "go_menu"
   | "start_order"
   | "show_category"
-  | "shipping_payments"
+  | "show_offers"
+  | "show_payment"
+  | "show_shipping"
+  | "show_address"
+  | "show_rate"
+  | "size_guide"
+  | "shipping_payments" // legacy combined view — kept for existing menus
   | "talk_human";
 
 export interface FlowOption {
