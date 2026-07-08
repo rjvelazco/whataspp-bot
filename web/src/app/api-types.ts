@@ -10,6 +10,7 @@ export type {
   FlowMenu,
   FlowOption,
   FlowAction,
+  FlowIssue,
   CatalogItem,
   Variant,
   Order,

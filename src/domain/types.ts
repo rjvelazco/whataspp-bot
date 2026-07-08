@@ -150,6 +150,14 @@ export interface FlowMenu {
   attachments?: string[];
 }
 
+/** A problem found by validateFlow. error = block the save; warning = advisory. */
+export interface FlowIssue {
+  severity: "error" | "warning";
+  /** The menu the issue belongs to (omitted for flow-wide issues). */
+  menuKey?: string;
+  message: string;
+}
+
 export type AssetCategory = "catalog" | "promo" | "story";
 
 /** An uploaded file (catalog/menu or promo/flyer) stored under uploads/assets/. */
