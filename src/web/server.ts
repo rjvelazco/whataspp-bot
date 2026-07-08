@@ -452,6 +452,69 @@ export class WebServer {
       res.sendFile(item.photo_url);
     });
 
+    // --- Store config (Tienda tab): values the bot reads for keyword replies ---
+    app.get("/api/store", (_req, res) => {
+      const store = getStoreById(this.deps.store.store_id);
+      if (!store) {
+        res.status(404).json({ error: "store not found" });
+        return;
+      }
+      res.json(store);
+    });
+
+    app.put("/api/store", (req, res) => {
+      const existing = getStoreById(this.deps.store.store_id);
+      if (!existing) {
+        res.status(404).json({ error: "store not found" });
+        return;
+      }
+      const b = (req.body ?? {}) as Record<string, unknown>;
+      // Keep an existing value when the field is absent; empty string clears an optional one.
+      const keep = (v: unknown, fallback: string) => (typeof v === "string" && v.trim() ? v.trim() : fallback);
+      const opt = (v: unknown, fallback?: string) =>
+        v === undefined ? fallback : typeof v === "string" && v.trim() ? v.trim() : undefined;
+
+      let usd_rate = existing.usd_rate;
+      let usd_rate_updated_at = existing.usd_rate_updated_at;
+      if (b.usd_rate !== undefined) {
+        if (b.usd_rate === null || b.usd_rate === "") {
+          usd_rate = undefined;
+          usd_rate_updated_at = undefined;
+        } else {
+          const n = Number(b.usd_rate);
+          if (!Number.isFinite(n) || n < 0) {
+            res.status(400).json({ error: "La tasa debe ser un número válido" });
+            return;
+          }
+          if (n !== existing.usd_rate) usd_rate_updated_at = new Date().toISOString();
+          usd_rate = n;
+        }
+      }
+
+      const payments = (b.payments ?? {}) as Record<string, unknown>;
+      const updated: Store = {
+        ...existing, // preserves store_id, account_id, story_schedule, size_guide, categories
+        store_name: keep(b.store_name, existing.store_name),
+        owner_name: keep(b.owner_name, existing.owner_name),
+        owner_whatsapp: keep(b.owner_whatsapp, existing.owner_whatsapp),
+        hours: keep(b.hours, existing.hours),
+        delivery_info: keep(b.delivery_info, existing.delivery_info),
+        returns_policy: keep(b.returns_policy, existing.returns_policy),
+        address: opt(b.address, existing.address),
+        maps_url: opt(b.maps_url, existing.maps_url),
+        payments: {
+          pago_movil: opt(payments.pago_movil, existing.payments.pago_movil),
+          zelle: opt(payments.zelle, existing.payments.zelle),
+          binance: opt(payments.binance, existing.payments.binance),
+        },
+        usd_rate,
+        usd_rate_updated_at,
+      };
+      upsertStore(updated);
+      logger.info("store config saved");
+      res.json(updated);
+    });
+
     // --- Disconnect / unlink the bot ---
     app.post("/api/disconnect", async (_req, res) => {
       res.json({ ok: true }); // respond first; logout tears down the socket

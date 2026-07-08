@@ -9,32 +9,29 @@ const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
 
 /**
  * Load a store's config + catalog from src/data/<storeId>.*.json into SQLite.
- * Idempotent: safe to run on every boot. Preserves an existing account binding.
+ * Idempotent + DB-authoritative: the JSON files seed a store ONCE. After the first
+ * boot the DB wins, so admin edits (Tienda values, products, menus, bound account,
+ * Status schedule) survive restarts. Re-import by deleting the store's rows first.
  */
 export function seedStore(storeId: string): Store {
-  const store = JSON.parse(
-    readFileSync(join(dataDir, `${storeId}.store.json`), "utf8"),
-  ) as Store;
-  const items = JSON.parse(
-    readFileSync(join(dataDir, `${storeId}.catalog.json`), "utf8"),
-  ) as CatalogItem[];
-
-  // Don't clobber values set at runtime in a previous session (bound account,
-  // story schedule edited from the admin panel).
   const existing = getStoreById(storeId);
-  if (existing?.account_id) store.account_id = existing.account_id;
-  if (existing?.story_schedule) store.story_schedule = existing.story_schedule;
-
-  upsertStore(store);
-
-  // Seed the catalog ONCE — after first boot the DB is authoritative, so edits
-  // made from the Productos admin (create/edit/delete) survive a restart. Re-import
-  // by clearing the catalog_items rows for the store (or deleting the DB) first.
-  if (countItems(storeId) === 0) {
-    replaceCatalog(storeId, items);
-    logger.info({ storeId, items: items.length }, "seeded store config + catalog");
+  if (existing) {
+    logger.info({ storeId }, "store already configured — kept DB copy");
   } else {
-    logger.info({ storeId }, "seeded store config (catalog already present — kept DB copy)");
+    const store = JSON.parse(
+      readFileSync(join(dataDir, `${storeId}.store.json`), "utf8"),
+    ) as Store;
+    upsertStore(store);
+    logger.info({ storeId }, "seeded store config");
+  }
+
+  // Seed the catalog ONCE too, for the same reason.
+  if (countItems(storeId) === 0) {
+    const items = JSON.parse(
+      readFileSync(join(dataDir, `${storeId}.catalog.json`), "utf8"),
+    ) as CatalogItem[];
+    replaceCatalog(storeId, items);
+    logger.info({ storeId, items: items.length }, "seeded catalog");
   }
 
   // Seed the flow-builder menus ONCE — never clobber edits saved from the builder.
@@ -56,7 +53,8 @@ export function seedStore(storeId: string): Store {
     }
   }
 
-  return store;
+  // Return the authoritative store (freshly seeded or the kept DB copy).
+  return getStoreById(storeId)!;
 }
 
 /**

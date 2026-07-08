@@ -115,6 +115,39 @@ describe("availability (variant-level)", () => {
   });
 });
 
+describe("informational keywords", () => {
+  it("returns the store's USD rate (accent/case-insensitive)", () => {
+    for (const q of ["tasa", "TASA", "¿cuál es el dólar?"]) {
+      const r = run([q]);
+      expect(body(r)).toContain("Tasa del día");
+      expect(body(r)).toContain("40");
+    }
+  });
+
+  it("returns the address + maps link for a location question", () => {
+    const r = run(["¿dónde están?"]);
+    expect(body(r)).toContain("Maracaibo");
+    expect(body(r)).toContain("maps.google.com");
+  });
+
+  it("returns shipping, payment and hours from store config", () => {
+    expect(body(run(["hacen envíos?"]))).toContain("Envíos:");
+    expect(body(run(["métodos de pago"]))).toContain("Pago Móvil");
+    expect(body(run(["horario"]))).toContain("Lun-Sab");
+  });
+
+  it("nudges to the catalog when there are no Ofertas products", () => {
+    expect(body(run(["ofertas"]))).toContain("no tenemos ofertas");
+  });
+
+  it("does not hijack an in-progress order", () => {
+    // Mid-order (ordering_size) a keyword-y message is order input, not the rate reply.
+    const r = run(["PEDIR VESTBOHEMIO", "tasa"]);
+    expect(body(r)).not.toContain("Tasa del día");
+    expect(r.conversation.state).toBe("ordering_size");
+  });
+});
+
 describe("order happy path", () => {
   it("collects details and emits a createOrder effect with correct subtotal", () => {
     const r = run([

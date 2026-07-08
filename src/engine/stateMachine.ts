@@ -9,7 +9,7 @@ import type {
 } from "../domain/types.js";
 import { parseIntent } from "./intents.js";
 import { sizeGuide } from "./menus.js";
-import { dispatch, findMenuByTrigger, showEntry, showMenu } from "./handlers.js";
+import { dispatch, findMenuByTrigger, handleInfoIntent, showEntry, showMenu } from "./handlers.js";
 
 /** A message the bot wants to send back. */
 export type Outgoing =
@@ -129,6 +129,14 @@ export function reduce(input: EngineInput): EngineResult {
     }
     default:
       break;
+  }
+
+  // Global informational keywords (tasa, dirección, envíos, pagos, ofertas, horario).
+  // Gated to nav states so a customer's order-entry answer can't be hijacked by a
+  // keyword that happens to appear in it (precedence is formalized in a later phase).
+  if (NAV_STATES.has(conv.state)) {
+    const info = handleInfoIntent(intent, input);
+    if (info) return applyOutput(input, info);
   }
 
   // A message matching a menu's trigger jumps to that menu — but only outside

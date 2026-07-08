@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { CatalogService, type CatalogItem } from '../catalog.service';
+import { StoreService } from '../store.service';
 
 function emptyDraft(): CatalogItem {
   return {
@@ -25,8 +26,12 @@ function emptyDraft(): CatalogItem {
 })
 export class Productos implements OnInit {
   private readonly api = inject(CatalogService);
+  private readonly storeApi = inject(StoreService);
   private readonly messages = inject(MessageService);
   private readonly confirm = inject(ConfirmationService);
+
+  /** Categories declared on the store — the primary source for the dropdown. */
+  protected readonly storeCategories = signal<string[]>([]);
 
   protected readonly items = signal<CatalogItem[]>([]);
   protected readonly loading = signal(true);
@@ -40,13 +45,17 @@ export class Productos implements OnInit {
   /** The product being created/edited. Plain object so ngModel can two-way bind it. */
   protected draft: CatalogItem = emptyDraft();
 
-  /** Distinct categories among existing products (a dropdown/datalist source). */
-  protected readonly categories = computed(() =>
-    [...new Set(this.items().map((i) => i.category).filter(Boolean))].sort(),
-  );
+  /** Store categories first, then any extra categories seen on existing products. */
+  protected readonly categories = computed(() => {
+    const fromItems = this.items().map((i) => i.category).filter(Boolean);
+    return [...new Set([...this.storeCategories(), ...fromItems])].sort();
+  });
 
   ngOnInit(): void {
     this.load();
+    this.storeApi.get().subscribe({
+      next: (store) => this.storeCategories.set(store.categories ?? []),
+    });
   }
 
   private load(): void {

@@ -1,0 +1,95 @@
+<div class="tienda">
+  <div class="head">
+    <div>
+      <h2><i class="pi pi-shop"></i> Tienda</h2>
+      <p class="sub">
+        Datos que el bot usa para responder por palabra clave: <em>tasa</em>, <em>dirección</em>,
+        <em>envíos</em>, <em>pagos</em>, <em>horario</em>.
+      </p>
+    </div>
+    <button class="btn-primary" [disabled]="saving() || loading()" (click)="save()">
+      <i class="pi pi-save"></i> {{ saving() ? 'Guardando…' : 'Guardar' }}
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="empty">Cargando…</div>
+  } @else {
+    <section class="card">
+      <h3>General</h3>
+      <div class="field-row">
+        <label class="field">
+          <span>Nombre de la tienda</span>
+          <input type="text" [(ngModel)]="form.store_name" />
+        </label>
+        <label class="field">
+          <span>Nombre del dueño/a</span>
+          <input type="text" [(ngModel)]="form.owner_name" />
+        </label>
+      </div>
+      <label class="field">
+        <span>WhatsApp del dueño/a</span>
+        <input type="text" [(ngModel)]="form.owner_whatsapp" placeholder="+58412…" />
+      </label>
+      <label class="field">
+        <span>Horario</span>
+        <input type="text" [(ngModel)]="form.hours" placeholder="Lun-Sab 9am-6pm" />
+      </label>
+    </section>
+
+    <section class="card">
+      <h3>Ubicación</h3>
+      <label class="field">
+        <span>Dirección</span>
+        <input type="text" [(ngModel)]="form.address" placeholder="C.C. …, local …, ciudad" />
+      </label>
+      <label class="field">
+        <span>Enlace de Google Maps (opcional)</span>
+        <input type="text" [(ngModel)]="form.maps_url" placeholder="https://maps.google.com/?q=…" />
+      </label>
+    </section>
+
+    <section class="card">
+      <h3>Envíos y cambios</h3>
+      <label class="field">
+        <span>Información de envíos</span>
+        <textarea rows="2" [(ngModel)]="form.delivery_info"></textarea>
+      </label>
+      <label class="field">
+        <span>Política de cambios</span>
+        <textarea rows="2" [(ngModel)]="form.returns_policy"></textarea>
+      </label>
+    </section>
+
+    <section class="card">
+      <h3>Tasa del dólar</h3>
+      <div class="field-row">
+        <label class="field">
+          <span>Bs. por $1</span>
+          <input type="number" min="0" step="0.01" [(ngModel)]="form.usd_rate" placeholder="40" />
+        </label>
+        <div class="field note">
+          <span>Última actualización</span>
+          <p>{{ rateDate() }}</p>
+        </div>
+      </div>
+      <p class="hint">Se actualiza manualmente. La fecha se guarda automáticamente al cambiar el valor.</p>
+    </section>
+
+    <section class="card">
+      <h3>Métodos de pago</h3>
+      <label class="field">
+        <span>Pago Móvil</span>
+        <input type="text" [(ngModel)]="form.payments.pago_movil" placeholder="Banco / CI / teléfono" />
+      </label>
+      <label class="field">
+        <span>Zelle</span>
+        <input type="text" [(ngModel)]="form.payments.zelle" placeholder="correo@ejemplo.com" />
+      </label>
+      <label class="field">
+        <span>Binance (USDT)</span>
+        <input type="text" [(ngModel)]="form.payments.binance" placeholder="usuario_usdt" />
+      </label>
+    </section>
+  }
+</div>
