@@ -137,6 +137,13 @@ export class Configuracion implements OnInit {
   protected isCategory(opt: FlowOption): boolean {
     return opt.action === 'show_category';
   }
+  /** Trigger words for a menu card (display order/casing preserved). */
+  protected menuTriggers(menu: FlowMenu): string[] {
+    return (menu.trigger ?? '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
 
   // ---- open / close modal ----
   protected openEdit(i: number): void {
