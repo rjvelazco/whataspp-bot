@@ -1,122 +1,197 @@
-<header class="head">
-  <h1>Pedidos</h1>
-  <button class="btn ghost" (click)="store.load()" [disabled]="store.loading()">
-    <i class="pi pi-refresh"></i> Actualizar
-  </button>
+<header class="flex items-center justify-between gap-4 mb-4">
+  <h1 class="text-2xl font-semibold m-0">Pedidos</h1>
+  <p-button
+    label="Actualizar"
+    icon="pi pi-refresh"
+    [outlined]="true"
+    severity="secondary"
+    [disabled]="store.loading()"
+    (onClick)="store.load()"
+  />
 </header>
 
-<section class="metrics">
-  <div class="metric">
-    <span class="label">Por enviar</span>
-    <span class="value" [class.alert]="store.toShip() > 0">{{ store.toShip() }}</span>
-    <span class="hint">Pago verificado, listos para preparar</span>
+<section class="grid gap-3.5 mb-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+  <div class="flex flex-col gap-0.5 rounded-xl border border-surface-200 bg-surface-0 p-4">
+    <span class="text-xs text-muted-color">Por enviar</span>
+    <span class="text-2xl font-semibold" [class.text-amber-600]="store.toShip() > 0">
+      {{ store.toShip() }}
+    </span>
+    <span class="text-xs text-muted-color">Pago verificado, listos para preparar</span>
   </div>
-  <div class="metric">
-    <span class="label">En camino</span><span class="value">{{ store.inTransit() }}</span>
-    <span class="hint">Enviados, aún no entregados</span>
+  <div class="flex flex-col gap-0.5 rounded-xl border border-surface-200 bg-surface-0 p-4">
+    <span class="text-xs text-muted-color">En camino</span>
+    <span class="text-2xl font-semibold">{{ store.inTransit() }}</span>
+    <span class="text-xs text-muted-color">Enviados, aún no entregados</span>
   </div>
-  <div class="metric">
-    <span class="label">Entregados</span><span class="value">{{ store.deliveredCount() }}</span>
-    <span class="hint">En manos del cliente</span>
+  <div class="flex flex-col gap-0.5 rounded-xl border border-surface-200 bg-surface-0 p-4">
+    <span class="text-xs text-muted-color">Entregados</span>
+    <span class="text-2xl font-semibold">{{ store.deliveredCount() }}</span>
+    <span class="text-xs text-muted-color">En manos del cliente</span>
   </div>
 </section>
 
-<div class="chips bar">
-  @for (opt of fulfillOptions; track opt.value) {
-    <button class="chip" [class.active]="fulfillFilter() === opt.value"
-            (click)="fulfillFilter.set(opt.value)">{{ opt.label }}</button>
-  }
-</div>
+<p-selectbutton
+  class="mb-4 block"
+  [options]="fulfillOptions"
+  [ngModel]="fulfillFilter()"
+  (ngModelChange)="fulfillFilter.set($event)"
+  optionLabel="label"
+  optionValue="value"
+  [allowEmpty]="false"
+/>
 
 @if (fulfillRows().length === 0) {
-  <div class="empty-card">
-    @if (fulfillFilter() === 'toship') { Nada por enviar por ahora. }
-    @else if (fulfillFilter() === 'shipped') { Ningún pedido en camino. }
-    @else if (fulfillFilter() === 'delivered') { Aún no hay pedidos entregados. }
-    @else { No hay pedidos por preparar. Se listan aquí cuando verificas un pago en Pagos. }
+  <div class="rounded-xl border border-surface-200 bg-surface-0 p-10 text-center text-muted-color">
+    @if (fulfillFilter() === 'toship') {
+      Nada por enviar por ahora.
+    } @else if (fulfillFilter() === 'shipped') {
+      Ningún pedido en camino.
+    } @else if (fulfillFilter() === 'delivered') {
+      Aún no hay pedidos entregados.
+    } @else {
+      No hay pedidos por preparar. Se listan aquí cuando verificas un pago en Pagos.
+    }
   </div>
 } @else {
-  <div class="cards-grid">
+  <div class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(320px,1fr))]">
     @for (order of fulfillRows(); track order.order_id) {
-      <article class="order-card">
-        <header class="oc-head">
-          <div class="oc-head-top">
+      <article class="flex flex-col rounded-xl border border-surface-200 bg-surface-0 overflow-hidden">
+        <header class="p-4 border-b border-surface-200">
+          <div class="flex items-start justify-between gap-2">
             <div>
-              <div class="oc-id">Pedido #{{ order.order_id }}</div>
-              <div class="oc-date">{{ order.created_at | date: 'd MMM y · h:mm a' }}</div>
+              <div class="text-base font-semibold">Pedido #{{ order.order_id }}</div>
+              <div class="text-xs text-muted-color mt-0.5">
+                {{ order.created_at | date: 'd MMM y · h:mm a' }}
+              </div>
             </div>
             <app-status-tag [status]="order.status" />
           </div>
-          <div class="oc-cust">
-            <span class="avatar">{{ order.customer_name.slice(0, 2) }}</span>
+          <div class="flex items-center gap-2.5 mt-3">
+            <p-avatar [label]="order.customer_name.slice(0, 2)" shape="circle" />
             <div>
-              <div class="cust-name">{{ order.customer_name }}</div>
-              <div class="cust-num">{{ customerNumber(order.customer_wa) }}</div>
+              <div class="font-medium">{{ order.customer_name }}</div>
+              <div class="text-xs text-muted-color">{{ customerNumber(order.customer_wa) }}</div>
             </div>
           </div>
         </header>
 
-        <div class="oc-body">
+        <div class="p-4">
           @for (it of order.items; track it.code + it.size + it.color) {
-            <div class="oc-item">
-              <div class="oc-thumb"><i class="pi pi-image"></i></div>
-              <div class="oc-item-info">
-                <div class="oc-item-row">
-                  <span class="oc-item-name">{{ it.name || it.code }}</span>
+            <div class="flex gap-2.5 mb-3">
+              <div
+                class="w-11 h-11 rounded bg-surface-100 flex items-center justify-center text-muted-color shrink-0"
+              >
+                <i class="pi pi-image"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex justify-between gap-2 text-sm font-medium">
+                  <span class="truncate">{{ it.name || it.code }}</span>
                   <span>{{ it.price * it.qty | currency: 'USD' }}</span>
                 </div>
-                <div class="oc-item-meta">Talla {{ it.size }} · {{ it.color }} · ×{{ it.qty }}</div>
-                <div class="oc-item-unit">{{ it.price | currency: 'USD' }} c/u</div>
+                <div class="text-xs text-color mt-0.5">
+                  Talla {{ it.size }} · {{ it.color }} · ×{{ it.qty }}
+                </div>
+                <div class="text-xs text-muted-color">{{ it.price | currency: 'USD' }} c/u</div>
               </div>
             </div>
           }
-          <div class="oc-divider"></div>
-          <div class="oc-line"><span>Subtotal</span><span>{{ order.subtotal | currency: 'USD' }}</span></div>
-          <div class="oc-line"><span>Envío</span><span class="muted">a coordinar</span></div>
-          <div class="oc-total"><span>Total</span><span>{{ order.subtotal | currency: 'USD' }}</span></div>
-        </div>
-
-        <div class="oc-info">
-          <div class="oc-info-label"><i class="pi pi-map-marker"></i> Entrega</div>
-          <div class="oc-info-val">{{ order.delivery_address }}</div>
-          <div class="oc-info-label"><i class="pi pi-wallet"></i> Pago</div>
-          <div class="oc-pay">
-            @if (order.receipt_url) {
-              <span class="oc-pay-left">
-                <p-image [src]="store.receiptUrl(order.order_id)" [preview]="true" width="28" alt="Comprobante" />
-                Comprobante
-              </span>
-            } @else {
-              <span class="muted">Sin comprobante</span>
-            }
-            <span class="verified"><i class="pi pi-check-circle"></i> Verificado</span>
+          <div class="border-t border-dashed border-surface-300 my-3"></div>
+          <div class="flex justify-between text-xs text-color mb-1.5">
+            <span>Subtotal</span><span>{{ order.subtotal | currency: 'USD' }}</span>
+          </div>
+          <div class="flex justify-between text-xs text-color mb-1.5">
+            <span>Envío</span><span class="text-muted-color">a coordinar</span>
+          </div>
+          <div class="flex justify-between text-[15px] font-semibold mt-2">
+            <span>Total</span><span>{{ order.subtotal | currency: 'USD' }}</span>
           </div>
         </div>
 
-        <div class="oc-actions">
-          <a class="ocbtn ghost" [href]="waLink(order.customer_wa)" target="_blank" rel="noopener">
-            <i class="pi pi-whatsapp"></i> Mensaje
-          </a>
+        <div class="mx-4 mb-3.5 rounded bg-surface-50 p-3">
+          <div class="flex items-center gap-1.5 text-xs text-muted-color mb-1.5">
+            <i class="pi pi-map-marker"></i> Entrega
+          </div>
+          <div class="text-xs leading-relaxed">{{ order.delivery_address }}</div>
+          <div class="flex items-center gap-1.5 text-xs text-muted-color mt-2.5 mb-1.5">
+            <i class="pi pi-wallet"></i> Pago
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            @if (order.receipt_url) {
+              <span class="inline-flex items-center gap-1.5 text-xs">
+                <p-image
+                  [src]="store.receiptUrl(order.order_id)"
+                  [preview]="true"
+                  width="28"
+                  alt="Comprobante"
+                />
+                Comprobante
+              </span>
+            } @else {
+              <span class="text-muted-color text-xs">Sin comprobante</span>
+            }
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+              <i class="pi pi-check-circle"></i> Verificado
+            </span>
+          </div>
+        </div>
+
+        <div class="flex gap-2 px-4 pb-3.5 mt-auto">
+          <a
+            pButton
+            class="flex-1"
+            severity="secondary"
+            [outlined]="true"
+            label="Mensaje"
+            icon="pi pi-whatsapp"
+            [href]="waLink(order.customer_wa)"
+            target="_blank"
+            rel="noopener"
+          ></a>
           @switch (order.status) {
             @case ('confirmed') {
-              <button class="ocbtn primary" [disabled]="store.isBusy(order.order_id)" (click)="store.ship(order)">
-                <i class="pi pi-send"></i> Marcar enviado
-              </button>
+              <p-button
+                class="flex-1"
+                styleClass="w-full"
+                label="Marcar enviado"
+                icon="pi pi-send"
+                [disabled]="store.isBusy(order.order_id)"
+                (onClick)="store.ship(order)"
+              />
             }
             @case ('shipped') {
-              <button class="ocbtn success" [disabled]="store.isBusy(order.order_id)" (click)="store.deliver(order)">
-                <i class="pi pi-check-circle"></i> Marcar entregado
-              </button>
+              <p-button
+                class="flex-1"
+                styleClass="w-full"
+                label="Marcar entregado"
+                icon="pi pi-check-circle"
+                severity="success"
+                [disabled]="store.isBusy(order.order_id)"
+                (onClick)="store.deliver(order)"
+              />
             }
             @default {
-              <span class="ocbtn done"><i class="pi pi-check"></i> Entregado</span>
+              <p-button
+                class="flex-1"
+                styleClass="w-full"
+                label="Entregado"
+                icon="pi pi-check"
+                severity="success"
+                [text]="true"
+                [disabled]="true"
+              />
             }
           }
         </div>
         @if (order.status === 'confirmed') {
-          <button class="oc-cancel" [disabled]="store.isBusy(order.order_id)" (click)="store.cancel(order)">
-            Cancelar pedido
-          </button>
+          <p-button
+            styleClass="w-full"
+            label="Cancelar pedido"
+            severity="danger"
+            [text]="true"
+            size="small"
+            [disabled]="store.isBusy(order.order_id)"
+            (onClick)="store.cancel(order)"
+          />
         }
       </article>
     }

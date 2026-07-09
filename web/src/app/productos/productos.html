@@ -1,156 +1,226 @@
-<div class="productos">
-  <div class="head">
-    <div>
-      <h2><i class="pi pi-box"></i> Productos</h2>
-      <p class="sub">
-        Administra los productos que vende el bot: precios, tallas, colores y stock.
-        El bot lee esta lista en tiempo real.
-      </p>
-    </div>
-    <button class="btn-primary" (click)="newProduct()">
-      <i class="pi pi-plus"></i> Nuevo producto
-    </button>
+<div class="flex items-start justify-between gap-4 mb-4">
+  <div>
+    <h2 class="flex items-center gap-2 m-0 text-lg font-semibold">
+      <i class="pi pi-box text-primary"></i> Productos
+    </h2>
+    <p class="mt-1 mb-0 text-sm text-muted-color max-w-[70ch]">
+      Administra los productos que vende el bot: precios, tallas, colores y stock. El bot lee esta
+      lista en tiempo real.
+    </p>
   </div>
+  <p-button label="Nuevo producto" icon="pi pi-plus" (onClick)="newProduct()" />
+</div>
 
-  @if (loading()) {
-    <div class="empty">Cargando…</div>
-  } @else if (items().length === 0) {
-    <div class="empty">Aún no hay productos — agrega el primero.</div>
-  } @else {
-    <table class="grid">
-      <thead>
-        <tr>
-          <th class="thumb-col"></th>
-          <th>Código</th>
-          <th>Nombre</th>
-          <th>Categoría</th>
-          <th class="num">Precio</th>
-          <th class="num">Stock</th>
-          <th class="center">Activo</th>
-          <th class="actions-col"></th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (it of items(); track it.item_id) {
-          <tr [class.inactive]="!it.active">
-            <td class="thumb-cell">
-              @if (hasPhoto(it)) {
-                <img [src]="photoSrc(it)" [alt]="it.name" class="thumb" />
-              } @else {
-                <div class="thumb ph"><i class="pi pi-image"></i></div>
-              }
-            </td>
-            <td class="code">{{ it.code }}</td>
-            <td>{{ it.name }}</td>
-            <td>{{ it.category }}</td>
-            <td class="num">${{ it.price.toFixed(2) }}</td>
-            <td class="num" [class.zero]="totalStock(it) === 0">{{ totalStock(it) }}</td>
-            <td class="center">
-              <label class="switch" title="Mostrar/ocultar en el bot">
-                <input type="checkbox" [checked]="it.active" (change)="toggleActive(it)" />
-                <span class="slider"></span>
-              </label>
-            </td>
-            <td class="actions">
-              <button class="icon" (click)="edit(it)" title="Editar"><i class="pi pi-pencil"></i></button>
-              <button class="icon danger" (click)="confirmDelete(it)" title="Eliminar">
-                <i class="pi pi-trash"></i>
-              </button>
-            </td>
-          </tr>
-        }
-      </tbody>
-    </table>
-  }
-
-  @if (showDialog()) {
-    <div class="overlay" (click)="close()">
-      <div class="dialog" (click)="$event.stopPropagation()">
-        <div class="dialog-head">
-          <h3>{{ isNew() ? 'Nuevo producto' : 'Editar producto' }}</h3>
-          <button class="icon" (click)="close()"><i class="pi pi-times"></i></button>
-        </div>
-
-        <div class="dialog-body">
-          <div class="field-row">
-            <label class="field">
-              <span>Nombre</span>
-              <input type="text" [(ngModel)]="draft.name" placeholder="Vestido bohemio" />
-            </label>
-            <label class="field">
-              <span>Código</span>
-              <input type="text" [(ngModel)]="draft.code" placeholder="VESTBOHEMIO" />
-            </label>
-          </div>
-
-          <div class="field-row">
-            <label class="field">
-              <span>Categoría</span>
-              <input type="text" list="cat-list" [(ngModel)]="draft.category" placeholder="Vestidos" />
-              <datalist id="cat-list">
-                @for (c of categories(); track c) {
-                  <option [value]="c"></option>
-                }
-              </datalist>
-            </label>
-            <label class="field">
-              <span>Precio (USD)</span>
-              <input type="number" min="0" step="0.01" [(ngModel)]="draft.price" />
-            </label>
-          </div>
-
-          <div class="variants">
-            <div class="variants-head">
-              <span>Tallas, colores y stock</span>
-              <button class="btn-ghost" (click)="addVariant()">
-                <i class="pi pi-plus"></i> Agregar variante
-              </button>
+@if (loading()) {
+  <div class="p-8 text-center text-muted-color">Cargando…</div>
+} @else {
+  <p-table
+    [value]="items()"
+    dataKey="item_id"
+    styleClass="p-datatable-sm"
+    [paginator]="items().length > 10"
+    [rows]="10"
+  >
+    <ng-template pTemplate="header">
+      <tr>
+        <th style="width: 3.5rem"></th>
+        <th>Código</th>
+        <th>Nombre</th>
+        <th>Categoría</th>
+        <th class="text-right">Precio</th>
+        <th class="text-right">Stock</th>
+        <th class="text-center">Activo</th>
+        <th style="width: 6rem"></th>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="body" let-it>
+      <tr [class.opacity-50]="!it.active">
+        <td>
+          @if (hasPhoto(it)) {
+            <img [src]="photoSrc(it)" [alt]="it.name" class="w-11 h-11 rounded object-cover" />
+          } @else {
+            <div
+              class="w-11 h-11 rounded bg-surface-100 flex items-center justify-center text-muted-color"
+            >
+              <i class="pi pi-image"></i>
             </div>
-            @if (draft.variants.length === 0) {
-              <div class="empty small">Sin variantes. Agrega al menos una talla/color.</div>
-            } @else {
-              @for (v of draft.variants; track $index) {
-                <div class="variant-row">
-                  <input type="text" [(ngModel)]="v.size" placeholder="Talla (M)" />
-                  <input type="text" [(ngModel)]="v.color" placeholder="Color (negro)" />
-                  <input type="number" min="0" [(ngModel)]="v.stock" placeholder="Stock" />
-                  <button class="icon danger" (click)="removeVariant($index)" title="Quitar">
-                    <i class="pi pi-trash"></i>
-                  </button>
-                </div>
-              }
-            }
+          }
+        </td>
+        <td class="font-mono text-sm">{{ it.code }}</td>
+        <td>{{ it.name }}</td>
+        <td>{{ it.category }}</td>
+        <td class="text-right">${{ it.price.toFixed(2) }}</td>
+        <td class="text-right" [class.text-muted-color]="totalStock(it) === 0">
+          {{ totalStock(it) }}
+        </td>
+        <td class="text-center">
+          <p-toggleswitch [ngModel]="it.active" (onChange)="toggleActive(it)" />
+        </td>
+        <td>
+          <div class="flex gap-1 justify-end">
+            <p-button
+              icon="pi pi-pencil"
+              [text]="true"
+              [rounded]="true"
+              severity="secondary"
+              size="small"
+              pTooltip="Editar"
+              (onClick)="edit(it)"
+            />
+            <p-button
+              icon="pi pi-trash"
+              [text]="true"
+              [rounded]="true"
+              severity="danger"
+              size="small"
+              pTooltip="Eliminar"
+              (onClick)="confirmDelete(it)"
+            />
           </div>
+        </td>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="8" class="p-8 text-center text-muted-color">
+          Aún no hay productos — agrega el primero.
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+}
 
-          <div class="photo-section">
-            <span class="ph-label">Foto</span>
-            @if (isNew()) {
-              <p class="hint">Guarda el producto primero para poder subir una foto.</p>
-            } @else {
-              <div class="photo-row">
-                @if (draft.photo_url) {
-                  <img [src]="draftPhotoSrc()" alt="foto del producto" class="photo-preview" />
-                } @else {
-                  <div class="photo-preview ph"><i class="pi pi-image"></i></div>
-                }
-                <label class="upload-btn" [class.busy]="photoUploading()">
-                  <i class="pi pi-upload"></i>
-                  {{ photoUploading() ? 'Subiendo…' : 'Subir foto' }}
-                  <input type="file" accept="image/*" hidden [disabled]="photoUploading()"
-                         (change)="onPhoto($event)" />
-                </label>
-              </div>
-            }
-          </div>
-        </div>
-
-        <div class="dialog-foot">
-          <button class="btn-ghost" (click)="close()">Cerrar</button>
-          <button class="btn-primary" [disabled]="saving()" (click)="save()">
-            {{ saving() ? 'Guardando…' : (isNew() ? 'Crear producto' : 'Guardar cambios') }}
-          </button>
-        </div>
+<p-dialog
+  [visible]="showDialog()"
+  (visibleChange)="showDialog.set($event)"
+  [header]="isNew() ? 'Nuevo producto' : 'Editar producto'"
+  [modal]="true"
+  [draggable]="false"
+  [dismissableMask]="true"
+  [style]="{ width: '38rem' }"
+>
+  <div class="flex flex-col gap-4 pt-1">
+    <div class="grid grid-cols-2 gap-4">
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm text-muted-color">Nombre</label>
+        <input pInputText [(ngModel)]="draft.name" placeholder="Vestido bohemio" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm text-muted-color">Código</label>
+        <input pInputText [(ngModel)]="draft.code" placeholder="VESTBOHEMIO" />
       </div>
     </div>
-  }
-</div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm text-muted-color">Categoría</label>
+        <p-select
+          [(ngModel)]="draft.category"
+          [options]="categories()"
+          [editable]="true"
+          placeholder="Vestidos"
+          appendTo="body"
+        />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm text-muted-color">Precio (USD)</label>
+        <p-inputnumber
+          [(ngModel)]="draft.price"
+          [min]="0"
+          mode="decimal"
+          [minFractionDigits]="2"
+          [maxFractionDigits]="2"
+        />
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium">Tallas, colores y stock</span>
+        <p-button
+          label="Agregar variante"
+          icon="pi pi-plus"
+          [text]="true"
+          size="small"
+          (onClick)="addVariant()"
+        />
+      </div>
+      @if (draft.variants.length === 0) {
+        <div class="text-sm text-muted-color py-2">
+          Sin variantes. Agrega al menos una talla/color.
+        </div>
+      } @else {
+        @for (v of draft.variants; track $index) {
+          <div class="flex items-center gap-2">
+            <input pInputText class="flex-1 min-w-0" [(ngModel)]="v.size" placeholder="Talla (M)" />
+            <input
+              pInputText
+              class="flex-1 min-w-0"
+              [(ngModel)]="v.color"
+              placeholder="Color (negro)"
+            />
+            <p-inputnumber
+              [(ngModel)]="v.stock"
+              [min]="0"
+              placeholder="Stock"
+              styleClass="w-24"
+              inputStyleClass="w-full"
+            />
+            <p-button
+              icon="pi pi-trash"
+              [text]="true"
+              [rounded]="true"
+              severity="danger"
+              pTooltip="Quitar"
+              (onClick)="removeVariant($index)"
+            />
+          </div>
+        }
+      }
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <span class="text-sm font-medium">Foto</span>
+      @if (isNew()) {
+        <p class="text-sm text-muted-color m-0">
+          Guarda el producto primero para poder subir una foto.
+        </p>
+      } @else {
+        <div class="flex items-center gap-4">
+          @if (draft.photo_url) {
+            <img
+              [src]="draftPhotoSrc()"
+              alt="foto del producto"
+              class="w-20 h-20 rounded object-cover"
+            />
+          } @else {
+            <div
+              class="w-20 h-20 rounded bg-surface-100 flex items-center justify-center text-muted-color"
+            >
+              <i class="pi pi-image text-2xl"></i>
+            </div>
+          }
+          <p-fileupload
+            mode="basic"
+            [auto]="true"
+            [customUpload]="true"
+            accept="image/*"
+            chooseIcon="pi pi-upload"
+            [chooseLabel]="photoUploading() ? 'Subiendo…' : 'Subir foto'"
+            [disabled]="photoUploading()"
+            (uploadHandler)="onPhoto($event)"
+          />
+        </div>
+      }
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button label="Cerrar" [text]="true" severity="secondary" (onClick)="close()" />
+    <p-button
+      [label]="saving() ? 'Guardando…' : isNew() ? 'Crear producto' : 'Guardar cambios'"
+      [disabled]="saving()"
+      (onClick)="save()"
+    />
+  </ng-template>
+</p-dialog>

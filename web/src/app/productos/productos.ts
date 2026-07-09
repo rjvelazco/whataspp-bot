@@ -1,6 +1,15 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { TableModule } from 'primeng/table';
+import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
+import { InputTextModule } from 'primeng/inputtext';
+import { InputNumberModule } from 'primeng/inputnumber';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { SelectModule } from 'primeng/select';
+import { FileUploadModule, type FileUploadHandlerEvent } from 'primeng/fileupload';
+import { TooltipModule } from 'primeng/tooltip';
 import { CatalogService, type CatalogItem } from '../catalog.service';
 import { StoreService } from '../store.service';
 
@@ -20,7 +29,18 @@ function emptyDraft(): CatalogItem {
 
 @Component({
   selector: 'app-productos',
-  imports: [FormsModule],
+  imports: [
+    FormsModule,
+    TableModule,
+    ButtonModule,
+    DialogModule,
+    InputTextModule,
+    InputNumberModule,
+    ToggleSwitchModule,
+    SelectModule,
+    FileUploadModule,
+    TooltipModule,
+  ],
   templateUrl: './productos.html',
   styleUrl: './productos.css',
 })
@@ -162,10 +182,8 @@ export class Productos implements OnInit {
     });
   }
 
-  protected onPhoto(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = ''; // allow re-selecting the same file
+  protected onPhoto(event: FileUploadHandlerEvent): void {
+    const file = event.files?.[0];
     if (!file || !this.draft.item_id) return;
     this.photoUploading.set(true);
     this.api.uploadPhoto(this.draft.item_id, file).subscribe({

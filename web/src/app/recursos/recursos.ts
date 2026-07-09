@@ -1,12 +1,26 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
+import { FileUploadModule, type FileUploadHandlerEvent } from 'primeng/fileupload';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { InputTextModule } from 'primeng/inputtext';
+import { TooltipModule } from 'primeng/tooltip';
 import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
 import { SettingsService, type StorySchedule } from '../settings.service';
 
 @Component({
   selector: 'app-recursos',
-  imports: [FormsModule],
+  imports: [
+    NgTemplateOutlet,
+    FormsModule,
+    ButtonModule,
+    FileUploadModule,
+    ToggleSwitchModule,
+    InputTextModule,
+    TooltipModule,
+  ],
   templateUrl: './recursos.html',
   styleUrl: './recursos.css',
 })
@@ -100,10 +114,8 @@ export class Recursos implements OnInit {
     });
   }
 
-  protected onFile(event: Event, category: AssetCategory): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = ''; // allow re-selecting the same file later
+  protected onFile(event: FileUploadHandlerEvent, category: AssetCategory): void {
+    const file = event.files?.[0];
     if (!file) return;
 
     this.uploading.set(category);

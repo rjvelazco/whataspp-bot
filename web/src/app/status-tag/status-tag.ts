@@ -1,4 +1,5 @@
 import { Component, computed, input } from '@angular/core';
+import { TagModule } from 'primeng/tag';
 import { statusLabel } from '../order-display';
 import type { OrderStatus } from '../orders.service';
 
@@ -14,8 +15,8 @@ const TONE: Record<OrderStatus, 'success' | 'danger' | 'warn' | 'info'> = {
 
 @Component({
   selector: 'app-status-tag',
-  template: `<span class="st-tag" [class]="'st-' + tone()">{{ label() }}</span>`,
-  styleUrl: './status-tag.css',
+  imports: [TagModule],
+  template: `<p-tag [value]="label()" [severity]="tone()" [rounded]="true" />`,
 })
 export class StatusTag {
   readonly status = input.required<OrderStatus>();
