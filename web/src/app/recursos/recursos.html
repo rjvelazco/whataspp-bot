@@ -1,143 +1,181 @@
-<div class="recursos">
+<div class="flex flex-col gap-6">
   <!-- Catálogo / Menú -->
-  <section class="lib">
-    <div class="lib-head">
+  <section class="flex flex-col gap-3">
+    <div class="flex items-start justify-between gap-4">
       <div>
-        <h2><i class="pi pi-folder-open"></i> Catálogo / Menú</h2>
-        <p class="sub">Sube tu catálogo como imagen o PDF. Por ahora se guarda aquí; enviarlo al cliente por el bot vendrá después.</p>
+        <h2 class="flex items-center gap-2 m-0 text-lg font-semibold">
+          <i class="pi pi-folder-open text-primary"></i> Catálogo / Menú
+        </h2>
+        <p class="mt-1 mb-0 text-sm text-muted-color max-w-[70ch]">
+          Sube tu catálogo como imagen o PDF. Por ahora se guarda aquí; enviarlo al cliente por el
+          bot vendrá después.
+        </p>
       </div>
-      <label class="upload-btn" [class.busy]="uploading() === 'catalog'">
-        <i class="pi pi-upload"></i>
-        {{ uploading() === 'catalog' ? 'Subiendo…' : 'Subir archivo' }}
-        <input type="file" accept="image/*,application/pdf" hidden
-               [disabled]="uploading() === 'catalog'" (change)="onFile($event, 'catalog')" />
-      </label>
+      <p-fileupload
+        mode="basic"
+        [auto]="true"
+        [customUpload]="true"
+        accept="image/*,application/pdf"
+        chooseIcon="pi pi-upload"
+        [chooseLabel]="uploading() === 'catalog' ? 'Subiendo…' : 'Subir archivo'"
+        [disabled]="uploading() === 'catalog'"
+        (uploadHandler)="onFile($event, 'catalog')"
+      />
     </div>
-
-    @if (catalog().length === 0) {
-      <div class="empty">Aún no hay archivos de catálogo.</div>
-    } @else {
-      <div class="asset-grid">
-        @for (a of catalog(); track a.id) {
-          <div class="asset">
-            <a class="thumb" [href]="fileUrl(a.id)" target="_blank" rel="noopener">
-              @if (isImage(a)) {
-                <img [src]="fileUrl(a.id)" [alt]="a.original_name" />
-              } @else {
-                <div class="pdf"><i class="pi pi-file-pdf"></i><span>PDF</span></div>
-              }
-            </a>
-            <div class="meta">
-              <span class="name" [title]="a.original_name">{{ a.original_name }}</span>
-              <span class="size">{{ size(a.size) }}</span>
-            </div>
-            <button class="del" (click)="remove(a)" title="Eliminar"><i class="pi pi-trash"></i></button>
-          </div>
-        }
-      </div>
-    }
+    <ng-container
+      *ngTemplateOutlet="
+        lib;
+        context: { assets: catalog(), empty: 'Aún no hay archivos de catálogo.' }
+      "
+    />
   </section>
 
   <!-- Promociones / Flyers -->
-  <section class="lib">
-    <div class="lib-head">
+  <section class="flex flex-col gap-3">
+    <div class="flex items-start justify-between gap-4">
       <div>
-        <h2><i class="pi pi-images"></i> Promociones / Flyers</h2>
-        <p class="sub">Sube tus flyers y promociones como imágenes. Se guardan aquí para tu biblioteca.</p>
+        <h2 class="flex items-center gap-2 m-0 text-lg font-semibold">
+          <i class="pi pi-images text-primary"></i> Promociones / Flyers
+        </h2>
+        <p class="mt-1 mb-0 text-sm text-muted-color max-w-[70ch]">
+          Sube tus flyers y promociones como imágenes. Se guardan aquí para tu biblioteca.
+        </p>
       </div>
-      <label class="upload-btn" [class.busy]="uploading() === 'promo'">
-        <i class="pi pi-upload"></i>
-        {{ uploading() === 'promo' ? 'Subiendo…' : 'Subir flyer' }}
-        <input type="file" accept="image/*" hidden
-               [disabled]="uploading() === 'promo'" (change)="onFile($event, 'promo')" />
-      </label>
+      <p-fileupload
+        mode="basic"
+        [auto]="true"
+        [customUpload]="true"
+        accept="image/*"
+        chooseIcon="pi pi-upload"
+        [chooseLabel]="uploading() === 'promo' ? 'Subiendo…' : 'Subir flyer'"
+        [disabled]="uploading() === 'promo'"
+        (uploadHandler)="onFile($event, 'promo')"
+      />
     </div>
-
-    @if (promos().length === 0) {
-      <div class="empty">Aún no hay promociones.</div>
-    } @else {
-      <div class="asset-grid">
-        @for (a of promos(); track a.id) {
-          <div class="asset">
-            <a class="thumb" [href]="fileUrl(a.id)" target="_blank" rel="noopener">
-              @if (isImage(a)) {
-                <img [src]="fileUrl(a.id)" [alt]="a.original_name" />
-              } @else {
-                <div class="pdf"><i class="pi pi-file-pdf"></i><span>PDF</span></div>
-              }
-            </a>
-            <div class="meta">
-              <span class="name" [title]="a.original_name">{{ a.original_name }}</span>
-              <span class="size">{{ size(a.size) }}</span>
-            </div>
-            <button class="del" (click)="remove(a)" title="Eliminar"><i class="pi pi-trash"></i></button>
-          </div>
-        }
-      </div>
-    }
+    <ng-container
+      *ngTemplateOutlet="lib; context: { assets: promos(), empty: 'Aún no hay promociones.' }"
+    />
   </section>
 
   <!-- Historias / Estados -->
-  <section class="lib">
-    <div class="lib-head">
+  <section class="flex flex-col gap-3">
+    <div class="flex items-start justify-between gap-4">
       <div>
-        <h2><i class="pi pi-history"></i> Historias / Estados</h2>
-        <p class="sub">Imágenes que el bot publicará como Estado de WhatsApp automáticamente cada día a la hora que elijas. Llega a los clientes que te han escrito <strong>y que te tienen agendado en sus contactos</strong> (regla de privacidad de WhatsApp).</p>
+        <h2 class="flex items-center gap-2 m-0 text-lg font-semibold">
+          <i class="pi pi-history text-primary"></i> Historias / Estados
+        </h2>
+        <p class="mt-1 mb-0 text-sm text-muted-color max-w-[70ch]">
+          Imágenes que el bot publicará como Estado de WhatsApp automáticamente cada día a la hora
+          que elijas. Llega a los clientes que te han escrito
+          <strong>y que te tienen agendado en sus contactos</strong> (regla de privacidad de
+          WhatsApp).
+        </p>
       </div>
-      <label class="upload-btn" [class.busy]="uploading() === 'story'">
-        <i class="pi pi-upload"></i>
-        {{ uploading() === 'story' ? 'Subiendo…' : 'Subir historia' }}
-        <input type="file" accept="image/*" hidden
-               [disabled]="uploading() === 'story'" (change)="onFile($event, 'story')" />
-      </label>
+      <p-fileupload
+        mode="basic"
+        [auto]="true"
+        [customUpload]="true"
+        accept="image/*"
+        chooseIcon="pi pi-upload"
+        [chooseLabel]="uploading() === 'story' ? 'Subiendo…' : 'Subir historia'"
+        [disabled]="uploading() === 'story'"
+        (uploadHandler)="onFile($event, 'story')"
+      />
     </div>
 
     <!-- Daily auto-post schedule -->
-    <div class="schedule">
-      <label class="toggle">
-        <input type="checkbox" [ngModel]="scheduleEnabled()" (ngModelChange)="scheduleEnabled.set($event)" />
-        <span>Publicar automáticamente cada día</span>
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-surface-200 bg-surface-50 p-3"
+    >
+      <label class="flex items-center gap-2 text-sm">
+        <p-toggleswitch
+          [ngModel]="scheduleEnabled()"
+          (ngModelChange)="scheduleEnabled.set($event)"
+        />
+        Publicar automáticamente cada día
       </label>
-      <div class="schedule-right">
-        <span class="audience" title="Números que han escrito al bot">
+      <div class="flex items-center gap-3">
+        <span
+          class="flex items-center gap-1.5 text-sm text-muted-color"
+          pTooltip="Números que han escrito al bot"
+        >
           <i class="pi pi-users"></i> {{ reachableContacts() }} contacto(s)
         </span>
-        <label class="time-field" [class.off]="!scheduleEnabled()">
-          <i class="pi pi-clock"></i>
-          <input type="time" [ngModel]="scheduleTime()" (ngModelChange)="scheduleTime.set($event)"
-                 [disabled]="!scheduleEnabled()" />
-        </label>
-        <button class="btn-save" [disabled]="savingSchedule()" (click)="saveSchedule()">
-          {{ savingSchedule() ? 'Guardando…' : 'Guardar' }}
-        </button>
-        <button class="btn-now" [disabled]="postingNow() || stories().length === 0" (click)="postStoryNow()">
-          <i class="pi pi-send"></i>
-          {{ postingNow() ? 'Publicando…' : 'Publicar ahora' }}
-        </button>
+        <span class="flex items-center gap-1.5" [class.opacity-50]="!scheduleEnabled()">
+          <i class="pi pi-clock text-muted-color"></i>
+          <input
+            pInputText
+            type="time"
+            class="w-32"
+            [ngModel]="scheduleTime()"
+            (ngModelChange)="scheduleTime.set($event)"
+            [disabled]="!scheduleEnabled()"
+          />
+        </span>
+        <p-button
+          [label]="savingSchedule() ? 'Guardando…' : 'Guardar'"
+          size="small"
+          [disabled]="savingSchedule()"
+          (onClick)="saveSchedule()"
+        />
+        <p-button
+          [label]="postingNow() ? 'Publicando…' : 'Publicar ahora'"
+          icon="pi pi-send"
+          size="small"
+          [outlined]="true"
+          [disabled]="postingNow() || stories().length === 0"
+          (onClick)="postStoryNow()"
+        />
       </div>
     </div>
 
-    @if (stories().length === 0) {
-      <div class="empty">Aún no hay historias.</div>
-    } @else {
-      <div class="asset-grid">
-        @for (a of stories(); track a.id) {
-          <div class="asset">
-            <a class="thumb" [href]="fileUrl(a.id)" target="_blank" rel="noopener">
-              @if (isImage(a)) {
-                <img [src]="fileUrl(a.id)" [alt]="a.original_name" />
-              } @else {
-                <div class="pdf"><i class="pi pi-file-pdf"></i><span>PDF</span></div>
-              }
-            </a>
-            <div class="meta">
-              <span class="name" [title]="a.original_name">{{ a.original_name }}</span>
-              <span class="size">{{ size(a.size) }}</span>
-            </div>
-            <button class="del" (click)="remove(a)" title="Eliminar"><i class="pi pi-trash"></i></button>
-          </div>
-        }
-      </div>
-    }
+    <ng-container
+      *ngTemplateOutlet="lib; context: { assets: stories(), empty: 'Aún no hay historias.' }"
+    />
   </section>
 </div>
+
+<!-- Reusable asset grid (catalog / promo / story) -->
+<ng-template #lib let-assets="assets" let-empty="empty">
+  @if (assets.length === 0) {
+    <div class="text-sm text-muted-color py-4">{{ empty }}</div>
+  } @else {
+    <div class="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(160px,1fr))]">
+      @for (a of assets; track a.id) {
+        <div class="border border-surface-200 rounded-lg overflow-hidden bg-surface-0">
+          <a
+            class="block aspect-square bg-surface-100"
+            [href]="fileUrl(a.id)"
+            target="_blank"
+            rel="noopener"
+          >
+            @if (isImage(a)) {
+              <img [src]="fileUrl(a.id)" [alt]="a.original_name" class="w-full h-full object-cover" />
+            } @else {
+              <div
+                class="w-full h-full flex flex-col items-center justify-center gap-1 text-muted-color"
+              >
+                <i class="pi pi-file-pdf text-3xl"></i><span class="text-xs">PDF</span>
+              </div>
+            }
+          </a>
+          <div class="flex items-center justify-between gap-2 p-2">
+            <div class="min-w-0">
+              <div class="text-sm truncate" [title]="a.original_name">{{ a.original_name }}</div>
+              <div class="text-xs text-muted-color">{{ size(a.size) }}</div>
+            </div>
+            <p-button
+              icon="pi pi-trash"
+              [text]="true"
+              [rounded]="true"
+              severity="danger"
+              size="small"
+              pTooltip="Eliminar"
+              (onClick)="remove(a)"
+            />
+          </div>
+        </div>
+      }
+    </div>
+  }
+</ng-template>

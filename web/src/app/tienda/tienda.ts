@@ -1,6 +1,10 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MessageService } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
+import { InputTextModule } from 'primeng/inputtext';
+import { TextareaModule } from 'primeng/textarea';
+import { InputNumberModule } from 'primeng/inputnumber';
 import { StoreService, type Store } from '../store.service';
 
 interface TiendaForm {
@@ -33,7 +37,7 @@ function blank(): TiendaForm {
 
 @Component({
   selector: 'app-tienda',
-  imports: [FormsModule],
+  imports: [FormsModule, ButtonModule, InputTextModule, TextareaModule, InputNumberModule],
   templateUrl: './tienda.html',
   styleUrl: './tienda.css',
 })

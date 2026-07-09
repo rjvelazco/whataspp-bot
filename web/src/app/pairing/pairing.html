@@ -1,29 +1,44 @@
-<main class="shell">
-  <div class="card">
-    <h1>🛍️ Store Bot</h1>
+<main class="min-h-screen flex items-center justify-center bg-surface-100 p-4">
+  <div class="w-full max-w-[420px] rounded-2xl bg-surface-0 p-8 text-center shadow-lg">
+    <h1 class="mt-0 mb-6 text-2xl font-semibold">🛍️ Store Bot</h1>
 
     @switch (conn.status().state) {
       @case ('open') {
-        <div class="badge ok">✅ Conectado</div>
-        <p class="muted">Entrando al panel…</p>
+        <p-tag value="✅ Conectado" severity="success" [rounded]="true" styleClass="text-base px-4 py-2" />
+        <p class="mt-3 mb-0 text-muted-color">Entrando al panel…</p>
       }
       @case ('qr') {
-        <p class="lead">Escanea este código para enlazar el bot</p>
-        <img class="qr" [src]="$any(conn.status()).qrDataUrl" alt="Código QR de WhatsApp" />
-        <ol class="steps">
+        <p class="mt-0 mb-5 font-medium">Escanea este código para enlazar el bot</p>
+        <img
+          class="w-[260px] max-w-full h-[260px] mx-auto"
+          style="image-rendering: pixelated"
+          [src]="$any(conn.status()).qrDataUrl"
+          alt="Código QR de WhatsApp"
+        />
+        <ol class="text-left mx-auto mt-5 max-w-[300px] leading-relaxed list-decimal pl-5">
           <li>Abre <strong>WhatsApp</strong> en el teléfono del bot</li>
           <li>Ve a <strong>Ajustes → Dispositivos vinculados</strong></li>
           <li>Toca <strong>Vincular un dispositivo</strong> y escanea</li>
         </ol>
-        <p class="muted small">El código se renueva solo cada pocos segundos.</p>
+        <p class="mt-3 mb-0 text-sm text-muted-color">
+          El código se renueva solo cada pocos segundos.
+        </p>
       }
       @case ('connecting') {
-        <div class="spinner"></div>
-        <p class="muted">Conectando con WhatsApp…</p>
+        <p-progress-spinner
+          strokeWidth="4"
+          [style]="{ width: '40px', height: '40px' }"
+          ariaLabel="Conectando"
+        />
+        <p class="mt-3 mb-0 text-muted-color">Conectando con WhatsApp…</p>
       }
       @default {
-        <div class="spinner"></div>
-        <p class="muted">Iniciando…</p>
+        <p-progress-spinner
+          strokeWidth="4"
+          [style]="{ width: '40px', height: '40px' }"
+          ariaLabel="Iniciando"
+        />
+        <p class="mt-3 mb-0 text-muted-color">Iniciando…</p>
       }
     }
   </div>
