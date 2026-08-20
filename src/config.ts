@@ -8,6 +8,10 @@ export const config = {
   authDir: resolve(process.env.AUTH_DIR ?? "./auth"),
   uploadsDir: resolve(process.env.UPLOADS_DIR ?? "./uploads"),
   logLevel: process.env.LOG_LEVEL ?? "info",
+  /** Level for Baileys' own internal logs. Defaults to "silent" — its decrypt
+   * failures for Status/other-recipient messages are expected noise. Set to
+   * "warn"/"info" to debug the WhatsApp connection. */
+  waLogLevel: process.env.WA_LOG_LEVEL ?? "silent",
   handoffPauseHours: Number(process.env.HANDOFF_PAUSE_HOURS ?? "12"),
   /** If set (bot's number, digits only w/ country code), pair via code instead of QR. */
   pairPhone: (process.env.PAIR_PHONE ?? "").replace(/\D/g, ""),

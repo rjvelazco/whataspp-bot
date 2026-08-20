@@ -12,6 +12,7 @@ import makeWASocket, {
 import qrcode from "qrcode-terminal";
 import { rmSync } from "node:fs";
 import { logger } from "../logger.js";
+import { config } from "../config.js";
 import type {
   ConnectionListener,
   ConnectionUpdate,
@@ -19,6 +20,12 @@ import type {
   MessageHandler,
   MessagingTransport,
 } from "./types.js";
+
+/** Baileys' own logger — kept separate from the app logger so its expected
+ * decrypt-failure spam (Status broadcasts, other-recipient messages) can be
+ * silenced without hiding our own INFO logs. */
+const waLogger = logger.child({ mod: "baileys" });
+waLogger.level = config.waLogLevel;
 
 /** Baileys implementation of the transport seam. Pairs to a real number via QR. */
 export class BaileysTransport implements MessagingTransport {
@@ -114,7 +121,7 @@ export class BaileysTransport implements MessagingTransport {
     const sock = makeWASocket({
       version: this.version,
       auth: this.authState!,
-      logger,
+      logger: waLogger,
       browser: Browsers.appropriate("StoreBot"),
     });
     this.sock = sock;
@@ -204,7 +211,7 @@ export class BaileysTransport implements MessagingTransport {
           mimetype: imageMessage.mimetype ?? "image/jpeg",
           download: async (): Promise<Buffer> =>
             (await downloadMediaMessage(msg, "buffer", {}, {
-              logger,
+              logger: waLogger,
               reuploadRequest: this.sock!.updateMediaMessage,
             })) as Buffer,
         }

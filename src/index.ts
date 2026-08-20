@@ -3,6 +3,7 @@ import { join } from "node:path";
 import QRCode from "qrcode";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
+import { silenceSignalNoise } from "./transport/silence-signal.js";
 import { WebServer } from "./web/server.js";
 import { BaileysTransport } from "./transport/baileys.js";
 import type { IncomingMessage, MessagingTransport } from "./transport/types.js";
@@ -141,6 +142,7 @@ async function performEffects(
 }
 
 async function main() {
+  silenceSignalNoise();
   mkdirSync(config.uploadsDir, { recursive: true });
 
   const store = seedStore(config.storeId);
