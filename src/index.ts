@@ -177,7 +177,7 @@ async function main() {
     disconnect: () => transport.logout(),
     postStoryNow: () => storyScheduler.postNow(),
   });
-  web.listen(config.webPort);
+  web.listen(config.webPort, config.webHost);
 
   // Relay connection lifecycle to the web UI (render the QR string to an image).
   transport.onConnectionUpdate((update) => {

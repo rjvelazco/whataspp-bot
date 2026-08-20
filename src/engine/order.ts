@@ -10,6 +10,16 @@ import { paymentInstructions } from "./payment.js";
 const itemForDraft = (input: EngineInput, draft: DraftOrder) =>
   input.catalog.find((it) => it.code === draft.code);
 
+/**
+ * The raw message, for states that ask for free text (name, address).
+ * parseIntent is state-blind, so "mi dirección es Av 5 de Julio" arrives as
+ * show_address and "listo" as confirm — reading the parsed intent here would
+ * reject the most natural phrasings and loop on the same prompt forever.
+ * Global commands (menu, cancel, hola) never reach these handlers: routing
+ * resolves them first, so nothing is swallowed by taking the text verbatim.
+ */
+const freeText = (input: EngineInput): string => (input.message.text ?? "").trim();
+
 /** Resolve a numbered choice or a typed value against a list of options. */
 function pick(intent: Intent, options: string[]): string | undefined {
   if (intent.type === "choice" && intent.index >= 1 && intent.index <= options.length) {
@@ -82,9 +92,9 @@ export function handleOrderingQty(intent: Intent, input: EngineInput): HandlerOu
   };
 }
 
-export function handleOrderingName(intent: Intent, input: EngineInput): HandlerOutput {
+export function handleOrderingName(_intent: Intent, input: EngineInput): HandlerOutput {
   const draft = input.conversation.draft_order;
-  const name = intent.type === "text" ? intent.value : "";
+  const name = freeText(input);
   if (!name) return reprompt(input, "¿A nombre de quién es el pedido?");
   return {
     replies: [text("¿Dirección / zona de entrega?")],
@@ -93,9 +103,9 @@ export function handleOrderingName(intent: Intent, input: EngineInput): HandlerO
   };
 }
 
-export function handleOrderingAddress(intent: Intent, input: EngineInput): HandlerOutput {
+export function handleOrderingAddress(_intent: Intent, input: EngineInput): HandlerOutput {
   const draft = input.conversation.draft_order;
-  const address = intent.type === "text" ? intent.value : "";
+  const address = freeText(input);
   if (!address) return reprompt(input, "¿Dirección / zona de entrega?");
   const next = { ...draft, delivery_address: address };
   return {

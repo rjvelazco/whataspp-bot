@@ -233,6 +233,11 @@ function executeOption(opt: FlowOption, input: EngineInput): HandlerOutput {
       return stay(input, [text(shippingAndPayments(input.store))]);
     case "talk_human":
       return handoff(input);
+    default:
+      // Unreachable for valid data, but menus are stored JSON: a row saved before
+      // an action was renamed would land here. Returning a reply (rather than
+      // falling off the end as undefined) keeps a bad menu from silencing the bot.
+      return dontUnderstand(input);
   }
 }
 

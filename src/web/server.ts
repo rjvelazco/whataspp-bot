@@ -1,9 +1,9 @@
 import express, { type Response } from "express";
 import multer from "multer";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { dirname, extname, join } from "node:path";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import type {
@@ -95,6 +95,38 @@ const uploadProductPhoto = multer({
 
 const isHttpUrl = (s: string): boolean => /^https?:\/\//.test(s);
 
+/**
+ * Resolve a stored product photo path, refusing anything outside uploads/products.
+ * Paths come from the DB, and a bad row must never let us read or delete an
+ * arbitrary file, so every filesystem use of photo_url goes through here.
+ */
+function localPhotoPath(photoUrl: string): string | null {
+  const abs = resolve(photoUrl);
+  const root = resolve(productsDir) + sep;
+  return abs.startsWith(root) ? abs : null;
+}
+
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+const TOKEN_COOKIE = "admin_token";
+const TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+/** Read a single cookie, so the token gate needs no cookie-parser dependency. */
+function readCookie(header: string | undefined, name: string): string | undefined {
+  for (const part of (header ?? "").split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
+  }
+  return undefined;
+}
+
+/** Compare in constant time so a wrong token leaks no prefix information. */
+function tokenMatches(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 /** better-sqlite3 raises this code when the (store_id, code) unique index is violated. */
 function isDuplicateCodeError(err: unknown): boolean {
   return (
@@ -140,7 +172,9 @@ function buildItemFromBody(
     name,
     category,
     price,
-    photo_url: typeof b.photo_url === "string" ? b.photo_url : existing?.photo_url ?? "",
+    // Never taken from the request: photo_url is a filesystem path we read and
+    // delete, so only POST /api/catalog/:id/photo may ever set it.
+    photo_url: existing?.photo_url ?? "",
     active: b.active === undefined ? existing?.active ?? true : Boolean(b.active),
     variants,
   };
@@ -209,11 +243,44 @@ export class WebServer {
     }
   }
 
-  listen(port: number): void {
+  listen(port: number, host: string = config.webHost): void {
+    if (!LOOPBACK_HOSTS.has(host) && !config.adminToken) {
+      throw new Error(
+        `WEB_HOST=${host} would expose the admin API (orders, customer numbers, ` +
+          `payment details, message sending) to the network. Set ADMIN_TOKEN in .env first.`,
+      );
+    }
     mkdirSync(assetsDir, { recursive: true });
     mkdirSync(productsDir, { recursive: true });
     const app = express();
     app.use(express.json());
+
+    // --- Shared-secret gate (only when ADMIN_TOKEN is set) ---
+    // The API has no per-user auth, so this is the single boundary protecting it.
+    // `?token=` is a one-time handshake that moves the secret into an httpOnly
+    // cookie, which keeps the SPA's own requests working without a login screen.
+    const adminToken = config.adminToken;
+    if (adminToken) {
+      app.use((req, res, next) => {
+        const fromQuery = typeof req.query.token === "string" ? req.query.token : "";
+        if (fromQuery && tokenMatches(fromQuery, adminToken)) {
+          res.cookie(TOKEN_COOKIE, adminToken, {
+            httpOnly: true,
+            sameSite: "lax",
+            maxAge: TOKEN_COOKIE_MAX_AGE,
+          });
+          res.redirect(req.path);
+          return;
+        }
+        const given = req.get("x-admin-token") ?? readCookie(req.headers.cookie, TOKEN_COOKIE) ?? "";
+        if (tokenMatches(given, adminToken)) {
+          next();
+          return;
+        }
+        logger.warn({ ip: req.ip, path: req.path }, "rejected unauthenticated admin request");
+        res.status(401).json({ error: "unauthorized" });
+      });
+    }
 
     // --- Server-Sent Events: current status now, then live updates ---
     app.get("/api/events", (req, res) => {
@@ -427,7 +494,9 @@ export class WebServer {
       }
       // Drop a previously uploaded local photo; leave seeded http(s) URLs untouched.
       if (existing.photo_url && !isHttpUrl(existing.photo_url)) {
-        rmSync(existing.photo_url, { force: true });
+        const previous = localPhotoPath(existing.photo_url);
+        if (previous) rmSync(previous, { force: true });
+        else logger.warn({ itemId: existing.item_id }, "ignoring photo_url outside uploads/products");
       }
       const updated: CatalogItem = { ...existing, photo_url: join(productsDir, req.file.filename) };
       updateItem(updated);
@@ -446,11 +515,12 @@ export class WebServer {
         res.redirect(item.photo_url);
         return;
       }
-      if (!existsSync(item.photo_url)) {
+      const file = localPhotoPath(item.photo_url);
+      if (!file || !existsSync(file)) {
         res.status(404).send("no photo");
         return;
       }
-      res.sendFile(item.photo_url);
+      res.sendFile(file);
     });
 
     // --- Store config (Tienda tab): values the bot reads for keyword replies ---
@@ -604,6 +674,9 @@ export class WebServer {
     };
     app.use(onError);
 
-    app.listen(port, () => logger.info(`Web UI on http://localhost:${port}`));
+    app.listen(port, host, () => {
+      const url = `http://${LOOPBACK_HOSTS.has(host) ? "localhost" : host}:${port}`;
+      logger.info(config.adminToken ? `Web UI on ${url}/?token=<ADMIN_TOKEN>` : `Web UI on ${url}`);
+    });
   }
 }

@@ -204,6 +204,29 @@ describe("order happy path", () => {
     expect(body(r)).toContain("Pago Móvil");
   });
 
+  it("accepts a name and address phrased as an info keyword", () => {
+    // parseIntent is state-blind: "mi dirección es …" reads as show_address and
+    // "listo" as confirm. Free-text states must take the message verbatim or the
+    // most natural phrasings loop on the same prompt forever.
+    const r = run([
+      "PEDIR VESTBOHEMIO",
+      "M",
+      "beige",
+      "1",
+      "listo",
+      "mi dirección es Av 5 de Julio, casa 3",
+      "confirmar",
+    ]);
+    expect(r.conversation.state).toBe("awaiting_payment");
+    const effect = r.effects.find((e) => e.type === "createOrder");
+    if (effect?.type === "createOrder") {
+      expect(effect.order.customer_name).toBe("listo");
+      expect(effect.order.delivery_address).toBe("mi dirección es Av 5 de Julio, casa 3");
+    } else {
+      throw new Error("expected a createOrder effect");
+    }
+  });
+
   it("resets the chat on 'cancelar' while still drafting (no order yet)", () => {
     const r = run(["PEDIR VESTBOHEMIO", "M", "cancelar"]);
     expect(r.conversation.state).toBe("idle");
@@ -253,5 +276,35 @@ describe("human handoff", () => {
     const resumed = run(["menu"], paused);
     expect(resumed.conversation.state).toBe("in_menu");
     expect(resumed.conversation.bot_paused_until).toBeNull();
+  });
+});
+
+describe("malformed stored menus", () => {
+  it("replies instead of throwing when an option has an unknown action", () => {
+    // Menus are JSON in SQLite; a row saved before an action was renamed would
+    // otherwise return undefined from executeOption and crash applyOutput —
+    // leaving the customer with no reply at all.
+    const broken = [
+      {
+        key: "menu_principal",
+        name: "Principal",
+        trigger: "hola",
+        message: "Elige:",
+        options: [{ label: "Roto", action: "does_not_exist" }],
+      },
+    ] as unknown as FlowMenu[];
+    const conv: Conversation = { ...freshConv(), state: "in_menu", menu_key: "menu_principal" };
+    const call = () =>
+      reduce({
+        conversation: conv,
+        store,
+        catalog,
+        menus: broken,
+        message: { text: "1", hasImage: false },
+        now: NOW,
+        handoffPauseHours: 12,
+      });
+    expect(call).not.toThrow();
+    expect(call().replies.length).toBeGreaterThan(0);
   });
 });

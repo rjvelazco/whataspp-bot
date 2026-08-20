@@ -109,6 +109,25 @@ describe("validateFlow", () => {
     expect(warns(flow).some((i) => i.message.includes("no es alcanzable"))).toBe(true);
   });
 
+  it("errors on an action the engine cannot run", () => {
+    const bad = [
+      { key: "m", name: "M", trigger: "hola", message: "", options: [{ label: "X", action: "does_not_exist" }] },
+    ] as unknown as FlowMenu[];
+    expect(errs(bad).some((i) => i.message.includes("acción desconocida"))).toBe(true);
+  });
+
+  it("errors on a malformed menu instead of throwing", () => {
+    const bad = [
+      { key: "ok", name: "OK", trigger: "hola", message: "", options: [] },
+      { key: "broken", name: "Roto", message: "" }, // no options array
+      null,
+    ] as unknown as FlowMenu[];
+    expect(() => validateFlow(bad)).not.toThrow();
+    const e = errs(bad);
+    expect(e.some((i) => i.message.includes("lista de opciones"))).toBe(true);
+    expect(e.some((i) => i.message.includes("formato inválido"))).toBe(true);
+  });
+
   it("warns about a trigger reserved by a global keyword and duplicate triggers", () => {
     const flow: FlowMenu[] = [
       { key: "a", name: "A", trigger: "hola, oferta", message: "", options: [] },
