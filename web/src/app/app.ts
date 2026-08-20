@@ -20,12 +20,15 @@ export class App {
     //    transient idle/connecting state that happens right after a reload.
     effect(() => {
       const state = this.conn.status().state;
-      const url = this.router.url;
-      const onPairing = url === '/' || url === '';
+      // Use the browser URL — router.url can still be "/" before initial navigation
+      // finishes on reload, which would clobber deep links like /dashboard/configuracion.
+      const path = window.location.pathname.replace(/\/$/, '') || '/';
+      const onPairing = path === '/';
+      const onDashboard = path.startsWith('/dashboard');
 
       if (state === 'open' && onPairing) {
         this.router.navigateByUrl('/dashboard');
-      } else if (state === 'qr' && url.startsWith('/dashboard')) {
+      } else if (state === 'qr' && onDashboard) {
         this.router.navigateByUrl('/');
       }
     });
