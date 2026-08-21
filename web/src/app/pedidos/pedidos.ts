@@ -6,7 +6,7 @@ import { ButtonModule } from 'primeng/button';
 import { AvatarModule } from 'primeng/avatar';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { OrdersStore } from '../orders.store';
-import { customerNumber, waLink } from '../order-display';
+import { customerNumber, isVerified, waLink } from '../order-display';
 import { StatusTag } from '../status-tag/status-tag';
 
 type FulfillFilter = 'all' | 'toship' | 'shipped' | 'delivered';
@@ -43,9 +43,7 @@ export class Pedidos {
     if (f === 'toship') return rows.filter((o) => o.status === 'confirmed');
     if (f === 'shipped') return rows.filter((o) => o.status === 'shipped');
     if (f === 'delivered') return rows.filter((o) => o.status === 'delivered');
-    return rows.filter(
-      (o) => o.status === 'confirmed' || o.status === 'shipped' || o.status === 'delivered',
-    );
+    return rows.filter(isVerified);
   });
 
   protected readonly customerNumber = customerNumber;

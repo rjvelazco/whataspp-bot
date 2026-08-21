@@ -13,7 +13,7 @@
 <section class="grid gap-3.5 mb-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
   <div class="flex flex-col gap-0.5 rounded-xl border border-surface-200 bg-surface-0 p-4">
     <span class="text-xs text-muted-color">Por enviar</span>
-    <span class="text-2xl font-semibold" [class.text-amber-600]="store.toShip() > 0">
+    <span class="text-2xl font-semibold" [class.text-warn]="store.toShip() > 0">
       {{ store.toShip() }}
     </span>
     <span class="text-xs text-muted-color">Pago verificado, listos para preparar</span>
@@ -129,7 +129,7 @@
             } @else {
               <span class="text-muted-color text-xs">Sin comprobante</span>
             }
-            <span class="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-success">
               <i class="pi pi-check-circle"></i> Verificado
             </span>
           </div>

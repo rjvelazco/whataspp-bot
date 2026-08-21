@@ -1,5 +1,15 @@
 import { DatePipe } from '@angular/common';
-import { AfterViewInit, Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  afterRenderEffect,
+  computed,
+  inject,
+  signal,
+  viewChildren,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
@@ -8,6 +18,7 @@ import { TextareaModule } from 'primeng/textarea';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { StoreService, type Store, type StoreUpdate } from '../store.service';
+import { apiErrorMessage } from '../api-error';
 
 type PaymentKey = 'pago_movil' | 'zelle' | 'binance';
 
@@ -41,6 +52,33 @@ function blank(): TiendaForm {
   };
 }
 
+/** Server shape → form shape: nulls become empty strings, values imply "enabled". */
+function normalizeStore(store: Store): TiendaForm {
+  const payments = {
+    pago_movil: store.payments?.pago_movil ?? '',
+    zelle: store.payments?.zelle ?? '',
+    binance: store.payments?.binance ?? '',
+  };
+  return {
+    store_name: store.store_name ?? '',
+    owner_name: store.owner_name ?? '',
+    owner_whatsapp: store.owner_whatsapp ?? '',
+    address: store.address ?? '',
+    maps_url: store.maps_url ?? '',
+    hours: store.hours ?? '',
+    delivery_info: store.delivery_info ?? '',
+    returns_policy: store.returns_policy ?? '',
+    usd_rate: store.usd_rate ?? null,
+    payments,
+    // A method is "on" when it already has a value.
+    enabled: {
+      pago_movil: !!payments.pago_movil,
+      zelle: !!payments.zelle,
+      binance: !!payments.binance,
+    },
+  };
+}
+
 @Component({
   selector: 'app-tienda',
   imports: [
@@ -55,17 +93,18 @@ function blank(): TiendaForm {
   templateUrl: './tienda.html',
   styleUrl: './tienda.css',
 })
-export class Tienda implements OnInit, AfterViewInit, OnDestroy {
+export class Tienda implements OnInit, OnDestroy {
   private readonly api = inject(StoreService);
   private readonly messages = inject(MessageService);
+  private readonly host = inject(ElementRef<HTMLElement>);
 
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly rateUpdatedAt = signal<string | null>(null);
-  protected form: TiendaForm = blank();
+  protected readonly form = signal<TiendaForm>(blank());
 
   /** Serialized last-saved payload; drives the "Cambios sin guardar" indicator. */
-  private savedJson = '';
+  private readonly savedJson = signal('');
 
   /** Right-hand section navigator. */
   protected readonly sections = [
@@ -91,7 +130,45 @@ export class Tienda implements OnInit, AfterViewInit, OnDestroy {
     rate: ['tasa', 'dolar'],
   };
 
+  /** The rendered <section> elements, for the scroll-spy and the navigator. */
+  private readonly sectionEls = viewChildren<ElementRef<HTMLElement>>('section');
   private observer?: IntersectionObserver;
+
+  constructor() {
+    // The sections live inside the @else of @if (loading()), so they don't exist
+    // when the component first renders. Re-running after every render is what
+    // makes the scroll-spy actually attach once the store has loaded.
+    afterRenderEffect(() => {
+      const els = this.sectionEls();
+      this.observer?.disconnect();
+      if (!els.length) return;
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            const id = (e.target as HTMLElement).dataset['section'];
+            if (e.isIntersecting && id) this.activeSection.set(id);
+          }
+        },
+        { root: this.scrollRoot(), rootMargin: '-8% 0px -80% 0px', threshold: 0 },
+      );
+      for (const el of els) this.observer.observe(el.nativeElement);
+    });
+  }
+
+  /**
+   * Nearest scrolling ancestor, found by walking up from our own element.
+   * Deliberately not a `.content` lookup: that class belongs to the dashboard
+   * shell, and renaming it there would silently break the scroll-spy here.
+   */
+  private scrollRoot(): Element | null {
+    let el = this.host.nativeElement.parentElement;
+    while (el) {
+      const overflowY = getComputedStyle(el).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') return el;
+      el = el.parentElement;
+    }
+    return null; // fall back to the viewport
+  }
 
   ngOnInit(): void {
     this.api.get().subscribe({
@@ -106,59 +183,37 @@ export class Tienda implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  ngAfterViewInit(): void {
-    // Scroll-spy: highlight the section nearest the top of the scroll area.
-    const root = document.querySelector('.content');
-    this.observer = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) this.activeSection.set(e.target.id.replace('sec-', ''));
-        }
-      },
-      { root, rootMargin: '-8% 0px -80% 0px', threshold: 0 },
-    );
-    for (const s of this.sections) {
-      const el = document.getElementById('sec-' + s.id);
-      if (el) this.observer.observe(el);
-    }
-  }
-
   ngOnDestroy(): void {
     this.observer?.disconnect();
   }
 
   protected scrollTo(id: string): void {
     this.activeSection.set(id);
-    document.getElementById('sec-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    this.sectionEls()
+      .find((el) => el.nativeElement.dataset['section'] === id)
+      ?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---- form writes (explicit, so `form` can stay a signal) ----
+  protected patch<K extends keyof TiendaForm>(key: K, value: TiendaForm[K]): void {
+    this.form.update((f) => ({ ...f, [key]: value }));
+  }
+  protected patchPayment(key: PaymentKey, value: string): void {
+    this.form.update((f) => ({ ...f, payments: { ...f.payments, [key]: value } }));
+  }
+  protected patchEnabled(key: PaymentKey, value: boolean): void {
+    this.form.update((f) => ({ ...f, enabled: { ...f.enabled, [key]: value } }));
   }
 
   private setForm(store: Store): void {
-    const pm = {
-      pago_movil: store.payments?.pago_movil ?? '',
-      zelle: store.payments?.zelle ?? '',
-      binance: store.payments?.binance ?? '',
-    };
-    this.form = {
-      store_name: store.store_name ?? '',
-      owner_name: store.owner_name ?? '',
-      owner_whatsapp: store.owner_whatsapp ?? '',
-      address: store.address ?? '',
-      maps_url: store.maps_url ?? '',
-      hours: store.hours ?? '',
-      delivery_info: store.delivery_info ?? '',
-      returns_policy: store.returns_policy ?? '',
-      usd_rate: store.usd_rate ?? null,
-      payments: pm,
-      // A method is "on" when it already has a value.
-      enabled: { pago_movil: !!pm.pago_movil, zelle: !!pm.zelle, binance: !!pm.binance },
-    };
+    this.form.set(normalizeStore(store));
     this.rateUpdatedAt.set(store.usd_rate_updated_at ?? null);
-    this.savedJson = JSON.stringify(this.payload());
+    this.savedJson.set(JSON.stringify(this.payload()));
   }
 
   /** The exact payload we would PUT — also the baseline for dirty tracking. */
-  private payload(): StoreUpdate {
-    const f = this.form;
+  private readonly payload = computed<StoreUpdate>(() => {
+    const f = this.form();
     return {
       store_name: f.store_name,
       owner_name: f.owner_name,
@@ -175,26 +230,25 @@ export class Tienda implements OnInit, AfterViewInit, OnDestroy {
         binance: f.enabled.binance ? f.payments.binance : '',
       },
     };
-  }
+  });
 
-  protected dirty(): boolean {
-    return !this.loading() && JSON.stringify(this.payload()) !== this.savedJson;
-  }
+  protected readonly dirty = computed(
+    () => !this.loading() && JSON.stringify(this.payload()) !== this.savedJson(),
+  );
 
   // ---- live preview helpers (mirror the bot's real responses) ----
-  protected ratePreview(): string {
-    return this.form.usd_rate != null
-      ? `Hoy la tasa está en Bs. ${this.form.usd_rate} por $1.`
-      : 'Aún no has puesto la tasa del día.';
-  }
-  protected addressPreview(): string {
-    return this.form.address?.trim() ? `Estamos en: ${this.form.address}` : 'Aún no hay dirección.';
-  }
-  protected shippingPreview(): string {
-    return this.form.delivery_info?.trim()
-      ? this.form.delivery_info
-      : 'Aún no hay información de envíos.';
-  }
+  protected readonly ratePreview = computed(() => {
+    const rate = this.form().usd_rate;
+    return rate != null ? `Hoy la tasa está en Bs. ${rate} por $1.` : 'Aún no has puesto la tasa del día.';
+  });
+  protected readonly addressPreview = computed(() => {
+    const address = this.form().address?.trim();
+    return address ? `Estamos en: ${address}` : 'Aún no hay dirección.';
+  });
+  protected readonly shippingPreview = computed(() => {
+    const info = this.form().delivery_info?.trim();
+    return info ? info : 'Aún no hay información de envíos.';
+  });
 
   protected save(): void {
     this.saving.set(true);
@@ -209,7 +263,7 @@ export class Tienda implements OnInit, AfterViewInit, OnDestroy {
         this.messages.add({
           severity: 'error',
           summary: 'No se pudo guardar',
-          detail: e?.error?.error ?? '',
+          detail: apiErrorMessage(e),
         });
       },
     });

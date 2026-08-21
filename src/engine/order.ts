@@ -4,7 +4,7 @@ import { normalize } from "./intents.js";
 import type { EngineInput, HandlerOutput } from "./stateMachine.js";
 import { text } from "./stateMachine.js";
 import { numberedList } from "./menus.js";
-import { availableColors, availableSizes } from "./catalog.js";
+import { availableColors, availableSizes, variantStock } from "./catalog.js";
 import { paymentInstructions } from "./payment.js";
 
 const itemForDraft = (input: EngineInput, draft: DraftOrder) =>
@@ -85,6 +85,27 @@ export function handleOrderingQty(intent: Intent, input: EngineInput): HandlerOu
   if (intent.type !== "choice" || intent.index < 1) {
     return reprompt(input, "Indícame la cantidad con un número, por ejemplo *1*.");
   }
+  const item = itemForDraft(input, draft);
+  if (!item || !draft.size || !draft.color) return restart();
+
+  // Bound the quantity by real stock: without this the subtotal is whatever the
+  // customer types, and the owner gets an order that can't be fulfilled.
+  const stock = variantStock(item, draft.size, draft.color);
+  if (stock === 0) {
+    return {
+      replies: [text(`😕 Se nos agotó *${item.name}* en talla ${draft.size} ${draft.color}. Escribe *menu*.`)],
+      nextState: "idle",
+      draft: {},
+    };
+  }
+  if (intent.index > stock) {
+    return reprompt(
+      input,
+      `Solo nos quedan *${stock}* de *${item.name}* en talla ${draft.size} ${draft.color}. ` +
+        `¿Cuántas unidades quieres? (máximo ${stock})`,
+    );
+  }
+
   return {
     replies: [text("¿A nombre de quién es el pedido?")],
     nextState: "ordering_name",

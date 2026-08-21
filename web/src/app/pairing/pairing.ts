@@ -11,5 +11,4 @@ import { ConnectionService } from '../connection.service';
 })
 export class Pairing {
   protected readonly conn = inject(ConnectionService);
-  protected readonly accountNumber = ConnectionService.accountNumber;
 }

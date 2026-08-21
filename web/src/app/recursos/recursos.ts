@@ -8,7 +8,15 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { InputTextModule } from 'primeng/inputtext';
 import { TooltipModule } from 'primeng/tooltip';
 import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
-import { SettingsService, type StorySchedule } from '../settings.service';
+import { SettingsService, type StorySchedule, type StoryPostReason } from '../settings.service';
+import { apiErrorMessage } from '../api-error';
+
+/** Toast per outcome of "publicar ahora" — one table instead of an if/else ladder. */
+const POST_RESULT: Record<Exclude<StoryPostReason, 'ok'>, { severity: 'warn' | 'info'; summary: string }> = {
+  disconnected: { severity: 'warn', summary: 'WhatsApp no está conectado' },
+  no_stories: { severity: 'info', summary: 'No hay historias para publicar' },
+  busy: { severity: 'info', summary: 'Publicación en curso, intenta de nuevo' },
+};
 
 @Component({
   selector: 'app-recursos',
@@ -53,14 +61,20 @@ export class Recursos implements OnInit {
         this.scheduleEnabled.set(s.enabled);
         this.scheduleTime.set(s.time);
       },
+      error: () =>
+        this.messages.add({ severity: 'error', summary: 'No se pudo cargar la programación' }),
     });
     this.settings.getContacts().subscribe({
       next: (contacts) => this.reachableContacts.set(contacts.filter((c) => !!c.phone).length),
+      error: () => this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los contactos' }),
     });
   }
 
   private load(): void {
-    this.api.list().subscribe({ next: (a) => this.assets.set(a) });
+    this.api.list().subscribe({
+      next: (a) => this.assets.set(a),
+      error: () => this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los archivos' }),
+    });
   }
 
   protected saveSchedule(): void {
@@ -99,13 +113,9 @@ export class Recursos implements OnInit {
             summary: 'Historias publicadas',
             detail: `${r.posted} historia(s) enviada(s) a ${r.audience} contacto(s).`,
           });
-        } else if (r.reason === 'disconnected') {
-          this.messages.add({ severity: 'warn', summary: 'WhatsApp no está conectado' });
-        } else if (r.reason === 'no_stories') {
-          this.messages.add({ severity: 'info', summary: 'No hay historias para publicar' });
-        } else {
-          this.messages.add({ severity: 'info', summary: 'Publicación en curso, intenta de nuevo' });
+          return;
         }
+        this.messages.add(POST_RESULT[r.reason] ?? POST_RESULT.busy);
       },
       error: () => {
         this.postingNow.set(false);
@@ -130,7 +140,7 @@ export class Recursos implements OnInit {
         this.messages.add({
           severity: 'error',
           summary: 'No se pudo subir',
-          detail: e?.error?.error ?? 'Revisa el tipo y tamaño del archivo.',
+          detail: apiErrorMessage(e, 'Revisa el tipo y tamaño del archivo.'),
         });
       },
     });
@@ -150,6 +160,12 @@ export class Recursos implements OnInit {
             this.messages.add({ severity: 'success', summary: 'Eliminado' });
             this.load();
           },
+          error: (e) =>
+            this.messages.add({
+              severity: 'error',
+              summary: 'No se pudo eliminar',
+              detail: apiErrorMessage(e),
+            }),
         }),
     });
   }
@@ -162,7 +178,7 @@ export class Recursos implements OnInit {
     return this.api.fileUrl(id);
   }
 
-  protected size(bytes: number): string {
+  protected formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;

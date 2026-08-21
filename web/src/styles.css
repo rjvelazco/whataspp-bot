@@ -5,6 +5,18 @@
 @import 'tailwindcss';
 @plugin 'tailwindcss-primeui';
 
+/* Status colours as first-class Tailwind tokens (text-success, bg-warn-subtle, …).
+   The plugin already supplies primary-* and surface-*; these complete the set so
+   templates never reach for a raw emerald/amber/red shade. */
+@theme {
+  --color-success: #12813c;
+  --color-success-subtle: #e7f6ec;
+  --color-warn: #a86413;
+  --color-warn-subtle: #fdf3e3;
+  --color-danger: #c0392b;
+  --color-danger-subtle: #fdecec;
+}
+
 /* ---- Design tokens (used by the app shell below) ---- */
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -152,4 +164,10 @@ body {
   overflow: auto;
   padding: 20px 24px;
   background: var(--surface-2);
+}
+
+/* CDK inserts the drag preview into <body>, outside any component's styles. */
+.cdk-drag-preview {
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
 }

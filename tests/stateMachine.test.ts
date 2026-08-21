@@ -308,3 +308,72 @@ describe("malformed stored menus", () => {
     expect(call().replies.length).toBeGreaterThan(0);
   });
 });
+
+describe("handoff pause expiry", () => {
+  it("resumes normally once the pause has elapsed", () => {
+    // The pause ended an hour before NOW. Previously the state stayed "paused",
+    // which no handler owns, so every message fell through to "No te entendí".
+    const stale: Conversation = {
+      ...freshConv(),
+      state: "paused",
+      bot_paused_until: "2026-06-29T11:00:00.000Z",
+    };
+    const r = run(["tasa"], stale);
+    expect(body(r)).toContain("Tasa del día");
+    expect(r.conversation.bot_paused_until).toBeNull();
+    expect(r.conversation.state).not.toBe("paused");
+  });
+
+  it("clears the pause when the customer resumes with 'menu'", () => {
+    const paused: Conversation = {
+      ...freshConv(),
+      state: "paused",
+      bot_paused_until: "2026-06-29T20:00:00.000Z",
+    };
+    const r = run(["menu"], paused);
+    expect(r.conversation.bot_paused_until).toBeNull();
+    expect(r.conversation.state).toBe("in_menu");
+  });
+});
+
+describe("info keywords while awaiting payment", () => {
+  it("answers 'tasa' — the customer needs it to pay", () => {
+    const awaiting: Conversation = { ...freshConv(), state: "awaiting_payment", active_order_id: "1001" };
+    const r = run(["tasa"], awaiting);
+    expect(body(r)).toContain("Tasa del día");
+    expect(r.conversation.state).toBe("awaiting_payment"); // still waiting on the receipt
+  });
+
+  it("still refuses to jump to a menu trigger from there", () => {
+    const awaiting: Conversation = { ...freshConv(), state: "awaiting_payment", active_order_id: "1001" };
+    expect(run(["catálogo"], awaiting).conversation.state).toBe("awaiting_payment");
+  });
+});
+
+describe("quantity is bounded by stock", () => {
+  it("reprompts with the real maximum instead of accepting any number", () => {
+    // VESTBOHEMIO M/beige has stock 5.
+    const r = run(["PEDIR VESTBOHEMIO", "M", "beige", "99999"]);
+    expect(body(r)).toContain("Solo nos quedan *5*");
+    expect(r.conversation.state).toBe("ordering_qty");
+    expect(r.conversation.draft_order.qty).toBeUndefined();
+  });
+
+  it("accepts a quantity at the stock limit", () => {
+    const r = run(["PEDIR VESTBOHEMIO", "M", "beige", "5", "Ana", "Centro", "confirmar"]);
+    const effect = r.effects.find((e) => e.type === "createOrder");
+    if (effect?.type !== "createOrder") throw new Error("expected a createOrder effect");
+    expect(effect.order.subtotal).toBe(125); // 25.00 x5
+  });
+});
+
+describe("a second order does not orphan the first", () => {
+  it("still accepts the receipt after PEDIR starts another order", () => {
+    // PEDIR moves the state to ordering_size while order 1001 is unpaid; keying
+    // the receipt on the chat state left that order unable to ever receive one.
+    const awaiting: Conversation = { ...freshConv(), state: "awaiting_payment", active_order_id: "1001" };
+    const r = run(["PEDIR TOPBASICO", { image: true }], awaiting);
+    expect(r.effects.map((e) => e.type)).toEqual(["saveReceipt", "notifyOwner"]);
+    expect(r.conversation.state).toBe("ordering_size"); // the new order continues
+  });
+});

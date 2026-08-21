@@ -40,11 +40,18 @@
   (cdkDropListDropped)="dropMenu($event)"
 >
   @for (menu of menus(); track menu.key; let i = $index) {
+    <!-- Editing a menu is this view's primary action, so the card itself must be
+         reachable by keyboard, not only by mouse. -->
     <div
-      class="group relative flex flex-col rounded-xl border bg-surface-0 p-4 cursor-pointer transition-colors"
+      class="group relative flex flex-col rounded-xl border bg-surface-0 p-4 cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       [class]="isEntry(menu) ? 'border-primary' : 'border-surface-200 hover:border-surface-300'"
       cdkDrag
+      role="button"
+      tabindex="0"
+      [attr.aria-label]="'Editar ' + (menu.name || 'menú sin nombre')"
       (click)="openEdit(i)"
+      (keydown.enter)="openEdit(i)"
+      (keydown.space)="openEdit(i); $event.preventDefault()"
     >
       <!-- header: type icon + name + hover actions -->
       <div class="flex items-start gap-2">
@@ -100,7 +107,7 @@
         <span class="text-muted-color">{{ menu.options.length }} opciones</span>
         <span
           class="flex items-center gap-1.5"
-          [class]="allWired(menu) ? 'text-emerald-600' : 'text-amber-600'"
+          [class]="allWired(menu) ? 'text-success' : 'text-warn'"
         >
           <i class="pi" [class]="allWired(menu) ? 'pi-check-square' : 'pi-stop'"></i>
           {{ connectedCount(menu) }}/{{ menu.options.length }}
@@ -112,7 +119,7 @@
   <!-- Add-menu tile -->
   <button
     type="button"
-    class="flex flex-col items-center justify-center gap-2 min-h-[180px] rounded-xl border-2 border-dashed border-indigo-300 text-primary p-4 cursor-pointer transition-colors hover:bg-indigo-50 hover:border-indigo-400"
+    class="flex flex-col items-center justify-center gap-2 min-h-[180px] rounded-xl border-2 border-dashed border-primary-300 text-primary p-4 cursor-pointer transition-colors hover:bg-primary-50 hover:border-primary-400"
     (click)="openNew()"
   >
     <i class="pi pi-plus text-2xl"></i>
@@ -148,11 +155,11 @@
       />
       <span
         class="ml-auto flex items-center gap-1.5 text-xs whitespace-nowrap"
-        [class]="allWired(draft) ? 'text-emerald-600' : 'text-amber-600'"
+        [class]="allWired(draft) ? 'text-success' : 'text-warn'"
       >
         <span
           class="w-2 h-2 rounded-full"
-          [class]="allWired(draft) ? 'bg-emerald-500' : 'bg-amber-500'"
+          [class]="allWired(draft) ? 'bg-success' : 'bg-warn'"
         ></span>
         {{ connectedCount(draft) }}/{{ draft.options.length }} conectadas
       </span>
@@ -194,8 +201,7 @@
       </div>
     </div>
 
-    <div class="flex flex-col gap-1.5">
-      <label class="text-sm text-muted-color">Mensaje</label>
+    <label class="text-sm text-muted-color flex flex-col gap-1.5">Mensaje
       <div class="relative">
         <textarea
           pTextarea
@@ -227,7 +233,7 @@
           </div>
         </p-popover>
       </div>
-    </div>
+    </label>
 
     <div class="flex flex-col gap-1.5">
       <label class="flex items-center gap-1.5 text-sm text-muted-color">
@@ -256,7 +262,7 @@
               label="Recurso eliminado"
               icon="pi pi-exclamation-triangle"
               [removable]="true"
-              styleClass="bg-red-50 text-red-600"
+              styleClass="bg-danger-subtle text-danger"
               (onRemove)="removeAttachment(id)"
             />
           }

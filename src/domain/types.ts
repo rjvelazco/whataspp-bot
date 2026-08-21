@@ -5,7 +5,6 @@ export type ConvState =
   | "idle"
   | "in_menu"
   | "browsing"
-  | "choosing_category"
   | "checking_size"
   | "ordering_size"
   | "ordering_color"
@@ -122,9 +121,8 @@ export interface DraftOrder {
   delivery_address?: string | null;
 }
 
-/** Actions an editable menu option can trigger (bot flow builder). */
 /**
- * Every action a menu option can run. Exported as a runtime list because menus
+ * Every action a menu option can run (bot flow builder). Exported as a runtime list because menus
  * are stored JSON that has to be validated on the way in; the type is derived
  * from it so the two can never drift.
  */

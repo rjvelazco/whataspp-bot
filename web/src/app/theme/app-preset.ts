@@ -15,7 +15,9 @@ import Aura from '@primeng/themes/aura';
  *   --border-strong                  #d5d8dd  -> surface.300
  *   --text-muted                     #9aa4ae  -> surface.400
  *   --text-secondary                 #5b6570  -> surface.500
- *   --text-primary                   #1a1d21  -> surface.950
+ *   --text-primary                   #1a1d21  -> surface.700 (Aura reads
+ *                                              text.color from surface.700; 950 is
+ *                                              never used as a text colour)
  */
 export const AppPreset = definePreset(Aura, {
   semantic: {
@@ -57,7 +59,9 @@ export const AppPreset = definePreset(Aura, {
           400: '#9aa4ae',
           500: '#5b6570',
           600: '#4b545e',
-          700: '#3a424b',
+          // Aura's light scheme takes text.color from here — keep it equal to the
+          // old --text-primary so plain markup and PrimeNG text match.
+          700: '#1a1d21',
           800: '#292f36',
           900: '#1f242a',
           950: '#1a1d21',

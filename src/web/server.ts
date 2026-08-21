@@ -1,7 +1,7 @@
 import express, { type Response } from "express";
 import multer from "multer";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { dirname, extname, join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { config } from "../config.js";
@@ -43,6 +43,8 @@ import {
   customerShippedMessage,
 } from "../services/notify.js";
 import { validateFlow } from "../engine/validateFlow.js";
+import { canTransition, nextStatuses } from "../domain/orderStatus.js";
+import type { StoryPostResult } from "../services/storyScheduler.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -53,13 +55,16 @@ export type WebStatus =
 
 /** What the web server needs from the rest of the app. */
 export interface WebDeps {
-  store: Store;
+  /** Read the store fresh on every use — PUT /api/store edits the very values
+   *  (name, rate, payment details) that customer messages quote, and a snapshot
+   *  taken at boot would keep serving the old ones until a restart. */
+  getStore: () => Store;
   /** Send a WhatsApp message (used to notify the customer on payment verification). */
   sendMessage: (to: string, body: string) => Promise<void>;
   /** Unlink the bot from WhatsApp (shows a fresh QR to re-pair). */
   disconnect: () => Promise<void>;
   /** Post the store's "story" assets to WhatsApp Status right now. */
-  postStoryNow: () => Promise<{ posted: number; audience: number; reason: string }>;
+  postStoryNow: () => Promise<StoryPostResult>;
 }
 
 const DEFAULT_STORY_SCHEDULE: StorySchedule = { enabled: false, time: "09:00" };
@@ -70,28 +75,52 @@ const indexHtml = join(webDir, "index.html");
 const assetsDir = join(config.uploadsDir, "assets");
 const productsDir = join(config.uploadsDir, "products");
 
-const ALLOWED_ASSET_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
-const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+/**
+ * Allowed upload types, each mapped to the extension we store it under. The
+ * extension comes from this table rather than from the client's filename: an
+ * HTML file declared as image/png but named "x.html" would otherwise be written
+ * as .html and then served as text/html from the admin's own origin.
+ */
+const ASSET_EXT: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "application/pdf": ".pdf",
+};
+const IMAGE_EXT: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+};
 
-/** Multer: store uploads under uploads/assets with a random, extension-preserving name. */
+const MAX_ASSET_BYTES = 15 * 1024 * 1024;
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+
+/** Multer: store uploads with a random name and an extension we chose ourselves. */
 const uploadAsset = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, assetsDir),
-    filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
+    filename: (_req, file, cb) => cb(null, `${randomUUID()}${ASSET_EXT[file.mimetype] ?? ""}`),
   }),
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB
-  fileFilter: (_req, file, cb) => cb(null, ALLOWED_ASSET_TYPES.has(file.mimetype)),
+  limits: { fileSize: MAX_ASSET_BYTES },
+  fileFilter: (_req, file, cb) => cb(null, file.mimetype in ASSET_EXT),
 });
 
 /** Multer for product photos: images only, stored under uploads/products. */
 const uploadProductPhoto = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, productsDir),
-    filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
+    filename: (_req, file, cb) => cb(null, `${randomUUID()}${IMAGE_EXT[file.mimetype] ?? ""}`),
   }),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
-  fileFilter: (_req, file, cb) => cb(null, IMAGE_TYPES.has(file.mimetype)),
+  limits: { fileSize: MAX_PHOTO_BYTES },
+  fileFilter: (_req, file, cb) => cb(null, file.mimetype in IMAGE_EXT),
 });
+
+/** Serve a stored upload without letting a browser reinterpret its type. */
+function sendStoredFile(res: Response, path: string): void {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.sendFile(path);
+}
 
 const isHttpUrl = (s: string): boolean => /^https?:\/\//.test(s);
 
@@ -190,6 +219,15 @@ export class WebServer {
 
   constructor(private readonly deps: WebDeps) {}
 
+  /** The store as it is right now, never a boot-time copy. */
+  private get store(): Store {
+    return this.deps.getStore();
+  }
+
+  private get storeId(): string {
+    return this.store.store_id;
+  }
+
   /** Update the current status and push it to every connected browser. */
   setStatus(status: WebStatus): void {
     this.status = status;
@@ -200,14 +238,17 @@ export class WebServer {
   /** Look up an order, scoped to this instance's store. */
   private findOrder(id: string): Order | undefined {
     const order = getOrder(id);
-    return order && order.store_id === this.deps.store.store_id ? order : undefined;
+    return order && order.store_id === this.storeId ? order : undefined;
   }
 
-  /** Advance an order from one status to the next, notifying the customer. */
+  /**
+   * The single path every status change takes: look up, check the transition is
+   * legal, persist, notify the customer. Routing all of verify/cancel/ship/deliver
+   * through here is what stops a finished order being moved again.
+   */
   private async advance(
     res: Response,
     id: string,
-    from: OrderStatus,
     to: OrderStatus,
     message: (order: Order, store: Store) => string,
   ): Promise<void> {
@@ -216,13 +257,16 @@ export class WebServer {
       res.status(404).json({ error: "order not found" });
       return;
     }
-    if (order.status !== from) {
-      res.status(409).json({ error: `order is not ${from}` });
+    if (!canTransition(order.status, to)) {
+      res.status(409).json({
+        error: `Un pedido en "${order.status}" no puede pasar a "${to}".`,
+        allowed: nextStatuses(order.status),
+      });
       return;
     }
     const updated = { ...order, status: to };
     updateOrder(updated);
-    const notified = await this.trySend(order.customer_wa, message(updated, this.deps.store));
+    const notified = await this.trySend(order.customer_wa, message(updated, this.store));
     logger.info({ orderId: order.order_id, to, notified }, "order advanced");
     res.json({ order: updated, notified });
   }
@@ -297,37 +341,25 @@ export class WebServer {
 
     // --- Orders API ---
     app.get("/api/orders", (_req, res) => {
-      res.json(listOrders(this.deps.store.store_id));
+      res.json(listOrders(this.storeId));
     });
 
     app.get("/api/orders/:id/receipt", (req, res) => {
       const order = getOrder(req.params.id);
       if (
         !order ||
-        order.store_id !== this.deps.store.store_id ||
+        order.store_id !== this.storeId ||
         !order.receipt_url ||
         !existsSync(order.receipt_url)
       ) {
         res.status(404).send("no receipt");
         return;
       }
-      res.sendFile(order.receipt_url);
+      sendStoredFile(res, order.receipt_url);
     });
 
     app.post("/api/orders/:id/verify", async (req, res) => {
-      const order = getOrder(req.params.id);
-      if (!order || order.store_id !== this.deps.store.store_id) {
-        res.status(404).json({ error: "order not found" });
-        return;
-      }
-      const updated = { ...order, status: "confirmed" as const };
-      updateOrder(updated);
-      const notified = await this.trySend(
-        order.customer_wa,
-        customerPaymentConfirmedMessage(updated, this.deps.store),
-      );
-      logger.info({ orderId: order.order_id, notified }, "payment verified");
-      res.json({ order: updated, notified });
+      await this.advance(res, req.params.id, "confirmed", customerPaymentConfirmedMessage);
     });
 
     // Send the customer a check-in (does not change the order).
@@ -337,41 +369,29 @@ export class WebServer {
         res.status(404).json({ error: "order not found" });
         return;
       }
-      const notified = await this.trySend(order.customer_wa, customerCheckInMessage(order, this.deps.store));
+      const notified = await this.trySend(order.customer_wa, customerCheckInMessage(order, this.store));
       logger.info({ orderId: order.order_id, notified }, "reminder sent");
       res.json({ notified });
     });
 
     // Cancel an order and tell the customer.
     app.post("/api/orders/:id/cancel", async (req, res) => {
-      const order = this.findOrder(req.params.id);
-      if (!order) {
-        res.status(404).json({ error: "order not found" });
-        return;
-      }
-      const updated = { ...order, status: "cancelled" as const };
-      updateOrder(updated);
-      const notified = await this.trySend(
-        order.customer_wa,
-        customerOrderCancelledMessage(updated, this.deps.store),
-      );
-      logger.info({ orderId: order.order_id, notified }, "order cancelled");
-      res.json({ order: updated, notified });
+      await this.advance(res, req.params.id, "cancelled", customerOrderCancelledMessage);
     });
 
     // Fulfillment: confirmed → shipped.
     app.post("/api/orders/:id/ship", async (req, res) => {
-      await this.advance(res, req.params.id, "confirmed", "shipped", customerShippedMessage);
+      await this.advance(res, req.params.id, "shipped", customerShippedMessage);
     });
 
     // Fulfillment: shipped → delivered.
     app.post("/api/orders/:id/deliver", async (req, res) => {
-      await this.advance(res, req.params.id, "shipped", "delivered", customerDeliveredMessage);
+      await this.advance(res, req.params.id, "delivered", customerDeliveredMessage);
     });
 
     // --- Assets (catalog / promo files) ---
     app.get("/api/assets", (_req, res) => {
-      res.json(listAssets(this.deps.store.store_id));
+      res.json(listAssets(this.storeId));
     });
 
     app.post("/api/assets/:category", uploadAsset.single("file"), (req, res) => {
@@ -381,12 +401,12 @@ export class WebServer {
         return;
       }
       if (!req.file) {
-        res.status(400).json({ error: "no file — must be JPG/PNG/WebP/PDF up to 15 MB" });
+        res.status(400).json({ error: `no file — must be JPG/PNG/WebP/PDF up to ${MAX_ASSET_BYTES / 1024 / 1024} MB` });
         return;
       }
       const asset: Asset = {
         id: randomUUID(),
-        store_id: this.deps.store.store_id,
+        store_id: this.storeId,
         category,
         filename: req.file.filename,
         original_name: req.file.originalname,
@@ -401,16 +421,16 @@ export class WebServer {
 
     app.get("/api/assets/:id/file", (req, res) => {
       const asset = getAsset(req.params.id);
-      if (!asset || asset.store_id !== this.deps.store.store_id) {
+      if (!asset || asset.store_id !== this.storeId) {
         res.status(404).send("not found");
         return;
       }
-      res.sendFile(join(assetsDir, asset.filename));
+      sendStoredFile(res, join(assetsDir, asset.filename));
     });
 
     app.delete("/api/assets/:id", (req, res) => {
       const asset = getAsset(req.params.id);
-      if (!asset || asset.store_id !== this.deps.store.store_id) {
+      if (!asset || asset.store_id !== this.storeId) {
         res.status(404).json({ error: "not found" });
         return;
       }
@@ -422,13 +442,13 @@ export class WebServer {
 
     // --- Catalog (products) — DB is the source of truth the bot reads each message ---
     app.get("/api/catalog", (_req, res) => {
-      res.json(listAllItems(this.deps.store.store_id));
+      res.json(listAllItems(this.storeId));
     });
 
     app.post("/api/catalog", (req, res) => {
       let item: CatalogItem;
       try {
-        item = buildItemFromBody(req.body, this.deps.store.store_id);
+        item = buildItemFromBody(req.body, this.storeId);
       } catch (err) {
         res.status(400).json({ error: (err as Error).message });
         return;
@@ -447,14 +467,14 @@ export class WebServer {
     });
 
     app.put("/api/catalog/:id", (req, res) => {
-      const existing = getItemById(this.deps.store.store_id, req.params.id);
+      const existing = getItemById(this.storeId, req.params.id);
       if (!existing) {
         res.status(404).json({ error: "producto no encontrado" });
         return;
       }
       let item: CatalogItem;
       try {
-        item = buildItemFromBody(req.body, this.deps.store.store_id, existing);
+        item = buildItemFromBody(req.body, this.storeId, existing);
       } catch (err) {
         res.status(400).json({ error: (err as Error).message });
         return;
@@ -474,7 +494,7 @@ export class WebServer {
 
     // Soft delete: hide from the bot but keep the row so past orders still resolve.
     app.delete("/api/catalog/:id", (req, res) => {
-      if (!softDeleteItem(this.deps.store.store_id, req.params.id)) {
+      if (!softDeleteItem(this.storeId, req.params.id)) {
         res.status(404).json({ error: "producto no encontrado" });
         return;
       }
@@ -483,13 +503,13 @@ export class WebServer {
     });
 
     app.post("/api/catalog/:id/photo", uploadProductPhoto.single("file"), (req, res) => {
-      const existing = getItemById(this.deps.store.store_id, String(req.params.id));
+      const existing = getItemById(this.storeId, String(req.params.id));
       if (!existing) {
         res.status(404).json({ error: "producto no encontrado" });
         return;
       }
       if (!req.file) {
-        res.status(400).json({ error: "no file — must be JPG/PNG/WebP up to 10 MB" });
+        res.status(400).json({ error: `no file — must be JPG/PNG/WebP up to ${MAX_PHOTO_BYTES / 1024 / 1024} MB` });
         return;
       }
       // Drop a previously uploaded local photo; leave seeded http(s) URLs untouched.
@@ -506,7 +526,7 @@ export class WebServer {
 
     // Serve a product photo to the admin UI: redirect for seeded http URLs, file for uploads.
     app.get("/api/catalog/:id/photo", (req, res) => {
-      const item = getItemById(this.deps.store.store_id, req.params.id);
+      const item = getItemById(this.storeId, req.params.id);
       if (!item || !item.photo_url) {
         res.status(404).send("no photo");
         return;
@@ -520,12 +540,12 @@ export class WebServer {
         res.status(404).send("no photo");
         return;
       }
-      res.sendFile(file);
+      sendStoredFile(res, file);
     });
 
     // --- Store config (Tienda tab): values the bot reads for keyword replies ---
     app.get("/api/store", (_req, res) => {
-      const store = getStoreById(this.deps.store.store_id);
+      const store = getStoreById(this.storeId);
       if (!store) {
         res.status(404).json({ error: "store not found" });
         return;
@@ -534,7 +554,7 @@ export class WebServer {
     });
 
     app.put("/api/store", (req, res) => {
-      const existing = getStoreById(this.deps.store.store_id);
+      const existing = getStoreById(this.storeId);
       if (!existing) {
         res.status(404).json({ error: "store not found" });
         return;
@@ -598,12 +618,12 @@ export class WebServer {
 
     // --- Contacts (numbers that have messaged the bot = Status audience) ---
     app.get("/api/contacts", (_req, res) => {
-      res.json(listContacts(this.deps.store.store_id));
+      res.json(listContacts(this.storeId));
     });
 
     // --- Settings: story (Estados) daily schedule ---
     app.get("/api/settings/story-schedule", (_req, res) => {
-      const store = getStoreById(this.deps.store.store_id);
+      const store = getStoreById(this.storeId);
       res.json(store?.story_schedule ?? DEFAULT_STORY_SCHEDULE);
     });
 
@@ -614,7 +634,7 @@ export class WebServer {
         res.status(400).json({ error: "time must be HH:MM" });
         return;
       }
-      const store = getStoreById(this.deps.store.store_id);
+      const store = getStoreById(this.storeId);
       if (!store) {
         res.status(404).json({ error: "store not found" });
         return;
@@ -633,7 +653,7 @@ export class WebServer {
 
     // --- Menus (flow builder config) ---
     app.get("/api/menus", (_req, res) => {
-      res.json(getMenus(this.deps.store.store_id));
+      res.json(getMenus(this.storeId));
     });
 
     app.put("/api/menus", (req, res) => {
@@ -649,7 +669,7 @@ export class WebServer {
         res.status(400).json({ error: "El flujo tiene errores", issues });
         return;
       }
-      saveMenus(this.deps.store.store_id, menus);
+      saveMenus(this.storeId, menus);
       logger.info({ count: menus.length, warnings: issues.length }, "menus saved");
       res.json({ ok: true, count: menus.length, issues });
     });
@@ -667,10 +687,16 @@ export class WebServer {
       logger.warn({ webDir }, "web UI build not found — run `npm run build:web`");
     }
 
-    // Turn upload errors (too large, bad type) into a clean 400 instead of a 500.
+    // Only upload problems are the client's fault; anything else is a real
+    // server error and must not be reported as a bad request (a failed DB write
+    // used to surface as "could not upload the file").
     const onError: express.ErrorRequestHandler = (err, _req, res, _next) => {
       logger.error({ err }, "request error");
-      res.status(400).json({ error: "No se pudo subir el archivo (revisa tipo y tamaño)." });
+      if (err instanceof multer.MulterError) {
+        res.status(400).json({ error: "No se pudo subir el archivo (revisa tipo y tamaño)." });
+        return;
+      }
+      res.status(500).json({ error: "Error interno del servidor." });
     };
     app.use(onError);
 

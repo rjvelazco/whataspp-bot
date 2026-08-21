@@ -25,6 +25,7 @@ import {
   upsertStore,
 } from "./db/repositories.js";
 import { reduce, type EngineResult } from "./engine/stateMachine.js";
+import { canTransition } from "./domain/orderStatus.js";
 import { StoryScheduler } from "./services/storyScheduler.js";
 import { ownerHandoffMessage, ownerOrderMessage } from "./services/notify.js";
 import type { Conversation, Store } from "./domain/types.js";
@@ -40,6 +41,27 @@ function freshConversation(customerWa: string, storeId: string, now: Date): Conv
     bot_paused_until: null,
     updated_at: now.toISOString(),
   };
+}
+
+/**
+ * One in-flight message per customer. handleMessage is a read-modify-write
+ * (getConversation → reduce → saveConversation), so two messages arriving close
+ * together would both read the same state and the second save would discard the
+ * first — losing a draft, or emitting createOrder twice.
+ */
+const queues = new Map<string, Promise<void>>();
+
+function serialize(key: string, task: () => Promise<void>): Promise<void> {
+  const previous = queues.get(key) ?? Promise.resolve();
+  const next = previous
+    .then(task)
+    .catch((err) => logger.error({ err, customer: key }, "message handler failed"))
+    .finally(() => {
+      // Only drop the entry if nothing newer has queued behind us.
+      if (queues.get(key) === next) queues.delete(key);
+    });
+  queues.set(key, next);
+  return next;
 }
 
 async function handleMessage(transport: MessagingTransport, msg: IncomingMessage): Promise<void> {
@@ -131,7 +153,7 @@ async function performEffects(
       }
       case "cancelOrder": {
         const order = getOrder(effect.orderId);
-        if (order && (order.status === "pending_payment" || order.status === "payment_submitted")) {
+        if (order && canTransition(order.status, "cancelled")) {
           updateOrder({ ...order, status: "cancelled" });
           logger.info({ orderId: order.order_id }, "order cancelled by customer");
         }
@@ -149,7 +171,7 @@ async function main() {
   logger.info({ store: store.store_name }, "store ready");
 
   const transport: MessagingTransport = new BaileysTransport(config.authDir, config.pairPhone);
-  transport.onMessage((msg) => handleMessage(transport, msg));
+  transport.onMessage((msg) => serialize(msg.from, () => handleMessage(transport, msg)));
 
   let connected = false;
 
@@ -172,7 +194,8 @@ async function main() {
   });
 
   const web = new WebServer({
-    store,
+    // Read-through, so admin edits to the store take effect without a restart.
+    getStore: () => getStoreById(store.store_id) ?? store,
     sendMessage: (to, body) => transport.sendText(to, body),
     disconnect: () => transport.logout(),
     postStoryNow: () => storyScheduler.postNow(),

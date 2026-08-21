@@ -29,6 +29,8 @@ type PagosFilter = 'all' | 'pending' | 'verified';
   styleUrl: './pagos.css',
 })
 export class Pagos {
+  /** Rows per page in the table. */
+  protected readonly PAGE_SIZE = 10;
   protected readonly store = inject(OrdersStore);
 
   protected readonly filter = signal<PagosFilter>('all');
