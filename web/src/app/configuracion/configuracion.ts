@@ -1,9 +1,19 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { MessageService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
+import { InputTextModule } from 'primeng/inputtext';
+import { TextareaModule } from 'primeng/textarea';
+import { ChipModule } from 'primeng/chip';
+import { SelectModule } from 'primeng/select';
+import { MessageModule } from 'primeng/message';
+import { PopoverModule } from 'primeng/popover';
+import { TooltipModule } from 'primeng/tooltip';
 import { MenusService, type FlowAction, type FlowIssue, type FlowMenu, type FlowOption } from '../menus.service';
 import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
+import { apiIssues } from '../api-error';
 
 const CATEGORY_LABEL: Record<AssetCategory, string> = {
   catalog: 'Catálogo',
@@ -11,31 +21,39 @@ const CATEGORY_LABEL: Record<AssetCategory, string> = {
   story: 'Historia',
 };
 
-const ACTION_LABELS: Record<string, string> = {
-  go_menu: 'Ir a menú',
-  start_order: 'Iniciar pedido',
-  show_category: 'Mostrar productos',
-  show_offers: 'Mostrar ofertas',
-  show_payment: 'Datos de pago',
-  show_shipping: 'Datos de envío',
-  show_address: 'Dirección',
-  show_rate: 'Tasa del día',
-  size_guide: 'Guía de tallas',
-  shipping_payments: 'Envíos y pagos',
-  talk_human: 'Hablar con humano',
+/**
+ * Every action, with its label and whether the owner can pick it from the
+ * dropdown. `go_menu` is set by the Conectar picker, and `shipping_payments` is
+ * legacy — both need a label but neither is offered. Keyed by FlowAction so a new
+ * action is a compile error here until it's labelled.
+ */
+const ACTIONS: Record<FlowAction, { label: string; selectable: boolean }> = {
+  go_menu: { label: 'Ir a menú', selectable: false },
+  start_order: { label: 'Iniciar pedido', selectable: true },
+  show_category: { label: 'Mostrar productos', selectable: true },
+  show_offers: { label: 'Mostrar ofertas', selectable: true },
+  show_payment: { label: 'Datos de pago', selectable: true },
+  show_shipping: { label: 'Datos de envío', selectable: true },
+  show_address: { label: 'Dirección', selectable: true },
+  show_rate: { label: 'Tasa del día', selectable: true },
+  size_guide: { label: 'Guía de tallas', selectable: true },
+  shipping_payments: { label: 'Envíos y pagos', selectable: false },
+  talk_human: { label: 'Hablar con humano', selectable: true },
 };
 
-const ACTION_ITEMS: { value: FlowAction; label: string }[] = [
-  { value: 'start_order', label: 'Iniciar pedido' },
-  { value: 'show_category', label: 'Mostrar productos' },
-  { value: 'show_offers', label: 'Mostrar ofertas' },
-  { value: 'show_payment', label: 'Datos de pago' },
-  { value: 'show_shipping', label: 'Datos de envío' },
-  { value: 'show_address', label: 'Dirección' },
-  { value: 'show_rate', label: 'Tasa del día' },
-  { value: 'size_guide', label: 'Guía de tallas' },
-  { value: 'talk_human', label: 'Hablar con humano' },
-];
+const ACTION_ITEMS: { value: FlowAction; label: string }[] = (
+  Object.entries(ACTIONS) as [FlowAction, { label: string; selectable: boolean }][]
+)
+  .filter(([, meta]) => meta.selectable)
+  .map(([value, meta]) => ({ value, label: meta.label }));
+
+/** Split a comma-separated trigger string; `lower` for comparisons, raw for display. */
+function splitTriggers(raw: string | undefined, lower = false): string[] {
+  return (raw ?? '')
+    .split(',')
+    .map((t) => (lower ? t.trim().toLowerCase() : t.trim()))
+    .filter(Boolean);
+}
 
 const VARIABLES = ['{store_name}', '{owner_name}'];
 const ENTRY_TRIGGERS = ['hola', 'menu', 'inicio'];
@@ -50,7 +68,19 @@ function deepCopy(menu: FlowMenu): FlowMenu {
 
 @Component({
   selector: 'app-configuracion',
-  imports: [FormsModule, DragDropModule],
+  imports: [
+    FormsModule,
+    DragDropModule,
+    ButtonModule,
+    DialogModule,
+    InputTextModule,
+    TextareaModule,
+    ChipModule,
+    SelectModule,
+    MessageModule,
+    PopoverModule,
+    TooltipModule,
+  ],
   templateUrl: './configuracion.html',
   styleUrl: './configuracion.css',
 })
@@ -58,6 +88,7 @@ export class Configuracion implements OnInit {
   private readonly api = inject(MenusService);
   private readonly assetsApi = inject(AssetsService);
   private readonly messages = inject(MessageService);
+  private readonly confirm = inject(ConfirmationService);
 
   /** The persisted flow (server truth). All mutations round-trip through PUT. */
   protected readonly menus = signal<FlowMenu[]>([]);
@@ -74,15 +105,20 @@ export class Configuracion implements OnInit {
   protected draft: FlowMenu = { key: '', name: '', message: '', options: [] };
   /** Errors that blocked the current modal save (shown inside the modal). */
   protected readonly modalIssues = signal<FlowIssue[]>([]);
-  protected readonly varMenuOpen = signal(false);
 
   // ---- Conectar picker (nested over the modal) ----
   protected readonly connecting = signal<number | null>(null);
   protected readonly pickerSearch = signal('');
 
   ngOnInit(): void {
-    this.api.get().subscribe({ next: (menus) => this.menus.set(menus) });
-    this.assetsApi.list().subscribe({ next: (assets) => this.assets.set(assets) });
+    this.api.get().subscribe({
+      next: (menus) => this.menus.set(menus),
+      error: () => this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los menús' }),
+    });
+    this.assetsApi.list().subscribe({
+      next: (assets) => this.assets.set(assets),
+      error: () => this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los recursos' }),
+    });
   }
 
   // ---- list card helpers ----
@@ -111,10 +147,14 @@ export class Configuracion implements OnInit {
   }
   protected connectLabel(opt: FlowOption): string {
     if (opt.action === 'go_menu') return opt.target ?? '';
-    return ACTION_LABELS[opt.action] ?? opt.action;
+    return ACTIONS[opt.action].label;
   }
   protected isCategory(opt: FlowOption): boolean {
     return opt.action === 'show_category';
+  }
+  /** Trigger words for a menu card (display order/casing preserved). */
+  protected menuTriggers(menu: FlowMenu): string[] {
+    return splitTriggers(menu.trigger);
   }
 
   // ---- open / close modal ----
@@ -123,7 +163,6 @@ export class Configuracion implements OnInit {
     this.isNew.set(false);
     this.draft = deepCopy(this.menus()[i]);
     this.modalIssues.set([]);
-    this.varMenuOpen.set(false);
     this.modalOpen.set(true);
   }
   protected openNew(): void {
@@ -131,7 +170,6 @@ export class Configuracion implements OnInit {
     this.isNew.set(true);
     this.draft = { key: this.uniqueKey('menu'), name: 'Nuevo menú', message: '', trigger: '', options: [] };
     this.modalIssues.set([]);
-    this.varMenuOpen.set(false);
     this.modalOpen.set(true);
   }
   protected cancelModal(): void {
@@ -141,10 +179,10 @@ export class Configuracion implements OnInit {
 
   // ---- triggers (chip input over the comma-string) ----
   private triggerWordsOf(menu: FlowMenu): string[] {
-    return (menu.trigger ?? '').split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    return splitTriggers(menu.trigger, true);
   }
   protected triggerWords(): string[] {
-    return (this.draft.trigger ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+    return splitTriggers(this.draft.trigger);
   }
   protected addTrigger(raw: string, input?: HTMLInputElement): void {
     const word = raw.trim().toLowerCase();
@@ -159,15 +197,11 @@ export class Configuracion implements OnInit {
   }
 
   // ---- message variables ----
-  protected toggleVarMenu(): void {
-    this.varMenuOpen.set(!this.varMenuOpen());
-  }
   protected insertVariable(ta: HTMLTextAreaElement, variable: string): void {
     const msg = this.draft.message ?? '';
     const start = ta.selectionStart ?? msg.length;
     const end = ta.selectionEnd ?? start;
     this.draft.message = msg.slice(0, start) + variable + msg.slice(end);
-    this.varMenuOpen.set(false);
     queueMicrotask(() => {
       ta.focus();
       const pos = start + variable.length;
@@ -182,6 +216,11 @@ export class Configuracion implements OnInit {
   protected availableAssets(): Asset[] {
     const attached = new Set(this.draft.attachments ?? []);
     return this.assets().filter((a) => !attached.has(a.id));
+  }
+  /** Bound to the "+ Adjuntar recurso" p-select; reset to null after each pick. */
+  protected attachPick: string | null = null;
+  protected attachOptions(): { label: string; value: string }[] {
+    return this.availableAssets().map((a) => ({ label: this.assetLabel(a), value: a.id }));
   }
   protected assetLabel(a: Asset): string {
     return `[${CATEGORY_LABEL[a.category]}] ${a.original_name}`;
@@ -267,7 +306,7 @@ export class Configuracion implements OnInit {
       },
       error: (e) => {
         this.saving.set(false);
-        const serverIssues: FlowIssue[] = e?.error?.issues ?? [];
+        const serverIssues = apiIssues(e);
         if (opts.fromModal) {
           this.modalIssues.set(serverIssues.length ? serverIssues : [{ severity: 'error', message: 'No se pudo guardar.' }]);
         } else {
@@ -292,6 +331,10 @@ export class Configuracion implements OnInit {
       this.modalIssues.set([{ severity: 'error', message: `Ya existe un menú con el identificador "${key}".` }]);
       return;
     }
+    // Persist what was validated, not the raw input ("menu " passed the check
+    // above and was then stored with its trailing space).
+    this.draft.key = key;
+    this.draft.name = (this.draft.name ?? '').trim();
     const candidate = [...this.menus()];
     if (this.isNew()) candidate.push(this.draft);
     else if (this.editIndex !== null) candidate[this.editIndex] = this.draft;
@@ -300,7 +343,16 @@ export class Configuracion implements OnInit {
 
   protected deleteMenu(i: number, event: Event): void {
     event.stopPropagation();
-    this.persist(this.menus().filter((_, k) => k !== i));
+    const menu = this.menus()[i];
+    this.confirm.confirm({
+      header: 'Eliminar menú',
+      message: `¿Eliminar "${menu?.name || menu?.key}"? Las opciones que lo enlazan quedarán sin conectar.`,
+      icon: 'pi pi-trash',
+      acceptLabel: 'Eliminar',
+      rejectLabel: 'Cancelar',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () => this.persist(this.menus().filter((_, k) => k !== i)),
+    });
   }
 
   protected dropMenu(event: CdkDragDrop<FlowMenu[]>): void {

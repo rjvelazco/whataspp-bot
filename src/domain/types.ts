@@ -5,7 +5,6 @@ export type ConvState =
   | "idle"
   | "in_menu"
   | "browsing"
-  | "choosing_category"
   | "checking_size"
   | "ordering_size"
   | "ordering_color"
@@ -122,19 +121,26 @@ export interface DraftOrder {
   delivery_address?: string | null;
 }
 
-/** Actions an editable menu option can trigger (bot flow builder). */
-export type FlowAction =
-  | "go_menu"
-  | "start_order"
-  | "show_category"
-  | "show_offers"
-  | "show_payment"
-  | "show_shipping"
-  | "show_address"
-  | "show_rate"
-  | "size_guide"
-  | "shipping_payments" // legacy combined view — kept for existing menus
-  | "talk_human";
+/**
+ * Every action a menu option can run (bot flow builder). Exported as a runtime list because menus
+ * are stored JSON that has to be validated on the way in; the type is derived
+ * from it so the two can never drift.
+ */
+export const FLOW_ACTIONS = [
+  "go_menu",
+  "start_order",
+  "show_category",
+  "show_offers",
+  "show_payment",
+  "show_shipping",
+  "show_address",
+  "show_rate",
+  "size_guide",
+  "shipping_payments", // legacy combined view — kept for existing menus
+  "talk_human",
+] as const;
+
+export type FlowAction = (typeof FLOW_ACTIONS)[number];
 
 export interface FlowOption {
   label: string;

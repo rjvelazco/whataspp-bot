@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit, computed, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
@@ -16,7 +15,6 @@ import { OrdersStore } from '../orders.store';
 export class Dashboard implements OnInit, OnDestroy {
   protected readonly conn = inject(ConnectionService);
   protected readonly store = inject(OrdersStore);
-  private readonly http = inject(HttpClient);
   private readonly confirm = inject(ConfirmationService);
   private readonly messages = inject(MessageService);
   protected readonly connected = computed(() => this.conn.status().state === 'open');
@@ -38,14 +36,17 @@ export class Dashboard implements OnInit, OnDestroy {
       acceptLabel: 'Sí, desconectar',
       rejectLabel: 'Cancelar',
       acceptButtonStyleClass: 'p-button-danger',
-      accept: () => {
-        this.http.post('/api/disconnect', {}).subscribe();
-        this.messages.add({
-          severity: 'info',
-          summary: 'Desconectando…',
-          detail: 'Aparecerá un nuevo QR para vincular.',
-        });
-      },
+      accept: () =>
+        this.conn.disconnect().subscribe({
+          next: () =>
+            this.messages.add({
+              severity: 'info',
+              summary: 'Desconectando…',
+              detail: 'Aparecerá un nuevo QR para vincular.',
+            }),
+          error: () =>
+            this.messages.add({ severity: 'error', summary: 'No se pudo desconectar' }),
+        }),
     });
   }
 }

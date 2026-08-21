@@ -8,6 +8,22 @@ import { logger } from "../logger.js";
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
 
 /**
+ * Read one of a store's seed files. Named error instead of a raw ENOENT stack:
+ * adding a store is the moment this fails, and "no such file or directory" gives
+ * the operator nothing to act on.
+ */
+function readSeedFile<T>(path: string, what: string): T {
+  if (!existsSync(path)) {
+    throw new Error(`Missing ${what} for this store: ${path}\nCreate it, or set STORE_ID to a store that has one.`);
+  }
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as T;
+  } catch (err) {
+    throw new Error(`${what} is not valid JSON: ${path} (${(err as Error).message})`);
+  }
+}
+
+/**
  * Load a store's config + catalog from src/data/<storeId>.*.json into SQLite.
  * Idempotent + DB-authoritative: the JSON files seed a store ONCE. After the first
  * boot the DB wins, so admin edits (Tienda values, products, menus, bound account,
@@ -18,18 +34,14 @@ export function seedStore(storeId: string): Store {
   if (existing) {
     logger.info({ storeId }, "store already configured — kept DB copy");
   } else {
-    const store = JSON.parse(
-      readFileSync(join(dataDir, `${storeId}.store.json`), "utf8"),
-    ) as Store;
+    const store = readSeedFile<Store>(join(dataDir, `${storeId}.store.json`), "store config");
     upsertStore(store);
     logger.info({ storeId }, "seeded store config");
   }
 
   // Seed the catalog ONCE too, for the same reason.
   if (countItems(storeId) === 0) {
-    const items = JSON.parse(
-      readFileSync(join(dataDir, `${storeId}.catalog.json`), "utf8"),
-    ) as CatalogItem[];
+    const items = readSeedFile<CatalogItem[]>(join(dataDir, `${storeId}.catalog.json`), "catalog");
     replaceCatalog(storeId, items);
     logger.info({ storeId, items: items.length }, "seeded catalog");
   }
@@ -54,7 +66,9 @@ export function seedStore(storeId: string): Store {
   }
 
   // Return the authoritative store (freshly seeded or the kept DB copy).
-  return getStoreById(storeId)!;
+  const seeded = getStoreById(storeId);
+  if (!seeded) throw new Error(`Store "${storeId}" is still missing after seeding — check the DB is writable.`);
+  return seeded;
 }
 
 /**

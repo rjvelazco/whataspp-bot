@@ -3,10 +3,12 @@ import { logger } from "../logger.js";
 import type { Asset, Store } from "../domain/types.js";
 
 /** Result of a posting run, surfaced to the "Publicar ahora" button. */
+export type StoryPostReason = "ok" | "disconnected" | "no_stories" | "busy";
+
 export interface StoryPostResult {
   posted: number;
   audience: number;
-  reason: "ok" | "disconnected" | "no_stories" | "busy";
+  reason: StoryPostReason;
 }
 
 export interface StorySchedulerDeps {

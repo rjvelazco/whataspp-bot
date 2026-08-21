@@ -28,6 +28,11 @@ export function matchItem(catalog: CatalogItem[], text: string): CatalogItem | u
 
 const inStock = (v: Variant): boolean => v.stock > 0;
 
+/** Stock held for one size+color pair (0 when that variant doesn't exist). */
+export function variantStock(item: CatalogItem, size: string, color: string): number {
+  return item.variants.find((v) => v.size === size && v.color === color)?.stock ?? 0;
+}
+
 /** Unique in-stock sizes / colors, for summaries. */
 export function availableSizes(item: CatalogItem): string[] {
   return [...new Set(item.variants.filter(inStock).map((v) => v.size))];

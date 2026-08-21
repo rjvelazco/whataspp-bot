@@ -5,6 +5,14 @@ import { findMenuByTrigger } from "./handlers.js";
 /** States where the customer is navigating menus (safe to jump via a trigger/keyword). */
 export const NAV_STATES = new Set<ConvState>(["idle", "in_menu", "browsing", "checking_size"]);
 
+/**
+ * States where an informational keyword is safe to answer. Adds awaiting_payment
+ * to NAV_STATES: nothing is being collected there, and "tasa" right after ordering
+ * is exactly when the customer needs the rate in order to pay. Menu *triggers* stay
+ * on NAV_STATES only, so an answer still can't be turned into a menu jump.
+ */
+export const INFO_STATES = new Set<ConvState>([...NAV_STATES, "awaiting_payment"]);
+
 /** Intents that interrupt from ANY state (escape hatches / global commands). */
 export function isGlobalIntent(intent: Intent): boolean {
   return (
@@ -41,16 +49,17 @@ export type Route =
  *   1. In-order data entry — anything below the global level only applies while
  *      navigating menus (NAV_STATES), so an order-entry answer is never hijacked.
  *   2. Global keywords — cancel / menu / greeting / human / size guide (any state).
- *   3. Informational keywords — tasa / dirección / envíos / pagos / ofertas / horario.
- *   4. Menu triggers — a message matching a menu's trigger jumps to it.
+ *   3. Informational keywords — tasa / dirección / envíos / pagos / ofertas / horario
+ *      (INFO_STATES, which also covers awaiting_payment).
+ *   4. Menu triggers — a message matching a menu's trigger jumps to it (NAV_STATES).
  *   5. Fallback — per-state dispatch (numbered reply, PEDIR, availability, "no entendí").
  */
 export function resolveIncoming(intent: Intent, conv: { state: ConvState }, menus: FlowMenu[]): Route {
   if (isGlobalIntent(intent)) return { kind: "global" };
 
-  const nav = NAV_STATES.has(conv.state);
-  if (nav && isInfoIntent(intent)) return { kind: "info" };
+  if (INFO_STATES.has(conv.state) && isInfoIntent(intent)) return { kind: "info" };
 
+  const nav = NAV_STATES.has(conv.state);
   if (nav && intent.type === "text") {
     const menu = findMenuByTrigger(menus, intent.value);
     if (menu) return { kind: "trigger", menu };

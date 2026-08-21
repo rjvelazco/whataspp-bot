@@ -1,8 +1,11 @@
 import type { FlowIssue, FlowMenu } from "../domain/types.js";
+import { FLOW_ACTIONS } from "../domain/types.js";
 import { normalize, parseIntent } from "./intents.js";
 import { findEntryMenu, findMenuByKey } from "./handlers.js";
 
 export type { FlowIssue };
+
+const KNOWN_ACTIONS = new Set<string>(FLOW_ACTIONS);
 
 /** Split a comma-separated trigger string into normalized, non-empty keywords. */
 function triggerWords(menu: FlowMenu): string[] {
@@ -18,8 +21,28 @@ function triggerWords(menu: FlowMenu): string[] {
  * category, unreachable menus, and trigger collisions (with a global keyword or
  * another menu).
  */
-export function validateFlow(menus: FlowMenu[]): FlowIssue[] {
+export function validateFlow(input: FlowMenu[]): FlowIssue[] {
   const issues: FlowIssue[] = [];
+
+  // --- shape: menus arrive as stored/posted JSON, so nothing is guaranteed ---
+  // Every later section indexes into options, so malformed menus are reported
+  // and then dropped rather than crashing the caller with a TypeError.
+  const menus: FlowMenu[] = [];
+  for (const menu of input) {
+    if (!menu || typeof menu !== "object") {
+      issues.push({ severity: "error", message: "Hay un menú con formato inválido." });
+      continue;
+    }
+    if (!Array.isArray(menu.options)) {
+      issues.push({
+        severity: "error",
+        menuKey: menu.key,
+        message: `El menú "${menu.key || "(sin identificador)"}" no tiene una lista de opciones válida.`,
+      });
+      continue;
+    }
+    menus.push(menu);
+  }
   const keys = menus.map((m) => m.key);
 
   // --- keys ---
@@ -40,6 +63,15 @@ export function validateFlow(menus: FlowMenu[]): FlowIssue[] {
   // --- per-option checks ---
   for (const menu of menus) {
     for (const opt of menu.options) {
+      if (!KNOWN_ACTIONS.has(opt.action)) {
+        // The engine can't run it, so saving it would silence the bot on that option.
+        issues.push({
+          severity: "error",
+          menuKey: menu.key,
+          message: `La opción "${opt.label || "(sin texto)"}" usa una acción desconocida: "${opt.action}".`,
+        });
+        continue;
+      }
       if (opt.action === "go_menu") {
         if (!opt.target || !opt.target.trim()) {
           // Not wired yet — allowed while authoring (the X/Y status shows it); warn only.

@@ -5,11 +5,15 @@ import type { Contact, StorySchedule } from './api-types';
 
 export type { Contact, StorySchedule };
 
-/** Response shape of POST /api/story/post-now (web-only, not a domain type). */
+/** Response shape of POST /api/story/post-now (web-only, not a domain type).
+ *  `reason` is the union the scheduler actually returns, so a consumer that
+ *  branches on it gets a compile error when a new outcome appears. */
+export type StoryPostReason = 'ok' | 'disconnected' | 'no_stories' | 'busy';
+
 export interface StoryPostResult {
   posted: number;
   audience: number;
-  reason: string;
+  reason: StoryPostReason;
 }
 
 @Injectable({ providedIn: 'root' })

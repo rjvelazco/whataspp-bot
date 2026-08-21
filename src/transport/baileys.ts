@@ -12,6 +12,7 @@ import makeWASocket, {
 import qrcode from "qrcode-terminal";
 import { rmSync } from "node:fs";
 import { logger } from "../logger.js";
+import { config } from "../config.js";
 import type {
   ConnectionListener,
   ConnectionUpdate,
@@ -19,6 +20,16 @@ import type {
   MessageHandler,
   MessagingTransport,
 } from "./types.js";
+
+/** Baileys' own logger — kept separate from the app logger so its expected
+ * decrypt-failure spam (Status broadcasts, other-recipient messages) can be
+ * silenced without hiding our own INFO logs. */
+const waLogger = logger.child({ mod: "baileys" });
+waLogger.level = config.waLogLevel;
+
+/** Reconnect backoff: 2s, 4s, 8s … capped at 2s * 2^6 ≈ 2 minutes. */
+const RECONNECT_BASE_MS = 2000;
+const RECONNECT_MAX_EXPONENT = 6;
 
 /** Baileys implementation of the transport seam. Pairs to a real number via QR. */
 export class BaileysTransport implements MessagingTransport {
@@ -32,6 +43,9 @@ export class BaileysTransport implements MessagingTransport {
   private onFirstOpen?: () => void;
   /** True while we're logging out and re-initializing, so stale close events are ignored. */
   private loggingOut = false;
+  /** Consecutive failed reconnects, reset on a successful open. Drives the backoff. */
+  private reconnectAttempts = 0;
+  private reconnectTimer?: NodeJS.Timeout;
 
   /**
    * @param authDir   where session credentials are persisted
@@ -110,11 +124,30 @@ export class BaileysTransport implements MessagingTransport {
     this.connect();
   }
 
+  /**
+   * Reconnect with exponential backoff and jitter. Reconnecting immediately (as
+   * this used to) turns a persistent failure — WhatsApp down, network gone, the
+   * number rate-limited — into a tight loop of connection attempts, which is
+   * exactly what gets a number blocked.
+   */
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return; // one pending attempt at a time
+    const capped = Math.min(this.reconnectAttempts, RECONNECT_MAX_EXPONENT);
+    const backoff = RECONNECT_BASE_MS * 2 ** capped;
+    const delayMs = Math.round(backoff * (0.5 + Math.random() / 2)); // jitter: 50-100%
+    this.reconnectAttempts += 1;
+    logger.info({ attempt: this.reconnectAttempts, delayMs }, "reconnecting to WhatsApp");
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      this.connect();
+    }, delayMs);
+  }
+
   private connect(): void {
     const sock = makeWASocket({
       version: this.version,
       auth: this.authState!,
-      logger,
+      logger: waLogger,
       browser: Browsers.appropriate("StoreBot"),
     });
     this.sock = sock;
@@ -140,6 +173,7 @@ export class BaileysTransport implements MessagingTransport {
         this.emitConnection({ state: "connecting" });
       }
       if (connection === "open") {
+        this.reconnectAttempts = 0;
         this.accountId = jidNormalizedUser(sock.user?.id ?? "");
         this.emitConnection({ state: "open", accountId: this.accountId });
         logger.info({ accountId: this.accountId }, "WhatsApp connected");
@@ -156,7 +190,7 @@ export class BaileysTransport implements MessagingTransport {
           logger.warn("session invalidated — clearing and showing a new QR");
           void this.freshConnect();
         } else {
-          this.connect(); // transient drop — reconnect with persisted creds
+          this.scheduleReconnect(); // transient drop — reconnect with persisted creds
         }
       }
     });
@@ -204,7 +238,7 @@ export class BaileysTransport implements MessagingTransport {
           mimetype: imageMessage.mimetype ?? "image/jpeg",
           download: async (): Promise<Buffer> =>
             (await downloadMediaMessage(msg, "buffer", {}, {
-              logger,
+              logger: waLogger,
               reuploadRequest: this.sock!.updateMediaMessage,
             })) as Buffer,
         }

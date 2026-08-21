@@ -1,26 +1,22 @@
 import type { Order, OrderStatus } from './orders.service';
 
-export type Severity = 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast';
-
 /** An order counts as "verified" once the owner has confirmed the payment. */
 export function isVerified(order: Order): boolean {
   return order.status === 'confirmed' || order.status === 'shipped' || order.status === 'delivered';
 }
 
-const STATUS_META: Record<OrderStatus, { label: string; severity: Severity }> = {
-  pending_payment: { label: 'Esperando pago', severity: 'secondary' },
-  payment_submitted: { label: 'Por verificar', severity: 'warn' },
-  confirmed: { label: 'Confirmado', severity: 'info' },
-  shipped: { label: 'En camino', severity: 'contrast' },
-  delivered: { label: 'Entregado', severity: 'success' },
-  cancelled: { label: 'Cancelado', severity: 'danger' },
+/** Labels only — the colour for a status lives in StatusTag, as its single source. */
+const STATUS_LABEL: Record<OrderStatus, string> = {
+  pending_payment: 'Esperando pago',
+  payment_submitted: 'Por verificar',
+  confirmed: 'Confirmado',
+  shipped: 'En camino',
+  delivered: 'Entregado',
+  cancelled: 'Cancelado',
 };
 
 export function statusLabel(status: OrderStatus): string {
-  return STATUS_META[status].label;
-}
-export function statusSeverity(status: OrderStatus): Severity {
-  return STATUS_META[status].severity;
+  return STATUS_LABEL[status];
 }
 
 export function itemsSummary(order: Order): string {

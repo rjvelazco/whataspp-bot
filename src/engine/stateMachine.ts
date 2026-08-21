@@ -80,36 +80,55 @@ function applyOutput(input: EngineInput, out: HandlerOutput): EngineResult {
  * returns replies, the next conversation, and side-effects to perform.
  */
 export function reduce(input: EngineInput): EngineResult {
-  const { conversation: conv, now } = input;
+  const now = input.now;
   const intent = parseIntent(input.message.text ?? "");
 
   // --- handoff pause: stay quiet while a human is handling this chat ---
-  const pausedUntil = conv.bot_paused_until ? new Date(conv.bot_paused_until) : null;
-  const isPaused = pausedUntil !== null && now < pausedUntil;
-  const resumeRequested = intent.type === "greeting" || intent.type === "menu";
-  if (isPaused && !resumeRequested) {
-    // Bot is silent; only refresh updated_at.
-    return applyOutput(input, { replies: [], nextState: conv.state });
+  const pausedUntil = input.conversation.bot_paused_until
+    ? new Date(input.conversation.bot_paused_until)
+    : null;
+  if (pausedUntil !== null && now < pausedUntil) {
+    const resumeRequested = intent.type === "greeting" || intent.type === "menu";
+    if (!resumeRequested) {
+      // Bot is silent; only refresh updated_at.
+      return applyOutput(input, { replies: [], nextState: input.conversation.state });
+    }
   }
 
+  // An elapsed (or resumed) pause has to be cleared right here. "paused" is not a
+  // state any handler owns, so leaving it set sends every later message to the
+  // fallback ("No te entendí") until the customer happens to type hola or menu.
+  const active: EngineInput =
+    pausedUntil === null
+      ? input
+      : {
+          ...input,
+          conversation: {
+            ...input.conversation,
+            bot_paused_until: null,
+            state: input.conversation.state === "paused" ? "idle" : input.conversation.state,
+          },
+        };
+  const conv = active.conversation;
+
   // --- image (payment receipt) ---
-  if (input.message.hasImage) {
-    return applyOutput(input, handleImage(input));
+  if (active.message.hasImage) {
+    return applyOutput(active, handleImage(active));
   }
 
   // Route the message per the documented precedence (resolveIncoming is the single,
   // pure source of that ordering), then run the matching handler.
-  const route = resolveIncoming(intent, conv, input.menus);
+  const route = resolveIncoming(intent, conv, active.menus);
   switch (route.kind) {
     case "global":
-      return applyOutput(input, handleGlobal(intent, input));
+      return applyOutput(active, handleGlobal(intent, active));
     case "info":
       // resolveIncoming only returns "info" for info intents, so this is defined.
-      return applyOutput(input, handleInfoIntent(intent, input)!);
+      return applyOutput(active, handleInfoIntent(intent, active)!);
     case "trigger":
-      return applyOutput(input, showMenu(route.menu, input));
+      return applyOutput(active, showMenu(route.menu, active));
     case "dispatch":
-      return applyOutput(input, dispatch(intent, input));
+      return applyOutput(active, dispatch(intent, active));
   }
 }
 
@@ -129,10 +148,16 @@ export function handoff(input: EngineInput): HandlerOutput {
   };
 }
 
-/** A customer sent a photo. In awaiting_payment it's their receipt (spec §2.5). */
+/**
+ * A customer sent a photo. It's their receipt whenever an order is still in
+ * flight (spec §2.5). Keyed on active_order_id rather than the chat state,
+ * because "PEDIR <code>" moves the state to ordering_size while the previous
+ * order is still awaiting payment — reading the state here would leave that
+ * order with no way to ever receive its receipt.
+ */
 function handleImage(input: EngineInput): HandlerOutput {
   const { conversation: conv, store } = input;
-  if (conv.state === "awaiting_payment" && conv.active_order_id) {
+  if (conv.active_order_id) {
     return {
       replies: [
         text(
@@ -140,7 +165,8 @@ function handleImage(input: EngineInput): HandlerOutput {
             `${store.store_name} lo verificará y te confirma el envío pronto.`,
         ),
       ],
-      nextState: "idle",
+      // Don't interrupt a second order the customer has already started.
+      nextState: conv.state === "awaiting_payment" ? "idle" : conv.state,
       effects: [{ type: "saveReceipt" }, { type: "notifyOwner", orderId: conv.active_order_id }],
     };
   }
