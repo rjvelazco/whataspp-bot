@@ -1,24 +1,7 @@
+/* The shell's own rules live in src/styles.css, kept global so the routed views can
+   share them. All that belongs here is the host box. min-height rather than height:
+   below 960px the rail becomes a top bar and the page grows past the viewport. */
 :host {
   display: block;
-  height: 100vh;
-}
-
-.disconnect-btn {
-  margin-top: 8px;
-  width: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 7px 10px;
-  cursor: pointer;
-}
-.disconnect-btn:hover {
-  color: var(--text-danger);
-  border-color: var(--bg-danger);
+  min-height: 100vh;
 }

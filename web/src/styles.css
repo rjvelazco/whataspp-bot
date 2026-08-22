@@ -75,41 +75,16 @@
     }
   }
 }
-
-/* Legacy aliases, consumed only by the hand-written app shell below. They now point at
-   the @theme tokens instead of carrying their own values, so there is one palette rather
-   than two. Both these and the shell rules go when the shell is rebuilt. */
-:root {
-  --font-sans: var(--font-body);
-  --radius: var(--radius-md);
-
-  --surface-0: var(--color-paper);
-  --surface-1: var(--color-wash);
-  --surface-2: var(--color-wash);
-  --border: var(--color-line);
-  --fill-control: var(--color-line-soft);
-
-  --text-primary: var(--color-ink);
-  --text-secondary: var(--color-ink-2);
-  --text-accent: var(--color-signal-ink);
-
-  --bg-accent: var(--color-signal-soft);
-  --bg-success: var(--color-signal-soft);
-  --text-success: var(--color-signal-ink);
-  --bg-warning: var(--color-amber-soft);
-  --text-warning: var(--color-amber);
-  --bg-danger: var(--color-rose-soft);
-  --text-danger: var(--color-rose);
-}
-
-* {
-  box-sizing: border-box;
-}
-
 html,
 body {
   margin: 0;
   height: 100%;
+}
+
+/* font-size goes on body, never on html: rem is root-relative, so sizing html would
+   rescale every rem-based Tailwind utility — including the 0.25rem spacing step the
+   8-point grid is built on. */
+body {
   font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.5;
@@ -123,115 +98,292 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ================= App shell (sidebar + content) =================
-   The one global layer that survives the Tailwind/PrimeNG migration —
-   it wraps the routed views, which are themselves Tailwind + PrimeNG. */
+/* ─────────────────────────────────────────────────────────────────────────────
+   APP SHELL. The one hand-written layer left: it wraps the routed views, which
+   are Tailwind + PrimeNG. Everything here reads @theme tokens directly — the
+   legacy :root alias block it used to depend on is gone.
+
+   Two breakpoints, and no others (../../CLAUDE.md):
+     960px — the rail becomes a sticky horizontal top bar
+     720px — tighter gutters and a smaller page title
+
+   Note on scrolling: at desktop widths .content is the scroll container, and
+   tienda.ts walks up the DOM to find it for its scroll-spy. Below 960px the page
+   scrolls instead; that component falls back to the viewport, so both work.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --rail: 256px; /* 32 x 8 */
+  --gutter: 32px;
+}
+
 .admin {
   display: flex;
-  height: 100%;
-  background: var(--surface-0);
+  min-height: 100%;
+  background: var(--color-wash);
 }
 
 .sidebar {
-  width: 200px;
-  flex-shrink: 0;
-  background: var(--surface-1);
-  border-right: 1px solid var(--border);
+  width: var(--rail);
+  flex: 0 0 var(--rail);
+  background: var(--color-paper);
+  border-right: 1px solid var(--color-line);
   display: flex;
   flex-direction: column;
-  padding: 16px 12px;
+  gap: 24px;
+  padding: 24px 16px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
+
 .brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 8px 16px;
+  padding: 0 8px;
+}
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 10px;
+  background: var(--color-signal);
+  color: var(--color-paper);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 800;
   font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
 }
-.brand .pi {
-  font-size: 18px;
-  color: var(--text-accent);
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
 }
+.brand-sub {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--color-ink-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
 }
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-  border-radius: var(--radius);
-  color: var(--text-secondary);
-  font-size: 13px;
-  cursor: default;
-  user-select: none;
+  gap: 16px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  color: var(--color-ink-2);
+  font-weight: 500;
   text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
 }
 .nav-item .pi {
   font-size: 16px;
+  flex: 0 0 16px;
 }
-.nav-item.clickable {
-  cursor: pointer;
-}
-.nav-item.clickable:hover {
-  background: var(--surface-2);
+.nav-item:hover {
+  background: var(--color-line-soft);
+  color: var(--color-ink);
 }
 .nav-item.active,
 .nav-item.active:hover {
-  background: var(--bg-accent);
-  color: var(--text-accent);
-  font-weight: 500;
+  background: var(--color-signal-soft);
+  color: var(--color-signal-ink);
+  font-weight: 600;
 }
+
+/* Counts are data, so they get the data face and tabular figures. */
 .pill {
   margin-left: auto;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
-  font-weight: 500;
-  padding: 1px 7px;
-  border-radius: 10px;
 }
 .pill.warn {
-  background: var(--bg-warning);
-  color: var(--text-warning);
+  color: var(--color-amber);
 }
 .pill.info {
-  background: var(--bg-accent);
-  color: var(--text-accent);
+  color: var(--color-ink-3);
 }
-.conn {
+
+.rail-foot {
   margin-top: auto;
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.conn {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
-  border-radius: var(--radius);
-  font-size: 12px;
-  background: var(--fill-control);
-  color: var(--text-secondary);
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-line-soft);
+  color: var(--color-ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .conn.ok {
-  background: var(--bg-success);
-  color: var(--text-success);
+  background: var(--color-signal-soft);
+  color: var(--color-signal-ink);
 }
 .conn .dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
   border-radius: 50%;
   background: currentColor;
-  flex-shrink: 0;
 }
+/* Only the live state pulses; a dead connection should not look busy. */
+.conn.ok .dot {
+  background: var(--color-signal);
+  box-shadow: 0 0 0 0 rgb(10 108 72 / 0.5);
+  animation: conn-pulse 2.4s infinite;
+}
+@keyframes conn-pulse {
+  70% {
+    box-shadow: 0 0 0 6px rgb(10 108 72 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(10 108 72 / 0);
+  }
+}
+
+/* Ghost button: keeps a hairline border at rest, so it never reads as plain text.
+   There is no hover on touch. See ../../CLAUDE.md rule 6. */
+.disconnect-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-ink-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
+}
+.disconnect-btn:hover {
+  background: var(--color-rose-soft);
+  border-color: var(--color-rose);
+  color: var(--color-rose);
+}
+
 .content {
   flex: 1;
   min-width: 0;
   overflow: auto;
-  padding: 20px 24px;
-  background: var(--surface-2);
+  padding: 32px var(--gutter) 64px;
 }
 
-/* CDK inserts the drag preview into <body>, outside any component's styles. */
+/* ── 960px: the rail becomes a top bar ───────────────────────────────────── */
+@media (max-width: 960px) {
+  :root {
+    --gutter: 24px;
+  }
+  .admin {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .sidebar {
+    width: 100%;
+    flex: none;
+    height: auto;
+    z-index: 30;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .brand-sub {
+    display: none;
+  }
+  .nav {
+    flex-direction: row;
+    flex: 1;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+  .nav-item {
+    width: auto;
+    padding: 0 16px;
+    gap: 8px;
+  }
+  /* Icon-only, except the current page, which keeps its label for orientation. */
+  .nav-item .nav-label {
+    display: none;
+  }
+  .nav-item.active .nav-label {
+    display: inline;
+  }
+  .pill {
+    margin-left: 0;
+  }
+  .rail-foot {
+    margin: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  /* Icon-only rather than hidden: disconnecting must stay reachable on a phone. */
+  .conn {
+    padding: 0 8px;
+  }
+  .conn .conn-label {
+    display: none;
+  }
+  .disconnect-btn {
+    width: 40px;
+    padding: 0;
+  }
+  .disconnect-btn .disconnect-label {
+    display: none;
+  }
+  .content {
+    overflow: visible;
+  }
+}
+
+/* ── 720px: tighter still ────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .content {
+    padding: 24px var(--gutter) 48px;
+  }
+}
+
 .cdk-drag-preview {
   border-radius: 12px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);

@@ -3,43 +3,70 @@
 
 <div class="admin">
   <aside class="sidebar">
-    <div class="brand"><i class="pi pi-shop"></i> Store Bot</div>
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">N</div>
+      <div>
+        <div class="brand-name">Store Bot</div>
+        <div class="brand-sub">Panel del bot</div>
+      </div>
+    </div>
 
-    <nav class="nav">
-      <a class="nav-item clickable" routerLink="pagos" routerLinkActive="active">
-        <i class="pi pi-wallet"></i> Pagos
+    <nav class="nav" aria-label="Secciones del panel">
+      <a class="nav-item" routerLink="pagos" routerLinkActive="active">
+        <i class="pi pi-wallet" aria-hidden="true"></i>
+        <span class="nav-label">Pagos</span>
         @if (store.pendingVerify() > 0) {
-          <span class="pill warn">{{ store.pendingVerify() }}</span>
+          <span
+            class="pill warn"
+            [attr.aria-label]="store.pendingVerify() + ' pagos por verificar'"
+            >{{ store.pendingVerify() }}</span
+          >
         }
       </a>
-      <a class="nav-item clickable" routerLink="pedidos" routerLinkActive="active">
-        <i class="pi pi-shopping-bag"></i> Pedidos
+      <a class="nav-item" routerLink="pedidos" routerLinkActive="active">
+        <i class="pi pi-shopping-bag" aria-hidden="true"></i>
+        <span class="nav-label">Pedidos</span>
         @if (store.toShip() > 0) {
-          <span class="pill info">{{ store.toShip() }}</span>
+          <span class="pill info" [attr.aria-label]="store.toShip() + ' pedidos por enviar'">{{
+            store.toShip()
+          }}</span>
         }
       </a>
-      <a class="nav-item clickable" routerLink="productos" routerLinkActive="active">
-        <i class="pi pi-box"></i> Productos
+      <a class="nav-item" routerLink="productos" routerLinkActive="active">
+        <i class="pi pi-box" aria-hidden="true"></i>
+        <span class="nav-label">Productos</span>
       </a>
-      <a class="nav-item clickable" routerLink="recursos" routerLinkActive="active">
-        <i class="pi pi-folder-open"></i> Recursos
+      <a class="nav-item" routerLink="recursos" routerLinkActive="active">
+        <i class="pi pi-folder-open" aria-hidden="true"></i>
+        <span class="nav-label">Recursos</span>
       </a>
-      <a class="nav-item clickable" routerLink="tienda" routerLinkActive="active">
-        <i class="pi pi-shop"></i> Tienda
+      <a class="nav-item" routerLink="tienda" routerLinkActive="active">
+        <i class="pi pi-shop" aria-hidden="true"></i>
+        <span class="nav-label">Tienda</span>
       </a>
-      <a class="nav-item clickable" routerLink="configuracion" routerLinkActive="active">
-        <i class="pi pi-cog"></i> Configuración
+      <a class="nav-item" routerLink="configuracion" routerLinkActive="active">
+        <i class="pi pi-comments" aria-hidden="true"></i>
+        <span class="nav-label">Menús</span>
       </a>
     </nav>
 
-    <div class="conn" [class.ok]="connected()">
-      <span class="dot"></span>{{ connected() ? 'Conectado' : 'Desconectado' }}
+    <div class="rail-foot">
+      <div class="conn" [class.ok]="connected()">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="conn-label">{{ connected() ? 'Bot conectado' : 'Bot desconectado' }}</span>
+      </div>
+      @if (connected()) {
+        <button
+          type="button"
+          class="disconnect-btn"
+          (click)="disconnect()"
+          title="Desconectar el bot de WhatsApp"
+        >
+          <i class="pi pi-power-off" aria-hidden="true"></i>
+          <span class="disconnect-label">Desconectar</span>
+        </button>
+      }
     </div>
-    @if (connected()) {
-      <button class="disconnect-btn" (click)="disconnect()">
-        <i class="pi pi-power-off"></i> Desconectar
-      </button>
-    }
   </aside>
 
   <main class="content">

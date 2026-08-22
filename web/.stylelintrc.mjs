@@ -63,21 +63,5 @@ export default {
       files: ['src/styles.css'],
       rules: { 'color-no-hex': null, 'color-named': null, 'function-disallowed-list': null },
     },
-    {
-      // The app shell is the one part of the UI the Tailwind migration never reached,
-      // and it carries ten off-grid values (7px, 9px, 10px, 12px, 20px, 2px, 6px).
-      // Step 3 in PR 1 rewrites the shell responsively and puts it on the grid; delete
-      // this override in that same change rather than letting it ossify.
-      //
-      // The warning count is pinned by --max-warnings in package.json, so this override
-      // grandfathers the existing values without licensing new ones.
-      files: ['src/styles.css', 'src/app/dashboard/dashboard.css'],
-      rules: {
-        'declaration-property-value-allowed-list': [
-          SPACING_PROPERTIES,
-          { message: SPACING_MESSAGE, severity: 'warning' },
-        ],
-      },
-    },
   ],
 };
