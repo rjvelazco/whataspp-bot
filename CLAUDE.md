@@ -27,12 +27,12 @@ engine is transport-agnostic; Baileys is one adapter.
 | `npm run build:web` | Build the Angular bundle the server serves |
 | `npm run format` | Apply Prettier — the fix for a failing `lint` |
 | `npm start` | Run the bot once, without file-watch |
-| `npm --prefix web start` | Angular dev server on :4200 |
+| `npm --prefix web start` | Angular dev server on :4200, proxying `/api` to :3000 |
 
 `npm run lint` runs both packages and needs `web/`'s dependencies installed; run
-`npm --prefix web install` once after cloning. `npm --prefix web start` serves the UI alone
-on :4200 but has **no `/api` proxy yet**, so API calls and the `/api/events` SSE stream will
-fail there — use `npm run dev` on :3000 until the proxy lands.
+`npm --prefix web install` once after cloning. For UI work run the bot with `npm run dev`
+and the dev server with `npm --prefix web start` side by side: `web/proxy.conf.mjs` forwards
+`/api` — including the `/api/events` SSE stream — from :4200 to :3000.
 
 ## Design rules
 

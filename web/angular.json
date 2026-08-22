@@ -80,6 +80,10 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "defaultConfiguration": "development",
+          "options": {
+            "proxyConfig": "proxy.conf.mjs"
+          },
           "configurations": {
             "production": {
               "buildTarget": "store-admin:build:production"
@@ -87,8 +91,7 @@
             "development": {
               "buildTarget": "store-admin:build:development"
             }
-          },
-          "defaultConfiguration": "development"
+          }
         },
         "extract-i18n": {
           "builder": "@angular/build:extract-i18n"
