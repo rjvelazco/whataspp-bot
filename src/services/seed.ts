@@ -19,7 +19,7 @@ function readSeedFile<T>(path: string, what: string): T {
   try {
     return JSON.parse(readFileSync(path, "utf8")) as T;
   } catch (err) {
-    throw new Error(`${what} is not valid JSON: ${path} (${(err as Error).message})`);
+    throw new Error(`${what} is not valid JSON: ${path} (${(err as Error).message})`, { cause: err });
   }
 }
 
