@@ -10,7 +10,7 @@
     "build:web": "npm --prefix web install && npm --prefix web run build",
     "test": "vitest run",
     "lint": "npm run lint:bot && npm run lint:web",
-    "lint:bot": "eslint . && prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "lint:bot": "eslint . --max-warnings 0 && prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"*.mjs\"",
     "lint:web": "npm --prefix web run lint",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" && npm --prefix web run format"
   },

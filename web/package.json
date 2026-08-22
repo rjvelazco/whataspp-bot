@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "lint": "eslint . && stylelint \"src/**/*.css\" && prettier --check \"src/**/*.{ts,html,css}\"",
+    "lint": "eslint . --max-warnings 4 && stylelint \"src/**/*.css\" --max-warnings 10 && prettier --check \"src/**/*.{ts,html,css}\"",
     "format": "prettier --write \"src/**/*.{ts,html,css}\""
   },
   "prettier": {
@@ -43,6 +43,7 @@
     "@angular/build": "^20.3.31",
     "@angular/cli": "^20.3.31",
     "@angular/compiler-cli": "^20.3.0",
+    "@eslint/js": "^9.39.5",
     "@tailwindcss/postcss": "^4.3.2",
     "@types/jasmine": "~5.1.0",
     "angular-eslint": "^20.7.0",

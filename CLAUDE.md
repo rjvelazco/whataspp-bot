@@ -25,7 +25,14 @@ engine is transport-agnostic; Baileys is one adapter.
 | `npm run build` | Type-check only (`tsc --noEmit`) — emits nothing |
 | `npm test` | Vitest (bot engine) |
 | `npm run build:web` | Build the Angular bundle the server serves |
-| `npm --prefix web start` | Angular dev server on :4200, proxying `/api` to :3000 |
+| `npm run format` | Apply Prettier — the fix for a failing `lint` |
+| `npm start` | Run the bot once, without file-watch |
+| `npm --prefix web start` | Angular dev server on :4200 |
+
+`npm run lint` runs both packages and needs `web/`'s dependencies installed; run
+`npm --prefix web install` once after cloning. `npm --prefix web start` serves the UI alone
+on :4200 but has **no `/api` proxy yet**, so API calls and the `/api/events` SSE stream will
+fail there — use `npm run dev` on :3000 until the proxy lands.
 
 ## Design rules
 
@@ -34,9 +41,14 @@ These are not preferences. A change that breaks one of them is wrong.
 1. **8-point grid.** Every margin, padding, gap and fixed dimension is a multiple of 8. The
    only exceptions are hairline borders (1px, 1.5px), border radii, and optical nudges
    inside pills. No 12px, no 20px, no 50px.
+
+   Stylelint enforces this on spacing properties in `.css` files. It does **not** see
+   Tailwind utilities in templates — `gap-1.5`, `px-3` and `p-3` are off-grid and currently
+   pass. Treat the rule as binding on you, not as covered by the linter.
 2. **Strict alignment.** Toolbar controls and the first cell of the table beneath them share
-   one left edge. That edge comes from the `app-card` / `app-toolbar` inset — never
-   re-specify it per view.
+   one left edge, taken from the shared card inset rather than re-specified per view. The
+   `app-card` / `app-toolbar` components that own it arrive with the redesign foundation;
+   until then, do not add a second source for that edge.
 3. **Never show a database identifier.** Not `{store_name}`, not `menu_principal`, not a raw
    `OrderStatus` value, not a filesystem path, not an enum key. Message templates are
    *stored* with `{tokens}` and *rendered* as human-labelled pills; everywhere else they
@@ -73,8 +85,9 @@ A change is not done until it renders correctly at **1440px, 900px and 390px**.
   change-detection pass; `totalStock(it)` was being called twice per row per pass.
 - **Reuse the PrimeNG primitive before hand-rolling.** Dialog, ConfirmDialog, Toast, Table,
   Button, ToggleSwitch, Select, SelectButton, InputText, InputNumber, Textarea, FileUpload,
-  Tag, Chip, Message, Popover, Tooltip, Avatar, Image, ProgressSpinner and Drawer are all
-  already wired and themed. `docs/design-system.md` has the inventory.
+  Tag, Chip, Message, Popover, Tooltip, Avatar, Image and ProgressSpinner are in use and
+  themed. **Drawer and DatePicker ship with PrimeNG but are not used yet** — reach for them
+  rather than hand-rolling an equivalent. `docs/design-system.md` has the inventory.
 - `p-toast` and `p-confirmdialog` are mounted once in the dashboard shell. Inject
   `MessageService` / `ConfirmationService` and use them; do not add local hosts.
 - **Shared types go through `web/src/app/api-types.ts`**, a type-only re-export of the bot's

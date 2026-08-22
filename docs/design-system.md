@@ -15,7 +15,7 @@ Two files, and only two:
 
 | File | Owns |
 |---|---|
-| `web/src/styles.css` | The Tailwind v4 `@theme` block — the palette, the three font families, radii, shadow and focus ring, all exposed as utility classes. Also the `@layer` order and the app shell. |
+| `web/src/styles.css` | The Tailwind v4 `@theme` block, exposed as utility classes. Also the `@layer` order and the app shell. Today it defines only the status colours; the full palette, the font families, radii, shadow and focus ring arrive with the redesign foundation. |
 | `web/src/app/theme/app-preset.ts` | The PrimeNG preset (`definePreset(Aura, …)`) — the `primary` ramp and the `surface` ramp. |
 
 These two are not independent. The `tailwindcss-primeui` plugin derives the Tailwind
@@ -53,8 +53,15 @@ is a multiple of 8. Three exceptions, and no others:
 - border radii
 - optical nudges inside pills, where 8 would look wrong
 
-Stylelint enforces this on `padding`, `margin` and `gap`. If you genuinely need an off-grid
-value, the disable comment must say why.
+Stylelint enforces this on the `padding`, `margin` and `gap` properties (shorthands and
+longhands) inside `.css` files. If you genuinely need an off-grid value, the disable comment
+must say why.
+
+**Know the gap.** Stylelint cannot parse Angular templates, so off-grid *Tailwind utilities*
+are not checked — there are ~115 of them today (`gap-1.5`, `gap-3`, `px-3`, `p-3`). The real
+fix is to make the utility scale itself the grid by overriding Tailwind's `--spacing` in the
+`@theme` block, which turns an off-grid utility into one that does not exist. That lands with
+the redesign foundation. Until then a green stylelint run does **not** mean the grid holds.
 
 ### The alignment rule
 
@@ -76,8 +83,12 @@ Three faces, each with a job:
 - **Data** — IDs, money, times, codes, references. Anything the reader compares column to
   column, or copies.
 
-The families are declared in the `@theme` block and loaded in `web/src/index.html`. All
-money and all counts additionally set `tabular-nums` so digits align vertically.
+**Not yet true in the code:** no web fonts are loaded at all. Typography is still the system
+stack, declared twice — once as `--font-sans` in `styles.css` and again, duplicated verbatim,
+in `web/src/app/app.css`. The three families and the `index.html` link arrive with the
+redesign foundation, which also deletes that duplicate.
+
+All money and all counts set `tabular-nums` so digits align vertically.
 
 ## Component conventions
 
@@ -93,8 +104,13 @@ money and all counts additionally set `tabular-nums` so digits align vertically.
 
 ## Shared components
 
-`web/src/app/ui/` holds the app's own primitives. Extract into it rather than copy-pasting
-a third instance of anything.
+Today there is exactly **one** app-owned UI component: `app-status-tag`, at
+`web/src/app/status-tag/`. It wraps `p-tag`; its labels live in `order-display.ts` and its
+colour map lives in the component, and that split is the convention to preserve.
+
+`web/src/app/ui/` **does not exist yet.** The redesign foundation creates it with the
+primitives below, extracted from patterns currently copy-pasted across views. Once it exists,
+extract into it rather than pasting a third instance of anything.
 
 | Component | Purpose |
 |---|---|
@@ -103,18 +119,21 @@ a third instance of anything.
 | `app-card` / `app-toolbar` | The card surface and the shared inset that owns the alignment rule |
 | `app-sortable-th` | Button-wrapped header, sort arrows, `aria-sort` |
 | `app-keyword-chips` | Editable chip row |
-| `app-status-tag` | The order-status pill. Labels live in `order-display.ts`, colour lives here — keep that split. |
 
 ## PrimeNG primitives already wired
 
 Reuse these before hand-rolling anything. All are themed by the preset, so they need no
 per-use styling:
 
-`p-dialog` (including a working nested-dialog pattern in the menu editor) · `p-confirmdialog`
-+ `ConfirmationService` · `p-toast` + `MessageService` · `p-table` · `p-button` ·
-`p-toggleswitch` · `p-select` · `p-selectbutton` · `pInputText` · `p-inputnumber` ·
-`pTextarea` · `p-fileupload` · `p-tag` · `p-chip` · `p-message` · `p-popover` · `pTooltip` ·
-`p-avatar` · `p-image` · `p-progressspinner` · `p-drawer` · `p-datepicker` · CDK `drag-drop`.
+**In use today:** `p-dialog` (including a working nested-dialog pattern in the menu editor) ·
+`p-confirmdialog` + `ConfirmationService` · `p-toast` + `MessageService` · `p-table` ·
+`p-button` · `p-toggleswitch` · `p-select` · `p-selectbutton` · `pInputText` ·
+`p-inputnumber` · `pTextarea` · `p-fileupload` · `p-tag` · `p-chip` · `p-message` ·
+`p-popover` · `pTooltip` · `p-avatar` · `p-image` · `p-progressspinner` · CDK `drag-drop`.
+
+**Available but not yet wired:** `p-drawer` and `p-datepicker`. Both ship with the installed
+PrimeNG and are themed by the preset — reach for them rather than hand-rolling an
+equivalent.
 
 `p-toast` and `p-confirmdialog` are mounted once in the dashboard shell — inject the service,
 do not add another host.

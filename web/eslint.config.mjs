@@ -8,8 +8,12 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import angular from 'angular-eslint';
 
-/** A bare colour literal: #abc, #aabbcc, #aabbccdd. */
-const HEX_COLOUR = String.raw`/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/`;
+/**
+ * A hex colour anywhere in a string — deliberately NOT anchored, so it also fires inside
+ * a longer literal such as `border: 1px solid #4f46e5`. Longest alternative first, and a
+ * trailing \b, so #aabbcc is not reported as a 3-digit match.
+ */
+const HEX_COLOUR = String.raw`/#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b/`;
 
 export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**', '.angular/**'] },
@@ -80,11 +84,15 @@ export default tseslint.config(
         },
       ],
 
-      // Deliberately NOT enabled: @angular-eslint/template/elements-content. PrimeNG
-      // renders button and anchor content from a `label` input, which the rule cannot
-      // see, so it fires on the app's dominant button idiom. A rule that is wrong about
-      // <a pButton label="Mensaje"> does not earn its place.
+      '@angular-eslint/template/elements-content': 'error',
     },
+  },
+  {
+    // pedidos.html has the app's one empty <a pButton></a>: PrimeNG renders its content
+    // from the `label` input at runtime, which elements-content cannot see. Scoped off
+    // here rather than disabled globally — it is one template, not a widespread idiom.
+    files: ['src/app/pedidos/pedidos.html'],
+    rules: { '@angular-eslint/template/elements-content': 'off' },
   },
   {
     // Pre-existing accessibility debt, carried as warnings so `npm run lint` stays
