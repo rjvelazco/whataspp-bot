@@ -1,0 +1,9 @@
+# Commits that changed formatting only, and should be skipped by git blame.
+#
+# Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# GitHub honours this file automatically in its blame view.
+
+# style: apply Prettier to both packages (mechanical, no behaviour change)
+0f7bcef632e2ce10462a44ef28406916bd238a3f
