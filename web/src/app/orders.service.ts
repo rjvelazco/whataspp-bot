@@ -1,36 +1,9 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { Order, OrderItem, OrderStatus } from './api-types';
 
-export type OrderStatus =
-  | 'pending_payment'
-  | 'payment_submitted'
-  | 'confirmed'
-  | 'shipped'
-  | 'delivered'
-  | 'cancelled';
-
-export interface OrderItem {
-  code: string;
-  name?: string;
-  size: string;
-  color: string;
-  qty: number;
-  price: number;
-}
-
-export interface Order {
-  order_id: string;
-  store_id: string;
-  customer_wa: string;
-  customer_name: string;
-  items: OrderItem[];
-  delivery_address: string;
-  subtotal: number;
-  status: OrderStatus;
-  receipt_url?: string | null;
-  created_at: string;
-}
+export type { Order, OrderItem, OrderStatus };
 
 @Injectable({ providedIn: 'root' })
 export class OrdersService {

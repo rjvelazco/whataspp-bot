@@ -1,28 +1,15 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { FlowAction, FlowIssue, FlowMenu, FlowOption } from './api-types';
 
-export type FlowAction =
-  | 'go_menu'
-  | 'start_order'
-  | 'show_category'
-  | 'shipping_payments'
-  | 'talk_human';
+export type { FlowAction, FlowIssue, FlowMenu, FlowOption };
 
-export interface FlowOption {
-  label: string;
-  action: FlowAction;
-  target?: string;
-}
-
-export interface FlowMenu {
-  key: string;
-  name: string;
-  trigger?: string;
-  message: string;
-  options: FlowOption[];
-  /** Asset ids sent alongside the message. */
-  attachments?: string[];
+/** Response of PUT /api/menus: ok + persisted count + any validation issues (warnings). */
+export interface SaveMenusResult {
+  ok: boolean;
+  count: number;
+  issues: FlowIssue[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -33,7 +20,7 @@ export class MenusService {
     return this.http.get<FlowMenu[]>('/api/menus');
   }
 
-  save(menus: FlowMenu[]): Observable<{ ok: boolean; count: number }> {
-    return this.http.put<{ ok: boolean; count: number }>('/api/menus', { menus });
+  save(menus: FlowMenu[]): Observable<SaveMenusResult> {
+    return this.http.put<SaveMenusResult>('/api/menus', { menus });
   }
 }

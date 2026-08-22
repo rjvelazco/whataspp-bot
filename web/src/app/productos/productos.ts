@@ -1,7 +1,18 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { TableModule } from 'primeng/table';
+import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
+import { InputTextModule } from 'primeng/inputtext';
+import { InputNumberModule } from 'primeng/inputnumber';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { SelectModule } from 'primeng/select';
+import { FileUploadModule, type FileUploadHandlerEvent } from 'primeng/fileupload';
+import { TooltipModule } from 'primeng/tooltip';
 import { CatalogService, type CatalogItem } from '../catalog.service';
+import { StoreService } from '../store.service';
+import { apiErrorMessage } from '../api-error';
 
 function emptyDraft(): CatalogItem {
   return {
@@ -19,14 +30,31 @@ function emptyDraft(): CatalogItem {
 
 @Component({
   selector: 'app-productos',
-  imports: [FormsModule],
+  imports: [
+    FormsModule,
+    TableModule,
+    ButtonModule,
+    DialogModule,
+    InputTextModule,
+    InputNumberModule,
+    ToggleSwitchModule,
+    SelectModule,
+    FileUploadModule,
+    TooltipModule,
+  ],
   templateUrl: './productos.html',
   styleUrl: './productos.css',
 })
 export class Productos implements OnInit {
+  /** Rows per page in the table. */
+  protected readonly PAGE_SIZE = 10;
   private readonly api = inject(CatalogService);
+  private readonly storeApi = inject(StoreService);
   private readonly messages = inject(MessageService);
   private readonly confirm = inject(ConfirmationService);
+
+  /** Categories declared on the store — the primary source for the dropdown. */
+  protected readonly storeCategories = signal<string[]>([]);
 
   protected readonly items = signal<CatalogItem[]>([]);
   protected readonly loading = signal(true);
@@ -40,13 +68,17 @@ export class Productos implements OnInit {
   /** The product being created/edited. Plain object so ngModel can two-way bind it. */
   protected draft: CatalogItem = emptyDraft();
 
-  /** Distinct categories among existing products (a dropdown/datalist source). */
-  protected readonly categories = computed(() =>
-    [...new Set(this.items().map((i) => i.category).filter(Boolean))].sort(),
-  );
+  /** Store categories first, then any extra categories seen on existing products. */
+  protected readonly categories = computed(() => {
+    const fromItems = this.items().map((i) => i.category).filter(Boolean);
+    return [...new Set([...this.storeCategories(), ...fromItems])].sort();
+  });
 
   ngOnInit(): void {
     this.load();
+    this.storeApi.get().subscribe({
+      next: (store) => this.storeCategories.set(store.categories ?? []),
+    });
   }
 
   private load(): void {
@@ -139,7 +171,7 @@ export class Productos implements OnInit {
         this.messages.add({
           severity: 'error',
           summary: 'No se pudo guardar',
-          detail: e?.error?.error ?? 'Revisa los datos e intenta de nuevo.',
+          detail: apiErrorMessage(e, 'Revisa los datos e intenta de nuevo.'),
         });
       },
     });
@@ -149,14 +181,20 @@ export class Productos implements OnInit {
     const updated: CatalogItem = { ...item, active: !item.active };
     this.api.update(item.item_id, updated).subscribe({
       next: () => this.load(),
-      error: () => this.messages.add({ severity: 'error', summary: 'No se pudo actualizar' }),
+      error: (e) => {
+        this.messages.add({
+          severity: 'error',
+          summary: 'No se pudo actualizar',
+          detail: apiErrorMessage(e),
+        });
+        // p-toggleswitch already flipped itself; reload so the UI matches the server.
+        this.load();
+      },
     });
   }
 
-  protected onPhoto(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = ''; // allow re-selecting the same file
+  protected onPhoto(event: FileUploadHandlerEvent): void {
+    const file = event.files?.[0];
     if (!file || !this.draft.item_id) return;
     this.photoUploading.set(true);
     this.api.uploadPhoto(this.draft.item_id, file).subscribe({
@@ -172,7 +210,7 @@ export class Productos implements OnInit {
         this.messages.add({
           severity: 'error',
           summary: 'No se pudo subir la foto',
-          detail: e?.error?.error ?? 'Debe ser JPG/PNG/WebP hasta 10 MB.',
+          detail: apiErrorMessage(e, 'Debe ser JPG/PNG/WebP hasta 10 MB.'),
         });
       },
     });

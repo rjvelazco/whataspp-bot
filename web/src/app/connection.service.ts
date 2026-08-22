@@ -1,4 +1,6 @@
-import { Injectable, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, inject, signal } from '@angular/core';
+import type { Observable } from 'rxjs';
 
 /** Connection status pushed from the bot over Server-Sent Events. */
 export type Status =
@@ -12,6 +14,12 @@ export class ConnectionService {
   /** Live WhatsApp connection status, updated from the SSE stream. */
   readonly status = signal<Status>({ state: 'idle' });
   private source?: EventSource;
+  private readonly http = inject(HttpClient);
+
+  /** Unlink the bot from WhatsApp; a fresh QR arrives over the SSE stream. */
+  disconnect(): Observable<void> {
+    return this.http.post<void>('/api/disconnect', {});
+  }
 
   /** Open the SSE stream once; safe to call repeatedly. */
   start(): void {

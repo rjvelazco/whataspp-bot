@@ -6,6 +6,10 @@
   "hours": "Lun-Sab 9am-6pm",
   "delivery_info": "Envíos nacionales por MRW/Zoom. Local en Maracaibo $2.",
   "returns_policy": "Cambios dentro de 7 días con etiqueta.",
+  "address": "C.C. Galerías, local 12, Maracaibo",
+  "maps_url": "https://maps.google.com/?q=Galerias+Maracaibo",
+  "usd_rate": 40,
+  "usd_rate_updated_at": "2026-07-01T12:00:00.000Z",
   "payments": {
     "pago_movil": "0102 / V-12345678 / 0412XXXXXXX",
     "zelle": "ana@email.com",

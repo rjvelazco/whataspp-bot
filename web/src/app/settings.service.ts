@@ -1,25 +1,19 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { Contact, StorySchedule } from './api-types';
 
-export interface StorySchedule {
-  enabled: boolean;
-  /** "HH:MM" 24h local time. */
-  time: string;
-}
+export type { Contact, StorySchedule };
+
+/** Response shape of POST /api/story/post-now (web-only, not a domain type).
+ *  `reason` is the union the scheduler actually returns, so a consumer that
+ *  branches on it gets a compile error when a new outcome appears. */
+export type StoryPostReason = 'ok' | 'disconnected' | 'no_stories' | 'busy';
 
 export interface StoryPostResult {
   posted: number;
   audience: number;
-  reason: string;
-}
-
-export interface Contact {
-  wa_jid: string;
-  phone: string | null;
-  name: string | null;
-  first_seen: string;
-  last_seen: string;
+  reason: StoryPostReason;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -5,7 +5,6 @@ export type ConvState =
   | "idle"
   | "in_menu"
   | "browsing"
-  | "choosing_category"
   | "checking_size"
   | "ordering_size"
   | "ordering_color"
@@ -67,6 +66,14 @@ export interface Store {
   payments: StorePayments;
   size_guide: SizeGuideEntry[];
   categories: string[];
+  /** Physical store address (shown for the `dirección` keyword). */
+  address?: string;
+  /** Optional Google Maps link paired with the address. */
+  maps_url?: string;
+  /** USD→Bs exchange rate (Bs per $1), edited manually from the admin. */
+  usd_rate?: number;
+  /** ISO timestamp of the last usd_rate update, for display. */
+  usd_rate_updated_at?: string;
   /** Daily WhatsApp Status auto-post config (edited from the admin panel). */
   story_schedule?: StorySchedule;
 }
@@ -114,19 +121,34 @@ export interface DraftOrder {
   delivery_address?: string | null;
 }
 
-/** Actions an editable menu option can trigger (bot flow builder). */
-export type FlowAction =
-  | "go_menu"
-  | "start_order"
-  | "show_category"
-  | "shipping_payments"
-  | "talk_human";
+/**
+ * Every action a menu option can run (bot flow builder). Exported as a runtime list because menus
+ * are stored JSON that has to be validated on the way in; the type is derived
+ * from it so the two can never drift.
+ */
+export const FLOW_ACTIONS = [
+  "go_menu",
+  "start_order",
+  "show_category",
+  "show_offers",
+  "show_payment",
+  "show_shipping",
+  "show_address",
+  "show_rate",
+  "size_guide",
+  "shipping_payments", // legacy combined view — kept for existing menus
+  "talk_human",
+] as const;
+
+export type FlowAction = (typeof FLOW_ACTIONS)[number];
 
 export interface FlowOption {
   label: string;
   action: FlowAction;
-  /** Menu key (go_menu) or category name (show_category); unused otherwise. */
+  /** Menu key to navigate to — only for action 'go_menu'. */
   target?: string;
+  /** Action data — e.g. the category name for 'show_category'. */
+  value?: string;
 }
 
 /** A configurable bot menu: a message + a set of options. Stored per store. */
@@ -138,6 +160,14 @@ export interface FlowMenu {
   options: FlowOption[];
   /** Asset ids (catalog/promo/story) sent alongside the message. */
   attachments?: string[];
+}
+
+/** A problem found by validateFlow. error = block the save; warning = advisory. */
+export interface FlowIssue {
+  severity: "error" | "warning";
+  /** The menu the issue belongs to (omitted for flow-wide issues). */
+  menuKey?: string;
+  message: string;
 }
 
 export type AssetCategory = "catalog" | "promo" | "story";

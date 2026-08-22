@@ -1,19 +1,9 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { Asset, AssetCategory } from './api-types';
 
-export type AssetCategory = 'catalog' | 'promo' | 'story';
-
-export interface Asset {
-  id: string;
-  store_id: string;
-  category: AssetCategory;
-  filename: string;
-  original_name: string;
-  mimetype: string;
-  size: number;
-  created_at: string;
-}
+export type { Asset, AssetCategory };
 
 @Injectable({ providedIn: 'root' })
 export class AssetsService {

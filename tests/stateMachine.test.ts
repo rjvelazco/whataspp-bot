@@ -74,6 +74,29 @@ describe("greeting & menu", () => {
     });
     expect(r.replies.some((x) => x.kind === "asset" && x.assetId === "a1")).toBe(true);
   });
+
+  it("show_category still resolves a legacy target (pre-migration data)", () => {
+    const legacy: FlowMenu[] = [
+      {
+        key: "m",
+        name: "M",
+        trigger: "hola",
+        message: "Hola",
+        options: [{ label: "Vestidos", action: "show_category", target: "Vestidos" }],
+      },
+    ];
+    const base = {
+      store,
+      catalog,
+      menus: legacy,
+      now: NOW,
+      handoffPauseHours: 12,
+    };
+    const step1 = reduce({ ...base, conversation: freshConv(), message: { text: "hola", hasImage: false } });
+    const step2 = reduce({ ...base, conversation: step1.conversation, message: { text: "1", hasImage: false } });
+    expect(step2.conversation.state).toBe("browsing");
+    expect(step2.replies.some((x) => x.kind === "image")).toBe(true);
+  });
 });
 
 describe("availability (variant-level)", () => {
@@ -89,6 +112,72 @@ describe("availability (variant-level)", () => {
     const r = run(["tienen el top basico en L?"]); // L/negro is stock 0
     expect(body(r)).toContain("no tenemos talla L");
     expect(body(r)).toContain("S, M");
+  });
+});
+
+describe("informational keywords", () => {
+  it("returns the store's USD rate (accent/case-insensitive)", () => {
+    for (const q of ["tasa", "TASA", "¿cuál es el dólar?"]) {
+      const r = run([q]);
+      expect(body(r)).toContain("Tasa del día");
+      expect(body(r)).toContain("40");
+    }
+  });
+
+  it("returns the address + maps link for a location question", () => {
+    const r = run(["¿dónde están?"]);
+    expect(body(r)).toContain("Maracaibo");
+    expect(body(r)).toContain("maps.google.com");
+  });
+
+  it("returns shipping, payment and hours from store config", () => {
+    expect(body(run(["hacen envíos?"]))).toContain("Envíos:");
+    expect(body(run(["métodos de pago"]))).toContain("Pago Móvil");
+    expect(body(run(["horario"]))).toContain("Lun-Sab");
+  });
+
+  it("nudges to the catalog when there are no Ofertas products", () => {
+    expect(body(run(["ofertas"]))).toContain("no tenemos ofertas");
+  });
+
+  it("does not hijack an in-progress order", () => {
+    // Mid-order (ordering_size) a keyword-y message is order input, not the rate reply.
+    const r = run(["PEDIR VESTBOHEMIO", "tasa"]);
+    expect(body(r)).not.toContain("Tasa del día");
+    expect(r.conversation.state).toBe("ordering_size");
+  });
+});
+
+describe("menu options can trigger info actions", () => {
+  const infoMenus: FlowMenu[] = [
+    {
+      key: "m",
+      name: "M",
+      trigger: "hola",
+      message: "Elige",
+      options: [
+        { label: "Tasa", action: "show_rate" },
+        { label: "Pago", action: "show_payment" },
+        { label: "Envío", action: "show_shipping" },
+        { label: "Dónde", action: "show_address" },
+        { label: "Tallas", action: "size_guide" },
+        { label: "Ofertas", action: "show_offers" },
+      ],
+    },
+  ];
+  const pick = (num: string) => {
+    const base = { store, catalog, menus: infoMenus, now: NOW, handoffPauseHours: 12 };
+    const s1 = reduce({ ...base, conversation: freshConv(), message: { text: "hola", hasImage: false } });
+    return reduce({ ...base, conversation: s1.conversation, message: { text: num, hasImage: false } });
+  };
+
+  it("runs the wired action for the chosen number", () => {
+    expect(body(pick("1"))).toContain("Tasa del día");
+    expect(body(pick("2"))).toContain("Métodos de pago");
+    expect(body(pick("3"))).toContain("Envíos:");
+    expect(body(pick("4"))).toContain("Maracaibo");
+    expect(body(pick("5"))).toContain("Guía de tallas");
+    expect(body(pick("6"))).toContain("no tenemos ofertas");
   });
 });
 
@@ -113,6 +202,29 @@ describe("order happy path", () => {
       expect(effect.order.status).toBe("pending_payment");
     }
     expect(body(r)).toContain("Pago Móvil");
+  });
+
+  it("accepts a name and address phrased as an info keyword", () => {
+    // parseIntent is state-blind: "mi dirección es …" reads as show_address and
+    // "listo" as confirm. Free-text states must take the message verbatim or the
+    // most natural phrasings loop on the same prompt forever.
+    const r = run([
+      "PEDIR VESTBOHEMIO",
+      "M",
+      "beige",
+      "1",
+      "listo",
+      "mi dirección es Av 5 de Julio, casa 3",
+      "confirmar",
+    ]);
+    expect(r.conversation.state).toBe("awaiting_payment");
+    const effect = r.effects.find((e) => e.type === "createOrder");
+    if (effect?.type === "createOrder") {
+      expect(effect.order.customer_name).toBe("listo");
+      expect(effect.order.delivery_address).toBe("mi dirección es Av 5 de Julio, casa 3");
+    } else {
+      throw new Error("expected a createOrder effect");
+    }
   });
 
   it("resets the chat on 'cancelar' while still drafting (no order yet)", () => {
@@ -164,5 +276,104 @@ describe("human handoff", () => {
     const resumed = run(["menu"], paused);
     expect(resumed.conversation.state).toBe("in_menu");
     expect(resumed.conversation.bot_paused_until).toBeNull();
+  });
+});
+
+describe("malformed stored menus", () => {
+  it("replies instead of throwing when an option has an unknown action", () => {
+    // Menus are JSON in SQLite; a row saved before an action was renamed would
+    // otherwise return undefined from executeOption and crash applyOutput —
+    // leaving the customer with no reply at all.
+    const broken = [
+      {
+        key: "menu_principal",
+        name: "Principal",
+        trigger: "hola",
+        message: "Elige:",
+        options: [{ label: "Roto", action: "does_not_exist" }],
+      },
+    ] as unknown as FlowMenu[];
+    const conv: Conversation = { ...freshConv(), state: "in_menu", menu_key: "menu_principal" };
+    const call = () =>
+      reduce({
+        conversation: conv,
+        store,
+        catalog,
+        menus: broken,
+        message: { text: "1", hasImage: false },
+        now: NOW,
+        handoffPauseHours: 12,
+      });
+    expect(call).not.toThrow();
+    expect(call().replies.length).toBeGreaterThan(0);
+  });
+});
+
+describe("handoff pause expiry", () => {
+  it("resumes normally once the pause has elapsed", () => {
+    // The pause ended an hour before NOW. Previously the state stayed "paused",
+    // which no handler owns, so every message fell through to "No te entendí".
+    const stale: Conversation = {
+      ...freshConv(),
+      state: "paused",
+      bot_paused_until: "2026-06-29T11:00:00.000Z",
+    };
+    const r = run(["tasa"], stale);
+    expect(body(r)).toContain("Tasa del día");
+    expect(r.conversation.bot_paused_until).toBeNull();
+    expect(r.conversation.state).not.toBe("paused");
+  });
+
+  it("clears the pause when the customer resumes with 'menu'", () => {
+    const paused: Conversation = {
+      ...freshConv(),
+      state: "paused",
+      bot_paused_until: "2026-06-29T20:00:00.000Z",
+    };
+    const r = run(["menu"], paused);
+    expect(r.conversation.bot_paused_until).toBeNull();
+    expect(r.conversation.state).toBe("in_menu");
+  });
+});
+
+describe("info keywords while awaiting payment", () => {
+  it("answers 'tasa' — the customer needs it to pay", () => {
+    const awaiting: Conversation = { ...freshConv(), state: "awaiting_payment", active_order_id: "1001" };
+    const r = run(["tasa"], awaiting);
+    expect(body(r)).toContain("Tasa del día");
+    expect(r.conversation.state).toBe("awaiting_payment"); // still waiting on the receipt
+  });
+
+  it("still refuses to jump to a menu trigger from there", () => {
+    const awaiting: Conversation = { ...freshConv(), state: "awaiting_payment", active_order_id: "1001" };
+    expect(run(["catálogo"], awaiting).conversation.state).toBe("awaiting_payment");
+  });
+});
+
+describe("quantity is bounded by stock", () => {
+  it("reprompts with the real maximum instead of accepting any number", () => {
+    // VESTBOHEMIO M/beige has stock 5.
+    const r = run(["PEDIR VESTBOHEMIO", "M", "beige", "99999"]);
+    expect(body(r)).toContain("Solo nos quedan *5*");
+    expect(r.conversation.state).toBe("ordering_qty");
+    expect(r.conversation.draft_order.qty).toBeUndefined();
+  });
+
+  it("accepts a quantity at the stock limit", () => {
+    const r = run(["PEDIR VESTBOHEMIO", "M", "beige", "5", "Ana", "Centro", "confirmar"]);
+    const effect = r.effects.find((e) => e.type === "createOrder");
+    if (effect?.type !== "createOrder") throw new Error("expected a createOrder effect");
+    expect(effect.order.subtotal).toBe(125); // 25.00 x5
+  });
+});
+
+describe("a second order does not orphan the first", () => {
+  it("still accepts the receipt after PEDIR starts another order", () => {
+    // PEDIR moves the state to ordering_size while order 1001 is unpaid; keying
+    // the receipt on the chat state left that order unable to ever receive one.
+    const awaiting: Conversation = { ...freshConv(), state: "awaiting_payment", active_order_id: "1001" };
+    const r = run(["PEDIR TOPBASICO", { image: true }], awaiting);
+    expect(r.effects.map((e) => e.type)).toEqual(["saveReceipt", "notifyOwner"]);
+    expect(r.conversation.state).toBe("ordering_size"); // the new order continues
   });
 });

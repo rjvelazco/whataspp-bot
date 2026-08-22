@@ -33,3 +33,29 @@ describe("catalog seed is idempotent (DB is authoritative after first boot)", ()
     expect(getAllItems("novamoda").length).toBe(seeded.length); // no duplicate rows
   });
 });
+
+describe("migrateShowCategoryValue", () => {
+  it("moves a legacy show_category target onto value, leaving other options alone", async () => {
+    const { migrateShowCategoryValue } = await import("../src/services/seed.js");
+    const input = [
+      {
+        key: "m",
+        name: "m",
+        message: "",
+        options: [
+          { label: "Vestidos", action: "show_category" as const, target: "Vestidos" },
+          { label: "Ir", action: "go_menu" as const, target: "m2" },
+          { label: "Ya migrado", action: "show_category" as const, value: "Tops" },
+        ],
+      },
+    ];
+    const { menus, changed } = migrateShowCategoryValue(input);
+    expect(changed).toBe(true);
+    expect(menus[0].options[0]).toEqual({ label: "Vestidos", action: "show_category", value: "Vestidos" });
+    expect(menus[0].options[1]).toEqual({ label: "Ir", action: "go_menu", target: "m2" }); // untouched
+    expect(menus[0].options[2]).toEqual({ label: "Ya migrado", action: "show_category", value: "Tops" });
+
+    // Idempotent: a second pass changes nothing.
+    expect(migrateShowCategoryValue(menus).changed).toBe(false);
+  });
+});

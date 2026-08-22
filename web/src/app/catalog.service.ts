@@ -1,24 +1,9 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { CatalogItem, Variant } from './api-types';
 
-export interface Variant {
-  size: string;
-  color: string;
-  stock: number;
-}
-
-export interface CatalogItem {
-  item_id: string;
-  store_id: string;
-  code: string;
-  name: string;
-  category: string;
-  price: number;
-  photo_url: string;
-  active: boolean;
-  variants: Variant[];
-}
+export type { CatalogItem, Variant };
 
 @Injectable({ providedIn: 'root' })
 export class CatalogService {

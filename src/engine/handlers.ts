@@ -3,7 +3,16 @@ import type { Intent } from "./intents.js";
 import { normalize } from "./intents.js";
 import type { EngineInput, HandlerOutput, Outgoing } from "./stateMachine.js";
 import { handoff, text } from "./stateMachine.js";
-import { keycap, shippingAndPayments } from "./menus.js";
+import {
+  exchangeRate,
+  keycap,
+  paymentMethods,
+  shippingAndPayments,
+  shippingInfo,
+  sizeGuide,
+  storeAddress,
+  storeHours,
+} from "./menus.js";
 import { availabilityMessage, detectSize, itemCard, matchItem } from "./catalog.js";
 import {
   handleConfirming,
@@ -53,6 +62,82 @@ export function dispatch(intent: Intent, input: EngineInput): HandlerOutput {
     default:
       return dontUnderstand(input);
   }
+}
+
+/**
+ * Global commands that interrupt from any state: human handoff, greeting/menu
+ * (returns to the entry menu, clearing any draft), the size guide, and cancel.
+ * Routing (resolveIncoming) guarantees only these intents reach here.
+ */
+export function handleGlobal(intent: Intent, input: EngineInput): HandlerOutput {
+  const conv = input.conversation;
+  switch (intent.type) {
+    case "talk_human":
+      return handoff(input);
+    case "greeting":
+    case "menu":
+      return { ...showEntry(input), draft: {}, pauseUntil: null };
+    case "size_guide":
+      return { replies: [text(sizeGuide(input.store))], nextState: conv.state };
+    case "cancel": {
+      const activeId = conv.active_order_id;
+      if (activeId) {
+        // A real order is in flight — cancel it, not just the chat.
+        return {
+          replies: [
+            text(`Listo, cancelamos tu pedido *#${activeId}*. Escribe *menu* para empezar de nuevo. 🙏`),
+          ],
+          nextState: "idle",
+          draft: {},
+          activeOrderId: null,
+          effects: [{ type: "cancelOrder", orderId: activeId }],
+        };
+      }
+      return {
+        replies: [text("Listo, cancelado. Escribe *menu* para empezar de nuevo. 👍")],
+        nextState: "idle",
+        draft: {},
+      };
+    }
+    default:
+      return stay(input, []);
+  }
+}
+
+/**
+ * Global informational keywords (tasa, dirección, envíos, pagos, ofertas, horario).
+ * Returns undefined when the intent isn't one of them. Called only while the customer
+ * is navigating menus (see NAV_STATES) so it never hijacks an in-progress order.
+ */
+export function handleInfoIntent(intent: Intent, input: EngineInput): HandlerOutput | undefined {
+  const store = input.store;
+  switch (intent.type) {
+    case "show_rate":
+      return stay(input, [text(exchangeRate(store))]);
+    case "show_address":
+      return stay(input, [text(storeAddress(store))]);
+    case "show_shipping":
+      return stay(input, [text(shippingInfo(store))]);
+    case "show_payment":
+      return stay(input, [text(paymentMethods(store))]);
+    case "hours":
+      return stay(input, [text(storeHours(store))]);
+    case "show_offers":
+      return showOffers(input);
+    default:
+      return undefined;
+  }
+}
+
+/** Render the "Ofertas" category, or a friendly nudge when there are none. */
+function showOffers(input: EngineInput): HandlerOutput {
+  const items = input.catalog.filter((it) => it.category.toLowerCase() === "ofertas");
+  if (!items.length) {
+    return stay(input, [
+      text("Por ahora no tenemos ofertas activas. Escribe *catálogo* para ver todo. 🛍️"),
+    ]);
+  }
+  return { replies: itemCards(items, "Ofertas"), nextState: "browsing" };
 }
 
 // ---------- configured-menu flow ----------
@@ -120,7 +205,8 @@ function executeOption(opt: FlowOption, input: EngineInput): HandlerOutput {
       return target ? showMenu(target, input) : reShowCurrent(input);
     }
     case "show_category": {
-      const category = opt.target ?? "";
+      // 'value' holds the category; fall back to legacy 'target' for un-migrated data.
+      const category = opt.value ?? opt.target ?? "";
       const items = input.catalog.filter((it) => it.category === category);
       if (!items.length) {
         return { replies: [text(`Por ahora no hay productos en *${category}*.`)], nextState: "in_menu" };
@@ -131,10 +217,27 @@ function executeOption(opt: FlowOption, input: EngineInput): HandlerOutput {
       return stay(input, [
         text("Para pedir, escribe *PEDIR <código>* del producto (lo ves en el catálogo). Ej: *PEDIR VESTBOHEMIO*."),
       ]);
+    case "show_offers":
+      return showOffers(input);
+    case "show_payment":
+      return stay(input, [text(paymentMethods(input.store))]);
+    case "show_shipping":
+      return stay(input, [text(shippingInfo(input.store))]);
+    case "show_address":
+      return stay(input, [text(storeAddress(input.store))]);
+    case "show_rate":
+      return stay(input, [text(exchangeRate(input.store))]);
+    case "size_guide":
+      return stay(input, [text(sizeGuide(input.store))]);
     case "shipping_payments":
       return stay(input, [text(shippingAndPayments(input.store))]);
     case "talk_human":
       return handoff(input);
+    default:
+      // Unreachable for valid data, but menus are stored JSON: a row saved before
+      // an action was renamed would land here. Returning a reply (rather than
+      // falling off the end as undefined) keeps a bad menu from silencing the bot.
+      return dontUnderstand(input);
   }
 }
 

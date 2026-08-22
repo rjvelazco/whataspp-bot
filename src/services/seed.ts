@@ -8,33 +8,42 @@ import { logger } from "../logger.js";
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
 
 /**
+ * Read one of a store's seed files. Named error instead of a raw ENOENT stack:
+ * adding a store is the moment this fails, and "no such file or directory" gives
+ * the operator nothing to act on.
+ */
+function readSeedFile<T>(path: string, what: string): T {
+  if (!existsSync(path)) {
+    throw new Error(`Missing ${what} for this store: ${path}\nCreate it, or set STORE_ID to a store that has one.`);
+  }
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as T;
+  } catch (err) {
+    throw new Error(`${what} is not valid JSON: ${path} (${(err as Error).message})`);
+  }
+}
+
+/**
  * Load a store's config + catalog from src/data/<storeId>.*.json into SQLite.
- * Idempotent: safe to run on every boot. Preserves an existing account binding.
+ * Idempotent + DB-authoritative: the JSON files seed a store ONCE. After the first
+ * boot the DB wins, so admin edits (Tienda values, products, menus, bound account,
+ * Status schedule) survive restarts. Re-import by deleting the store's rows first.
  */
 export function seedStore(storeId: string): Store {
-  const store = JSON.parse(
-    readFileSync(join(dataDir, `${storeId}.store.json`), "utf8"),
-  ) as Store;
-  const items = JSON.parse(
-    readFileSync(join(dataDir, `${storeId}.catalog.json`), "utf8"),
-  ) as CatalogItem[];
-
-  // Don't clobber values set at runtime in a previous session (bound account,
-  // story schedule edited from the admin panel).
   const existing = getStoreById(storeId);
-  if (existing?.account_id) store.account_id = existing.account_id;
-  if (existing?.story_schedule) store.story_schedule = existing.story_schedule;
-
-  upsertStore(store);
-
-  // Seed the catalog ONCE — after first boot the DB is authoritative, so edits
-  // made from the Productos admin (create/edit/delete) survive a restart. Re-import
-  // by clearing the catalog_items rows for the store (or deleting the DB) first.
-  if (countItems(storeId) === 0) {
-    replaceCatalog(storeId, items);
-    logger.info({ storeId, items: items.length }, "seeded store config + catalog");
+  if (existing) {
+    logger.info({ storeId }, "store already configured — kept DB copy");
   } else {
-    logger.info({ storeId }, "seeded store config (catalog already present — kept DB copy)");
+    const store = readSeedFile<Store>(join(dataDir, `${storeId}.store.json`), "store config");
+    upsertStore(store);
+    logger.info({ storeId }, "seeded store config");
+  }
+
+  // Seed the catalog ONCE too, for the same reason.
+  if (countItems(storeId) === 0) {
+    const items = readSeedFile<CatalogItem[]>(join(dataDir, `${storeId}.catalog.json`), "catalog");
+    replaceCatalog(storeId, items);
+    logger.info({ storeId, items: items.length }, "seeded catalog");
   }
 
   // Seed the flow-builder menus ONCE — never clobber edits saved from the builder.
@@ -45,5 +54,42 @@ export function seedStore(storeId: string): Store {
     logger.info({ storeId, menus: menus.length }, "seeded default menus");
   }
 
-  return store;
+  // One-off migration: move legacy show_category `target` onto `value` so the
+  // option/action model is consistent (target now means "menu key" only).
+  const persisted = getMenus(storeId);
+  if (persisted.length) {
+    const { menus: migrated, changed } = migrateShowCategoryValue(persisted);
+    if (changed) {
+      saveMenus(storeId, migrated);
+      logger.info({ storeId }, "migrated show_category options to value");
+    }
+  }
+
+  // Return the authoritative store (freshly seeded or the kept DB copy).
+  const seeded = getStoreById(storeId);
+  if (!seeded) throw new Error(`Store "${storeId}" is still missing after seeding — check the DB is writable.`);
+  return seeded;
+}
+
+/**
+ * Legacy menus stored the show_category's category in `target`. Move it to
+ * `value` (and drop the stray target). Pure + idempotent — returns whether it
+ * changed anything so callers only persist when needed.
+ */
+export function migrateShowCategoryValue(menus: FlowMenu[]): {
+  menus: FlowMenu[];
+  changed: boolean;
+} {
+  let changed = false;
+  const migrated = menus.map((m) => ({
+    ...m,
+    options: m.options.map((o) => {
+      if (o.action === "show_category" && o.value === undefined && o.target !== undefined) {
+        changed = true;
+        return { label: o.label, action: o.action, value: o.target };
+      }
+      return o;
+    }),
+  }));
+  return { menus: migrated, changed };
 }
