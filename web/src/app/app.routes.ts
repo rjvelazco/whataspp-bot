@@ -10,9 +10,15 @@ export const routes: Routes = [
       { path: '', redirectTo: 'pagos', pathMatch: 'full' },
       { path: 'pagos', loadComponent: () => import('./pagos/pagos').then((m) => m.Pagos) },
       { path: 'pedidos', loadComponent: () => import('./pedidos/pedidos').then((m) => m.Pedidos) },
-      { path: 'productos', loadComponent: () => import('./productos/productos').then((m) => m.Productos) },
+      {
+        path: 'productos',
+        loadComponent: () => import('./productos/productos').then((m) => m.Productos),
+      },
       { path: 'tienda', loadComponent: () => import('./tienda/tienda').then((m) => m.Tienda) },
-      { path: 'recursos', loadComponent: () => import('./recursos/recursos').then((m) => m.Recursos) },
+      {
+        path: 'recursos',
+        loadComponent: () => import('./recursos/recursos').then((m) => m.Recursos),
+      },
       {
         path: 'configuracion',
         loadComponent: () => import('./configuracion/configuracion').then((m) => m.Configuracion),

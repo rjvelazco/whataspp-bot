@@ -11,7 +11,13 @@ import { SelectModule } from 'primeng/select';
 import { MessageModule } from 'primeng/message';
 import { PopoverModule } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
-import { MenusService, type FlowAction, type FlowIssue, type FlowMenu, type FlowOption } from '../menus.service';
+import {
+  MenusService,
+  type FlowAction,
+  type FlowIssue,
+  type FlowMenu,
+  type FlowOption,
+} from '../menus.service';
 import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
 import { apiIssues } from '../api-error';
 
@@ -113,11 +119,13 @@ export class Configuracion implements OnInit {
   ngOnInit(): void {
     this.api.get().subscribe({
       next: (menus) => this.menus.set(menus),
-      error: () => this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los menús' }),
+      error: () =>
+        this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los menús' }),
     });
     this.assetsApi.list().subscribe({
       next: (assets) => this.assets.set(assets),
-      error: () => this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los recursos' }),
+      error: () =>
+        this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los recursos' }),
     });
   }
 
@@ -168,7 +176,13 @@ export class Configuracion implements OnInit {
   protected openNew(): void {
     this.editIndex = null;
     this.isNew.set(true);
-    this.draft = { key: this.uniqueKey('menu'), name: 'Nuevo menú', message: '', trigger: '', options: [] };
+    this.draft = {
+      key: this.uniqueKey('menu'),
+      name: 'Nuevo menú',
+      message: '',
+      trigger: '',
+      options: [],
+    };
     this.modalIssues.set([]);
     this.modalOpen.set(true);
   }
@@ -193,7 +207,9 @@ export class Configuracion implements OnInit {
     this.draft.trigger = [...words, word].join(', ');
   }
   protected removeTrigger(word: string): void {
-    this.draft.trigger = this.triggerWords().filter((w) => w !== word).join(', ');
+    this.draft.trigger = this.triggerWords()
+      .filter((w) => w !== word)
+      .join(', ');
   }
 
   // ---- message variables ----
@@ -265,7 +281,9 @@ export class Configuracion implements OnInit {
   protected otherMenus(): FlowMenu[] {
     const q = this.pickerSearch().trim().toLowerCase();
     return this.menus().filter(
-      (m) => m.key !== this.draft.key && (!q || m.name.toLowerCase().includes(q) || m.key.toLowerCase().includes(q)),
+      (m) =>
+        m.key !== this.draft.key &&
+        (!q || m.name.toLowerCase().includes(q) || m.key.toLowerCase().includes(q)),
     );
   }
   protected filteredActions(): { value: FlowAction; label: string }[] {
@@ -275,13 +293,23 @@ export class Configuracion implements OnInit {
   protected pickMenu(menuKey: string): void {
     const oi = this.connecting();
     if (oi === null) return;
-    this.draft.options[oi] = { ...this.draft.options[oi], action: 'go_menu', target: menuKey, value: undefined };
+    this.draft.options[oi] = {
+      ...this.draft.options[oi],
+      action: 'go_menu',
+      target: menuKey,
+      value: undefined,
+    };
     this.closeConnect();
   }
   protected pickAction(action: FlowAction): void {
     const oi = this.connecting();
     if (oi === null) return;
-    this.draft.options[oi] = { ...this.draft.options[oi], action, target: undefined, value: undefined };
+    this.draft.options[oi] = {
+      ...this.draft.options[oi],
+      action,
+      target: undefined,
+      value: undefined,
+    };
     this.closeConnect();
   }
 
@@ -300,7 +328,11 @@ export class Configuracion implements OnInit {
         }
         this.messages.add(
           warnings.length
-            ? { severity: 'warn', summary: 'Guardado', detail: `${warnings.length} advertencia(s) — revisa el flujo.` }
+            ? {
+                severity: 'warn',
+                summary: 'Guardado',
+                detail: `${warnings.length} advertencia(s) — revisa el flujo.`,
+              }
             : { severity: 'success', summary: 'Guardado' },
         );
       },
@@ -308,7 +340,11 @@ export class Configuracion implements OnInit {
         this.saving.set(false);
         const serverIssues = apiIssues(e);
         if (opts.fromModal) {
-          this.modalIssues.set(serverIssues.length ? serverIssues : [{ severity: 'error', message: 'No se pudo guardar.' }]);
+          this.modalIssues.set(
+            serverIssues.length
+              ? serverIssues
+              : [{ severity: 'error', message: 'No se pudo guardar.' }],
+          );
         } else {
           this.messages.add({
             severity: 'error',
@@ -328,7 +364,9 @@ export class Configuracion implements OnInit {
     }
     const clash = this.menus().some((m, i) => m.key === key && i !== this.editIndex);
     if (clash) {
-      this.modalIssues.set([{ severity: 'error', message: `Ya existe un menú con el identificador "${key}".` }]);
+      this.modalIssues.set([
+        { severity: 'error', message: `Ya existe un menú con el identificador "${key}".` },
+      ]);
       return;
     }
     // Persist what was validated, not the raw input ("menu " passed the check

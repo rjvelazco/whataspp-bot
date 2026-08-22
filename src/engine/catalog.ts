@@ -5,7 +5,9 @@ const SIZE_TOKENS = ["xs", "s", "m", "l", "xl", "xxl"];
 
 /** Detect a standalone size token in a message (e.g. "en M" → "M"). */
 export function detectSize(text: string): string | undefined {
-  const words = normalize(text).split(/[^a-z]+/).filter(Boolean);
+  const words = normalize(text)
+    .split(/[^a-z]+/)
+    .filter(Boolean);
   const found = words.find((w) => SIZE_TOKENS.includes(w));
   return found?.toUpperCase();
 }

@@ -85,7 +85,9 @@ export function handleGlobal(intent: Intent, input: EngineInput): HandlerOutput 
         // A real order is in flight — cancel it, not just the chat.
         return {
           replies: [
-            text(`Listo, cancelamos tu pedido *#${activeId}*. Escribe *menu* para empezar de nuevo. 🙏`),
+            text(
+              `Listo, cancelamos tu pedido *#${activeId}*. Escribe *menu* para empezar de nuevo. 🙏`,
+            ),
           ],
           nextState: "idle",
           draft: {},
@@ -144,7 +146,9 @@ function showOffers(input: EngineInput): HandlerOutput {
 
 /** Replace {store_name} / {owner_name} placeholders in a configured message. */
 export function fillPlaceholders(message: string, store: Store): string {
-  return message.replaceAll("{store_name}", store.store_name).replaceAll("{owner_name}", store.owner_name);
+  return message
+    .replaceAll("{store_name}", store.store_name)
+    .replaceAll("{owner_name}", store.owner_name);
 }
 
 export function findMenuByKey(menus: FlowMenu[], key: string): FlowMenu | undefined {
@@ -192,7 +196,11 @@ export function showMenu(menu: FlowMenu, input: EngineInput): HandlerOutput {
 export function showEntry(input: EngineInput): HandlerOutput {
   const menu = findEntryMenu(input.menus);
   if (!menu) {
-    return { replies: [text("¡Hola! 👋 Aún no hay un menú configurado.")], nextState: "idle", menuKey: null };
+    return {
+      replies: [text("¡Hola! 👋 Aún no hay un menú configurado.")],
+      nextState: "idle",
+      menuKey: null,
+    };
   }
   return showMenu(menu, input);
 }
@@ -209,13 +217,18 @@ function executeOption(opt: FlowOption, input: EngineInput): HandlerOutput {
       const category = opt.value ?? opt.target ?? "";
       const items = input.catalog.filter((it) => it.category === category);
       if (!items.length) {
-        return { replies: [text(`Por ahora no hay productos en *${category}*.`)], nextState: "in_menu" };
+        return {
+          replies: [text(`Por ahora no hay productos en *${category}*.`)],
+          nextState: "in_menu",
+        };
       }
       return { replies: itemCards(items, category), nextState: "browsing" };
     }
     case "start_order":
       return stay(input, [
-        text("Para pedir, escribe *PEDIR <código>* del producto (lo ves en el catálogo). Ej: *PEDIR VESTBOHEMIO*."),
+        text(
+          "Para pedir, escribe *PEDIR <código>* del producto (lo ves en el catálogo). Ej: *PEDIR VESTBOHEMIO*.",
+        ),
       ]);
     case "show_offers":
       return showOffers(input);
@@ -289,7 +302,9 @@ function handleCheckingSize(intent: Intent, input: EngineInput): HandlerOutput {
   const answer = tryAvailability(query, input);
   if (answer) return answer;
   return stay(input, [
-    text("No encontré esa prenda 🔎. Dime el nombre como aparece en el catálogo, o escribe *menu*."),
+    text(
+      "No encontré esa prenda 🔎. Dime el nombre como aparece en el catálogo, o escribe *menu*.",
+    ),
   ]);
 }
 

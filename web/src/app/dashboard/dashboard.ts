@@ -44,8 +44,7 @@ export class Dashboard implements OnInit, OnDestroy {
               summary: 'Desconectando…',
               detail: 'Aparecerá un nuevo QR para vincular.',
             }),
-          error: () =>
-            this.messages.add({ severity: 'error', summary: 'No se pudo desconectar' }),
+          error: () => this.messages.add({ severity: 'error', summary: 'No se pudo desconectar' }),
         }),
     });
   }

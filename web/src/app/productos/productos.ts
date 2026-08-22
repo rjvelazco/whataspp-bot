@@ -70,7 +70,9 @@ export class Productos implements OnInit {
 
   /** Store categories first, then any extra categories seen on existing products. */
   protected readonly categories = computed(() => {
-    const fromItems = this.items().map((i) => i.category).filter(Boolean);
+    const fromItems = this.items()
+      .map((i) => i.category)
+      .filter(Boolean);
     return [...new Set([...this.storeCategories(), ...fromItems])].sort();
   });
 
@@ -140,7 +142,10 @@ export class Productos implements OnInit {
   protected save(): void {
     const d = this.draft;
     if (!d.name.trim() || !d.code.trim() || !d.category.trim()) {
-      this.messages.add({ severity: 'warn', summary: 'Nombre, código y categoría son obligatorios' });
+      this.messages.add({
+        severity: 'warn',
+        summary: 'Nombre, código y categoría son obligatorios',
+      });
       return;
     }
     if (!Number.isFinite(Number(d.price)) || Number(d.price) < 0) {

@@ -26,7 +26,9 @@ export class OrdersStore {
   readonly verifiedCount = computed(() => this.rows().filter(isVerified).length);
   readonly toShip = computed(() => this.rows().filter((o) => o.status === 'confirmed').length);
   readonly inTransit = computed(() => this.rows().filter((o) => o.status === 'shipped').length);
-  readonly deliveredCount = computed(() => this.rows().filter((o) => o.status === 'delivered').length);
+  readonly deliveredCount = computed(
+    () => this.rows().filter((o) => o.status === 'delivered').length,
+  );
 
   /** Begin polling (idempotent). Called by the shell. */
   startAutoRefresh(): void {
@@ -59,7 +61,12 @@ export class OrdersStore {
     this.run(order, this.api.verify(order.order_id), `Pedido #${order.order_id} confirmado`);
   }
   remind(order: Order): void {
-    this.run(order, this.api.remind(order.order_id), `Recordatorio enviado a #${order.order_id}`, false);
+    this.run(
+      order,
+      this.api.remind(order.order_id),
+      `Recordatorio enviado a #${order.order_id}`,
+      false,
+    );
   }
   ship(order: Order): void {
     this.run(order, this.api.ship(order.order_id), `Pedido #${order.order_id} enviado`);
@@ -75,7 +82,8 @@ export class OrdersStore {
       acceptLabel: 'Sí, cancelar',
       rejectLabel: 'No',
       acceptButtonStyleClass: 'p-button-danger',
-      accept: () => this.run(order, this.api.cancel(order.order_id), `Pedido #${order.order_id} cancelado`),
+      accept: () =>
+        this.run(order, this.api.cancel(order.order_id), `Pedido #${order.order_id} cancelado`),
     });
   }
 
@@ -83,7 +91,12 @@ export class OrdersStore {
     return this.api.receiptUrl(orderId);
   }
 
-  private run(order: Order, obs: Observable<{ notified?: boolean }>, summary: string, reload = true): void {
+  private run(
+    order: Order,
+    obs: Observable<{ notified?: boolean }>,
+    summary: string,
+    reload = true,
+  ): void {
     this.busyId.set(order.order_id);
     obs.subscribe({
       next: (res) => {

@@ -19,30 +19,76 @@ export type Intent =
 
 /** Lowercase, strip accents, collapse whitespace. */
 export function normalize(input: string): string {
-  return input
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ");
+  return input.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().replace(/\s+/g, " ");
 }
 
-const GREETINGS = ["hola", "buenas", "buenos dias", "buenas tardes", "buenas noches", "hi", "hello", "holi"];
+const GREETINGS = [
+  "hola",
+  "buenas",
+  "buenos dias",
+  "buenas tardes",
+  "buenas noches",
+  "hi",
+  "hello",
+  "holi",
+];
 const MENU_WORDS = ["menu", "inicio", "empezar", "volver", "atras", "regresar", "menu principal"];
-const HUMAN_WORDS = ["hablar con alguien", "hablar con una persona", "humano", "asesor", "una persona", "agente", "ayuda humana"];
+const HUMAN_WORDS = [
+  "hablar con alguien",
+  "hablar con una persona",
+  "humano",
+  "asesor",
+  "una persona",
+  "agente",
+  "ayuda humana",
+];
 const CONFIRM_WORDS = ["confirmar", "confirmo", "si", "sí", "ok", "dale", "listo", "de acuerdo"];
 const CANCEL_WORDS = ["cancelar", "cancela", "anular"];
-const SIZE_GUIDE_WORDS = ["medidas", "ver medidas", "guia de tallas", "guia tallas", "tabla de tallas"];
+const SIZE_GUIDE_WORDS = [
+  "medidas",
+  "ver medidas",
+  "guia de tallas",
+  "guia tallas",
+  "tabla de tallas",
+];
 
 // Informational keywords (normalized, so accents/case already stripped). Matched by
 // substring so "cual es la tasa" and "tasa" both hit. Order matters: the first list
 // that matches wins (see parseIntent).
 const RATE_WORDS = ["tasa", "dolar", "precio del dolar", "cambio del dia"];
-const ADDRESS_WORDS = ["direccion", "ubicacion", "donde estan", "donde queda", "como llego", "como llegar"];
+const ADDRESS_WORDS = [
+  "direccion",
+  "ubicacion",
+  "donde estan",
+  "donde queda",
+  "como llego",
+  "como llegar",
+];
 const SHIPPING_WORDS = ["envio", "envios", "delivery", "despacho", "hacen envios"];
-const PAYMENT_WORDS = ["pago", "pagos", "metodos de pago", "formas de pago", "como pagar", "como pago"];
-const OFFERS_WORDS = ["ofertas", "oferta", "promociones", "promocion", "promo", "descuentos", "rebajas"];
-const HOURS_WORDS = ["horario", "horarios", "hora de atencion", "horas de atencion", "a que hora abren"];
+const PAYMENT_WORDS = [
+  "pago",
+  "pagos",
+  "metodos de pago",
+  "formas de pago",
+  "como pagar",
+  "como pago",
+];
+const OFFERS_WORDS = [
+  "ofertas",
+  "oferta",
+  "promociones",
+  "promocion",
+  "promo",
+  "descuentos",
+  "rebajas",
+];
+const HOURS_WORDS = [
+  "horario",
+  "horarios",
+  "hora de atencion",
+  "horas de atencion",
+  "a que hora abren",
+];
 
 export function parseIntent(rawText: string): Intent {
   const text = normalize(rawText);

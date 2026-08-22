@@ -30,7 +30,10 @@ export class OrdersService {
   }
 
   deliver(orderId: string): Observable<{ order: Order; notified: boolean }> {
-    return this.http.post<{ order: Order; notified: boolean }>(`/api/orders/${orderId}/deliver`, {});
+    return this.http.post<{ order: Order; notified: boolean }>(
+      `/api/orders/${orderId}/deliver`,
+      {},
+    );
   }
 
   receiptUrl(orderId: string): string {

@@ -24,7 +24,9 @@ export function exchangeRate(store: Store): string {
   if (store.usd_rate === undefined || store.usd_rate === null) {
     return "Por ahora no tengo la tasa del día a mano. Escribe *hablar con alguien* y te ayudamos. 🙌";
   }
-  const when = store.usd_rate_updated_at ? ` (actualizada ${store.usd_rate_updated_at.slice(0, 10)})` : "";
+  const when = store.usd_rate_updated_at
+    ? ` (actualizada ${store.usd_rate_updated_at.slice(0, 10)})`
+    : "";
   return `💵 *Tasa del día:* Bs. ${store.usd_rate} por $1${when}.\n\nEscribe *menu* para volver.`;
 }
 

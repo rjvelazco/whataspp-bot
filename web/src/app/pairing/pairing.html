@@ -4,7 +4,12 @@
 
     @switch (conn.status().state) {
       @case ('open') {
-        <p-tag value="✅ Conectado" severity="success" [rounded]="true" styleClass="text-base px-4 py-2" />
+        <p-tag
+          value="✅ Conectado"
+          severity="success"
+          [rounded]="true"
+          styleClass="text-base px-4 py-2"
+        />
         <p class="mt-3 mb-0 text-muted-color">Entrando al panel…</p>
       }
       @case ('qr') {

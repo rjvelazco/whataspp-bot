@@ -21,7 +21,8 @@ const menus: FlowMenu[] = [
   },
 ];
 
-const route = (msg: string, state: ConvState) => resolveIncoming(parseIntent(msg), { state }, menus);
+const route = (msg: string, state: ConvState) =>
+  resolveIncoming(parseIntent(msg), { state }, menus);
 
 describe("resolveIncoming precedence", () => {
   it("routes global commands from any state (level 2)", () => {
@@ -96,7 +97,13 @@ describe("validateFlow", () => {
 
   it("warns on a show_category with no category", () => {
     const bad: FlowMenu[] = [
-      { key: "m", name: "M", trigger: "hola", message: "", options: [{ label: "X", action: "show_category" }] },
+      {
+        key: "m",
+        name: "M",
+        trigger: "hola",
+        message: "",
+        options: [{ label: "X", action: "show_category" }],
+      },
     ];
     expect(warns(bad).some((i) => i.message.includes("no indica la categoría"))).toBe(true);
   });
@@ -111,7 +118,13 @@ describe("validateFlow", () => {
 
   it("errors on an action the engine cannot run", () => {
     const bad = [
-      { key: "m", name: "M", trigger: "hola", message: "", options: [{ label: "X", action: "does_not_exist" }] },
+      {
+        key: "m",
+        name: "M",
+        trigger: "hola",
+        message: "",
+        options: [{ label: "X", action: "does_not_exist" }],
+      },
     ] as unknown as FlowMenu[];
     expect(errs(bad).some((i) => i.message.includes("acción desconocida"))).toBe(true);
   });

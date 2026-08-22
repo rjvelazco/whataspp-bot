@@ -29,15 +29,13 @@ export function upsertStore(store: Store): void {
 
 export function getStoreById(storeId: string): Store | undefined {
   const row = db.prepare(`SELECT config_json FROM stores WHERE store_id = ?`).get(storeId) as
-    | { config_json: string }
-    | undefined;
+    { config_json: string } | undefined;
   return row ? (JSON.parse(row.config_json) as Store) : undefined;
 }
 
 export function getStoreByAccount(accountId: string): Store | undefined {
   const row = db.prepare(`SELECT config_json FROM stores WHERE account_id = ?`).get(accountId) as
-    | { config_json: string }
-    | undefined;
+    { config_json: string } | undefined;
   return row ? (JSON.parse(row.config_json) as Store) : undefined;
 }
 
@@ -70,7 +68,9 @@ function parseItem(row: { data_json: string }): CatalogItem {
 
 export function getItemsByCategory(storeId: string, category: string): CatalogItem[] {
   const rows = db
-    .prepare(`SELECT data_json FROM catalog_items WHERE store_id = ? AND category = ? AND active = 1`)
+    .prepare(
+      `SELECT data_json FROM catalog_items WHERE store_id = ? AND category = ? AND active = 1`,
+    )
     .all(storeId, category) as { data_json: string }[];
   return rows.map(parseItem);
 }
@@ -187,19 +187,18 @@ export function listOrders(storeId: string): Order[] {
 
 export function getOrder(orderId: string): Order | undefined {
   const row = db.prepare(`SELECT data_json FROM orders WHERE order_id = ?`).get(orderId) as
-    | { data_json: string }
-    | undefined;
+    { data_json: string } | undefined;
   return row ? (JSON.parse(row.data_json) as Order) : undefined;
 }
 
 export function updateOrder(order: Order): void {
-  db.prepare(`UPDATE orders SET status = @status, data_json = @data_json WHERE order_id = @order_id`).run(
-    {
-      order_id: order.order_id,
-      status: order.status,
-      data_json: JSON.stringify(order),
-    },
-  );
+  db.prepare(
+    `UPDATE orders SET status = @status, data_json = @data_json WHERE order_id = @order_id`,
+  ).run({
+    order_id: order.order_id,
+    status: order.status,
+    data_json: JSON.stringify(order),
+  });
 }
 
 export function setOrderStatus(orderId: string, status: OrderStatus): void {
@@ -235,8 +234,7 @@ export function deleteAsset(id: string): void {
 
 export function getMenus(storeId: string): FlowMenu[] {
   const row = db.prepare(`SELECT data_json FROM menus WHERE store_id = ?`).get(storeId) as
-    | { data_json: string }
-    | undefined;
+    { data_json: string } | undefined;
   return row ? (JSON.parse(row.data_json) as FlowMenu[]) : [];
 }
 

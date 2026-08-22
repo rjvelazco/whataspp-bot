@@ -237,10 +237,15 @@ export class BaileysTransport implements MessagingTransport {
       ? {
           mimetype: imageMessage.mimetype ?? "image/jpeg",
           download: async (): Promise<Buffer> =>
-            (await downloadMediaMessage(msg, "buffer", {}, {
-              logger: waLogger,
-              reuploadRequest: this.sock!.updateMediaMessage,
-            })) as Buffer,
+            (await downloadMediaMessage(
+              msg,
+              "buffer",
+              {},
+              {
+                logger: waLogger,
+                reuploadRequest: this.sock!.updateMediaMessage,
+              },
+            )) as Buffer,
         }
       : undefined;
 

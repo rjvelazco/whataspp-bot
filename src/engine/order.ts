@@ -36,11 +36,19 @@ function pick(intent: Intent, options: string[]): string | undefined {
 export function startOrder(code: string, input: EngineInput): HandlerOutput {
   const item = input.catalog.find((it) => it.code === code);
   if (!item) {
-    return { replies: [text(`No encontré el código *${code}* 🤔. Escribe *catálogo* para ver los productos.`)], nextState: "idle" };
+    return {
+      replies: [
+        text(`No encontré el código *${code}* 🤔. Escribe *catálogo* para ver los productos.`),
+      ],
+      nextState: "idle",
+    };
   }
   const sizes = availableSizes(item);
   if (!sizes.length) {
-    return { replies: [text(`😕 El *${item.name}* está agotado por ahora. Escribe *menu*.`)], nextState: "idle" };
+    return {
+      replies: [text(`😕 El *${item.name}* está agotado por ahora. Escribe *menu*.`)],
+      nextState: "idle",
+    };
   }
   return {
     replies: [text(`¡Buena elección! *${item.name}*.`), text(numberedList("¿Qué talla?", sizes))],
@@ -93,7 +101,11 @@ export function handleOrderingQty(intent: Intent, input: EngineInput): HandlerOu
   const stock = variantStock(item, draft.size, draft.color);
   if (stock === 0) {
     return {
-      replies: [text(`😕 Se nos agotó *${item.name}* en talla ${draft.size} ${draft.color}. Escribe *menu*.`)],
+      replies: [
+        text(
+          `😕 Se nos agotó *${item.name}* en talla ${draft.size} ${draft.color}. Escribe *menu*.`,
+        ),
+      ],
       nextState: "idle",
       draft: {},
     };
@@ -139,17 +151,17 @@ export function handleOrderingAddress(_intent: Intent, input: EngineInput): Hand
 export function handleConfirming(intent: Intent, input: EngineInput): HandlerOutput {
   const draft = input.conversation.draft_order;
   if (intent.type !== "confirm") {
-    return reprompt(input, "Escribe *confirmar* para crear tu pedido o *cancelar* para descartarlo.");
+    return reprompt(
+      input,
+      "Escribe *confirmar* para crear tu pedido o *cancelar* para descartarlo.",
+    );
   }
   const item = orderItem(draft);
   if (!item) return restart();
   const subtotal = item.price * item.qty;
 
   return {
-    replies: [
-      text(`¡Pedido confirmado! 🎉`),
-      text(paymentInstructions(input.store)),
-    ],
+    replies: [text(`¡Pedido confirmado! 🎉`), text(paymentInstructions(input.store))],
     nextState: "awaiting_payment",
     draft: {},
     effects: [
