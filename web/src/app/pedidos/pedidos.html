@@ -1,5 +1,8 @@
-<header class="flex items-center justify-between gap-4 mb-4">
-  <h1 class="text-2xl font-semibold m-0">Pedidos</h1>
+<app-page-head
+  eyebrow="Despacho"
+  title="Pedidos"
+  lede="El estado que marques aquí es el que ve el cliente cuando le escribe al bot."
+>
   <p-button
     label="Actualizar"
     icon="pi pi-refresh"
@@ -8,27 +11,23 @@
     [disabled]="store.loading()"
     (onClick)="store.load()"
   />
-</header>
+</app-page-head>
 
-<section class="grid gap-3.5 mb-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
-  <div class="flex flex-col gap-0.5 rounded-xl border border-surface-200 bg-surface-0 p-4">
-    <span class="text-xs text-muted-color">Por enviar</span>
-    <span class="text-2xl font-semibold" [class.text-warn]="store.toShip() > 0">
-      {{ store.toShip() }}
-    </span>
-    <span class="text-xs text-muted-color">Pago verificado, listos para preparar</span>
-  </div>
-  <div class="flex flex-col gap-0.5 rounded-xl border border-surface-200 bg-surface-0 p-4">
-    <span class="text-xs text-muted-color">En camino</span>
-    <span class="text-2xl font-semibold">{{ store.inTransit() }}</span>
-    <span class="text-xs text-muted-color">Enviados, aún no entregados</span>
-  </div>
-  <div class="flex flex-col gap-0.5 rounded-xl border border-surface-200 bg-surface-0 p-4">
-    <span class="text-xs text-muted-color">Entregados</span>
-    <span class="text-2xl font-semibold">{{ store.deliveredCount() }}</span>
-    <span class="text-xs text-muted-color">En manos del cliente</span>
-  </div>
-</section>
+<app-stat-row>
+  <app-stat-card
+    label="Por enviar"
+    [value]="store.toShip()"
+    note="Pago verificado, listos para preparar"
+    [tone]="store.toShip() > 0 ? 'amber' : 'neutral'"
+  />
+  <app-stat-card label="En camino" [value]="store.inTransit()" note="Enviados, aún no entregados" />
+  <app-stat-card
+    label="Entregados"
+    [value]="store.deliveredCount()"
+    note="En manos del cliente"
+    tone="signal"
+  />
+</app-stat-row>
 
 <p-selectbutton
   class="mb-4 block"

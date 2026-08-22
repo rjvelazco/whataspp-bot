@@ -9,6 +9,7 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 import { OrdersStore } from '../orders.store';
 import { customerNumber, isVerified, itemsSummary } from '../order-display';
 import { StatusTag } from '../status-tag/status-tag';
+import { PageHead, StatCard, StatRow, Card, Toolbar } from '../ui';
 
 type PagosFilter = 'all' | 'pending' | 'verified';
 
@@ -24,6 +25,11 @@ type PagosFilter = 'all' | 'pending' | 'verified';
     AvatarModule,
     SelectButtonModule,
     StatusTag,
+    PageHead,
+    StatCard,
+    StatRow,
+    Card,
+    Toolbar,
   ],
   templateUrl: './pagos.html',
   styleUrl: './pagos.css',

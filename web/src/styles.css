@@ -303,6 +303,32 @@ body {
   padding: 32px var(--gutter) 64px;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   TABLE ALIGNMENT. PrimeNG owns its cell padding, and a component stylesheet
+   cannot reach into it, so this is the one place the alignment rule can be
+   expressed for tables. It reads --card-inset from <app-card>, which is also what
+   <app-toolbar> pads by — so the toolbar's first control and the table's first
+   column share one edge, defined once. See ../../CLAUDE.md rule 2.
+   ───────────────────────────────────────────────────────────────────────────── */
+.p-datatable-thead > tr > th:first-child,
+.p-datatable-tbody > tr > td:first-child {
+  padding-left: var(--card-inset, 16px);
+}
+.p-datatable-thead > tr > th:last-child,
+.p-datatable-tbody > tr > td:last-child {
+  padding-right: var(--card-inset, 16px);
+}
+
+/* Column headers as quiet labels rather than competing with the data. */
+.p-datatable-thead > tr > th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+  white-space: nowrap;
+}
+
 /* ── 960px: the rail becomes a top bar ───────────────────────────────────── */
 @media (max-width: 960px) {
   :root {

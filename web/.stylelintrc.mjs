@@ -9,8 +9,13 @@
 
 /** Every multiple of 8 up to 256px. Generated, so there are no arbitrary gaps. */
 const STEPS = Array.from({ length: 32 }, (_, i) => (i + 1) * 8);
-/** One permitted length: zero, a multiple of 8, a token, or a keyword. */
-const LEN = String.raw`(?:0|0px|(?:${STEPS.join('|')})px|var\(--[a-z0-9-]+\)|auto|inherit)`;
+/** A literal length: zero, a multiple of 8, or a keyword. */
+const BARE = String.raw`(?:0|0px|(?:${STEPS.join('|')})px|auto|inherit)`;
+/** A token, optionally with a fallback — which is itself checked, so
+    `var(--card-inset, 16px)` passes and `var(--card-inset, 12px)` does not. */
+const TOKEN = String.raw`var\(--[a-z0-9-]+(?:,\s*${BARE})?\)`;
+/** One permitted length. */
+const LEN = String.raw`(?:${BARE}|${TOKEN})`;
 /** A shorthand of up to four such lengths. */
 const SPACING = new RegExp(String.raw`^${LEN}(?:\s+${LEN}){0,3}$`);
 
