@@ -45,7 +45,10 @@ export default {
     // Colour is defined in src/styles.css (@theme) and src/app/theme/app-preset.ts,
     // and nowhere else. See CLAUDE.md rule 4.
     'color-no-hex': [true, { message: 'No raw hex. Define the colour as a token and use it.' }],
-    'color-named': ['never', { message: 'No named colours. Define the colour as a token and use it.' }],
+    'color-named': [
+      'never',
+      { message: 'No named colours. Define the colour as a token and use it.' },
+    ],
     'function-disallowed-list': [
       ['rgb', 'rgba', 'hsl', 'hsla'],
       { message: 'No literal colour functions. Define the colour as a token and use it.' },
