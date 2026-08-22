@@ -38,20 +38,44 @@
           <div class="grid grid-cols-2 gap-4">
             <label class="flex flex-col gap-1.5 text-sm text-muted-color">
               Nombre de la tienda
-              <input pInputText class="w-full" [ngModel]="form().store_name" (ngModelChange)="patch('store_name', $event)" placeholder="Nova Moda" />
+              <input
+                pInputText
+                class="w-full"
+                [ngModel]="form().store_name"
+                (ngModelChange)="patch('store_name', $event)"
+                placeholder="Nova Moda"
+              />
             </label>
             <label class="flex flex-col gap-1.5 text-sm text-muted-color">
               Nombre del dueño/a
-              <input pInputText class="w-full" [ngModel]="form().owner_name" (ngModelChange)="patch('owner_name', $event)" placeholder="Ana" />
+              <input
+                pInputText
+                class="w-full"
+                [ngModel]="form().owner_name"
+                (ngModelChange)="patch('owner_name', $event)"
+                placeholder="Ana"
+              />
             </label>
           </div>
           <label class="flex flex-col gap-1.5 text-sm text-muted-color">
             WhatsApp del dueño/a (recibe pedidos y avisos)
-            <input pInputText class="w-full" [ngModel]="form().owner_whatsapp" (ngModelChange)="patch('owner_whatsapp', $event)" placeholder="+58412XXXXXXX" />
+            <input
+              pInputText
+              class="w-full"
+              [ngModel]="form().owner_whatsapp"
+              (ngModelChange)="patch('owner_whatsapp', $event)"
+              placeholder="+58412XXXXXXX"
+            />
           </label>
           <label class="flex flex-col gap-1.5 text-sm text-muted-color">
             Horario
-            <input pInputText class="w-full" [ngModel]="form().hours" (ngModelChange)="patch('hours', $event)" placeholder="Lun-Sab 9am-6pm" />
+            <input
+              pInputText
+              class="w-full"
+              [ngModel]="form().hours"
+              (ngModelChange)="patch('hours', $event)"
+              placeholder="Lun-Sab 9am-6pm"
+            />
           </label>
         </section>
 
@@ -67,7 +91,8 @@
             <input
               pInputText
               class="w-full"
-              [ngModel]="form().address" (ngModelChange)="patch('address', $event)"
+              [ngModel]="form().address"
+              (ngModelChange)="patch('address', $event)"
               placeholder="C.C. …, local …, Maracaibo"
             />
           </label>
@@ -81,14 +106,17 @@
                 >
               }
             </div>
-            <span class="font-mono text-xs text-primary bg-highlight rounded px-2 py-1">{{ '{direccion}' }}</span>
+            <span class="font-mono text-xs text-primary bg-highlight rounded px-2 py-1">{{
+              '{direccion}'
+            }}</span>
           </div>
           <label class="flex flex-col gap-1.5 text-sm text-muted-color">
             Enlace de Google Maps (opcional)
             <input
               pInputText
               class="w-full"
-              [ngModel]="form().maps_url" (ngModelChange)="patch('maps_url', $event)"
+              [ngModel]="form().maps_url"
+              (ngModelChange)="patch('maps_url', $event)"
               placeholder="https://maps.google.com/?q=…"
             />
           </label>
@@ -103,7 +131,13 @@
           <h3 class="m-0 text-base font-semibold">Envíos y cambios</h3>
           <label class="flex flex-col gap-1.5 text-sm text-muted-color">
             Información de envíos
-            <textarea pTextarea class="w-full" rows="2" [ngModel]="form().delivery_info" (ngModelChange)="patch('delivery_info', $event)"></textarea>
+            <textarea
+              pTextarea
+              class="w-full"
+              rows="2"
+              [ngModel]="form().delivery_info"
+              (ngModelChange)="patch('delivery_info', $event)"
+            ></textarea>
           </label>
           <div class="flex items-center justify-between gap-2 flex-wrap">
             <div class="flex items-center gap-2 text-sm text-muted-color">
@@ -115,11 +149,19 @@
                 >
               }
             </div>
-            <span class="font-mono text-xs text-primary bg-highlight rounded px-2 py-1">{{ '{envios}' }}</span>
+            <span class="font-mono text-xs text-primary bg-highlight rounded px-2 py-1">{{
+              '{envios}'
+            }}</span>
           </div>
           <label class="flex flex-col gap-1.5 text-sm text-muted-color">
             Política de cambios
-            <textarea pTextarea class="w-full" rows="2" [ngModel]="form().returns_policy" (ngModelChange)="patch('returns_policy', $event)"></textarea>
+            <textarea
+              pTextarea
+              class="w-full"
+              rows="2"
+              [ngModel]="form().returns_policy"
+              (ngModelChange)="patch('returns_policy', $event)"
+            ></textarea>
           </label>
         </section>
 
@@ -134,7 +176,8 @@
             <label class="flex flex-col gap-1.5 text-sm text-muted-color">
               Bs. por $1
               <p-inputnumber
-                [ngModel]="form().usd_rate" (ngModelChange)="patch('usd_rate', $event)"
+                [ngModel]="form().usd_rate"
+                (ngModelChange)="patch('usd_rate', $event)"
                 [min]="0"
                 mode="decimal"
                 [minFractionDigits]="0"
@@ -162,7 +205,9 @@
                 >
               }
             </div>
-            <span class="font-mono text-xs text-primary bg-highlight rounded px-2 py-1">{{ '{tasa}' }}</span>
+            <span class="font-mono text-xs text-primary bg-highlight rounded px-2 py-1">{{
+              '{tasa}'
+            }}</span>
           </div>
         </section>
 
@@ -175,11 +220,15 @@
           <h3 class="m-0 text-base font-semibold">Métodos de pago</h3>
           @for (m of paymentMethods; track m.key) {
             <div class="flex items-center gap-3" [class.opacity-60]="!form().enabled[m.key]">
-              <p-toggleswitch [ngModel]="form().enabled[m.key]" (ngModelChange)="patchEnabled(m.key, $event)" />
+              <p-toggleswitch
+                [ngModel]="form().enabled[m.key]"
+                (ngModelChange)="patchEnabled(m.key, $event)"
+              />
               <input
                 pInputText
                 class="flex-1 w-full"
-                [ngModel]="form().payments[m.key]" (ngModelChange)="patchPayment(m.key, $event)"
+                [ngModel]="form().payments[m.key]"
+                (ngModelChange)="patchPayment(m.key, $event)"
                 [placeholder]="m.placeholder"
                 [disabled]="!form().enabled[m.key]"
               />

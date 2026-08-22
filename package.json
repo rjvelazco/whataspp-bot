@@ -1,14 +1,18 @@
 {
   "name": "whatsapp-store-bot",
   "version": "0.1.0",
-  "description": "Reusable WhatsApp sales bot for clothing stores — generic engine + per-store config",
+  "description": "Reusable WhatsApp sales bot for clothing stores \u2014 generic engine + per-store config",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "build": "tsc --noEmit",
     "build:web": "npm --prefix web install && npm --prefix web run build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "npm run lint:bot && npm run lint:web",
+    "lint:bot": "eslint . --max-warnings 0 && prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"*.mjs\"",
+    "lint:web": "npm --prefix web run lint",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" && npm --prefix web run format"
   },
   "engines": {
     "node": ">=20"
@@ -25,14 +29,18 @@
     "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.12",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.2.0",
     "@types/node": "^22.10.5",
     "@types/qrcode": "^1.5.6",
     "@types/qrcode-terminal": "^0.12.2",
+    "eslint": "^10.9.0",
+    "prettier": "^3.9.6",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.67.0",
     "vitest": "^2.1.8"
   }
 }

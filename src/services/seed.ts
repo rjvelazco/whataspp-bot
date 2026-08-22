@@ -2,7 +2,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CatalogItem, FlowMenu, Store } from "../domain/types.js";
-import { countItems, getMenus, getStoreById, replaceCatalog, saveMenus, upsertStore } from "../db/repositories.js";
+import {
+  countItems,
+  getMenus,
+  getStoreById,
+  replaceCatalog,
+  saveMenus,
+  upsertStore,
+} from "../db/repositories.js";
 import { logger } from "../logger.js";
 
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
@@ -14,12 +21,16 @@ const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
  */
 function readSeedFile<T>(path: string, what: string): T {
   if (!existsSync(path)) {
-    throw new Error(`Missing ${what} for this store: ${path}\nCreate it, or set STORE_ID to a store that has one.`);
+    throw new Error(
+      `Missing ${what} for this store: ${path}\nCreate it, or set STORE_ID to a store that has one.`,
+    );
   }
   try {
     return JSON.parse(readFileSync(path, "utf8")) as T;
   } catch (err) {
-    throw new Error(`${what} is not valid JSON: ${path} (${(err as Error).message})`);
+    throw new Error(`${what} is not valid JSON: ${path} (${(err as Error).message})`, {
+      cause: err,
+    });
   }
 }
 
@@ -67,7 +78,10 @@ export function seedStore(storeId: string): Store {
 
   // Return the authoritative store (freshly seeded or the kept DB copy).
   const seeded = getStoreById(storeId);
-  if (!seeded) throw new Error(`Store "${storeId}" is still missing after seeding — check the DB is writable.`);
+  if (!seeded)
+    throw new Error(
+      `Store "${storeId}" is still missing after seeding — check the DB is writable.`,
+    );
   return seeded;
 }
 

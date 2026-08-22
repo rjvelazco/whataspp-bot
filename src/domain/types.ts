@@ -79,12 +79,7 @@ export interface Store {
 }
 
 export type OrderStatus =
-  | "pending_payment"
-  | "payment_submitted"
-  | "confirmed"
-  | "shipped"
-  | "delivered"
-  | "cancelled";
+  "pending_payment" | "payment_submitted" | "confirmed" | "shipped" | "delivered" | "cancelled";
 
 export interface OrderItem {
   code: string;

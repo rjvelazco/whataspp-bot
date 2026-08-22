@@ -7,7 +7,9 @@ import type { CatalogItem, Conversation, FlowMenu, Store } from "../src/domain/t
 
 const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "data");
 const store = JSON.parse(readFileSync(join(dataDir, "novamoda.store.json"), "utf8")) as Store;
-const catalog = JSON.parse(readFileSync(join(dataDir, "novamoda.catalog.json"), "utf8")) as CatalogItem[];
+const catalog = JSON.parse(
+  readFileSync(join(dataDir, "novamoda.catalog.json"), "utf8"),
+) as CatalogItem[];
 const menus = JSON.parse(readFileSync(join(dataDir, "novamoda.menus.json"), "utf8")) as FlowMenu[];
 const NOW = new Date("2026-06-29T12:00:00Z");
 
@@ -30,14 +32,24 @@ function run(messages: Array<string | { image: true }>, start = freshConv()): En
   let result!: EngineResult;
   for (const m of messages) {
     const message = typeof m === "string" ? { text: m, hasImage: false } : { hasImage: true };
-    result = reduce({ conversation: conv, store, catalog, menus, message, now: NOW, handoffPauseHours: 12 });
+    result = reduce({
+      conversation: conv,
+      store,
+      catalog,
+      menus,
+      message,
+      now: NOW,
+      handoffPauseHours: 12,
+    });
     conv = result.conversation;
   }
   return result;
 }
 
 const body = (r: EngineResult) =>
-  r.replies.map((x) => (x.kind === "text" ? x.body : x.kind === "image" ? "[img]" : "[asset]")).join("\n");
+  r.replies
+    .map((x) => (x.kind === "text" ? x.body : x.kind === "image" ? "[img]" : "[asset]"))
+    .join("\n");
 
 describe("greeting & menu", () => {
   it("shows the configured entry menu on a greeting", () => {
@@ -92,8 +104,16 @@ describe("greeting & menu", () => {
       now: NOW,
       handoffPauseHours: 12,
     };
-    const step1 = reduce({ ...base, conversation: freshConv(), message: { text: "hola", hasImage: false } });
-    const step2 = reduce({ ...base, conversation: step1.conversation, message: { text: "1", hasImage: false } });
+    const step1 = reduce({
+      ...base,
+      conversation: freshConv(),
+      message: { text: "hola", hasImage: false },
+    });
+    const step2 = reduce({
+      ...base,
+      conversation: step1.conversation,
+      message: { text: "1", hasImage: false },
+    });
     expect(step2.conversation.state).toBe("browsing");
     expect(step2.replies.some((x) => x.kind === "image")).toBe(true);
   });
@@ -167,8 +187,16 @@ describe("menu options can trigger info actions", () => {
   ];
   const pick = (num: string) => {
     const base = { store, catalog, menus: infoMenus, now: NOW, handoffPauseHours: 12 };
-    const s1 = reduce({ ...base, conversation: freshConv(), message: { text: "hola", hasImage: false } });
-    return reduce({ ...base, conversation: s1.conversation, message: { text: num, hasImage: false } });
+    const s1 = reduce({
+      ...base,
+      conversation: freshConv(),
+      message: { text: "hola", hasImage: false },
+    });
+    return reduce({
+      ...base,
+      conversation: s1.conversation,
+      message: { text: num, hasImage: false },
+    });
   };
 
   it("runs the wired action for the chosen number", () => {
@@ -197,7 +225,12 @@ describe("order happy path", () => {
     expect(effect).toBeDefined();
     if (effect?.type === "createOrder") {
       expect(effect.order.subtotal).toBe(50); // 25.00 x2
-      expect(effect.order.items[0]).toMatchObject({ code: "VESTBOHEMIO", size: "M", color: "beige", qty: 2 });
+      expect(effect.order.items[0]).toMatchObject({
+        code: "VESTBOHEMIO",
+        size: "M",
+        color: "beige",
+        qty: 2,
+      });
       expect(effect.order.customer_name).toBe("María Pérez");
       expect(effect.order.status).toBe("pending_payment");
     }
@@ -248,7 +281,11 @@ describe("order happy path", () => {
 
 describe("payment receipt", () => {
   it("attaches the receipt and notifies the owner", () => {
-    const awaiting: Conversation = { ...freshConv(), state: "awaiting_payment", active_order_id: "1001" };
+    const awaiting: Conversation = {
+      ...freshConv(),
+      state: "awaiting_payment",
+      active_order_id: "1001",
+    };
     const r = run([{ image: true }], awaiting);
     expect(r.conversation.state).toBe("idle");
     expect(r.effects.map((e) => e.type)).toEqual(["saveReceipt", "notifyOwner"]);
@@ -271,7 +308,11 @@ describe("human handoff", () => {
   });
 
   it("stays silent while paused, resumes on 'menu'", () => {
-    const paused: Conversation = { ...freshConv(), state: "paused", bot_paused_until: "2026-06-29T20:00:00.000Z" };
+    const paused: Conversation = {
+      ...freshConv(),
+      state: "paused",
+      bot_paused_until: "2026-06-29T20:00:00.000Z",
+    };
     expect(run(["¿sigues ahí?"], paused).replies).toHaveLength(0);
     const resumed = run(["menu"], paused);
     expect(resumed.conversation.state).toBe("in_menu");
@@ -338,14 +379,22 @@ describe("handoff pause expiry", () => {
 
 describe("info keywords while awaiting payment", () => {
   it("answers 'tasa' — the customer needs it to pay", () => {
-    const awaiting: Conversation = { ...freshConv(), state: "awaiting_payment", active_order_id: "1001" };
+    const awaiting: Conversation = {
+      ...freshConv(),
+      state: "awaiting_payment",
+      active_order_id: "1001",
+    };
     const r = run(["tasa"], awaiting);
     expect(body(r)).toContain("Tasa del día");
     expect(r.conversation.state).toBe("awaiting_payment"); // still waiting on the receipt
   });
 
   it("still refuses to jump to a menu trigger from there", () => {
-    const awaiting: Conversation = { ...freshConv(), state: "awaiting_payment", active_order_id: "1001" };
+    const awaiting: Conversation = {
+      ...freshConv(),
+      state: "awaiting_payment",
+      active_order_id: "1001",
+    };
     expect(run(["catálogo"], awaiting).conversation.state).toBe("awaiting_payment");
   });
 });
@@ -371,7 +420,11 @@ describe("a second order does not orphan the first", () => {
   it("still accepts the receipt after PEDIR starts another order", () => {
     // PEDIR moves the state to ordering_size while order 1001 is unpaid; keying
     // the receipt on the chat state left that order unable to ever receive one.
-    const awaiting: Conversation = { ...freshConv(), state: "awaiting_payment", active_order_id: "1001" };
+    const awaiting: Conversation = {
+      ...freshConv(),
+      state: "awaiting_payment",
+      active_order_id: "1001",
+    };
     const r = run(["PEDIR TOPBASICO", { image: true }], awaiting);
     expect(r.effects.map((e) => e.type)).toEqual(["saveReceipt", "notifyOwner"]);
     expect(r.conversation.state).toBe("ordering_size"); // the new order continues

@@ -172,7 +172,9 @@ function handleImage(input: EngineInput): HandlerOutput {
   }
   return {
     replies: [
-      text("Recibí tu imagen 📷. Si es un comprobante de pago, primero haz tu pedido. Escribe *menu*."),
+      text(
+        "Recibí tu imagen 📷. Si es un comprobante de pago, primero haz tu pedido. Escribe *menu*.",
+      ),
     ],
     nextState: conv.state,
   };

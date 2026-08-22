@@ -51,9 +51,17 @@ describe("migrateShowCategoryValue", () => {
     ];
     const { menus, changed } = migrateShowCategoryValue(input);
     expect(changed).toBe(true);
-    expect(menus[0].options[0]).toEqual({ label: "Vestidos", action: "show_category", value: "Vestidos" });
+    expect(menus[0].options[0]).toEqual({
+      label: "Vestidos",
+      action: "show_category",
+      value: "Vestidos",
+    });
     expect(menus[0].options[1]).toEqual({ label: "Ir", action: "go_menu", target: "m2" }); // untouched
-    expect(menus[0].options[2]).toEqual({ label: "Ya migrado", action: "show_category", value: "Tops" });
+    expect(menus[0].options[2]).toEqual({
+      label: "Ya migrado",
+      action: "show_category",
+      value: "Tops",
+    });
 
     // Idempotent: a second pass changes nothing.
     expect(migrateShowCategoryValue(menus).changed).toBe(false);

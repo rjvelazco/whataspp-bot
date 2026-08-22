@@ -150,7 +150,11 @@
             rel="noopener"
           >
             @if (isImage(a)) {
-              <img [src]="fileUrl(a.id)" [alt]="a.original_name" class="w-full h-full object-cover" />
+              <img
+                [src]="fileUrl(a.id)"
+                [alt]="a.original_name"
+                class="w-full h-full object-cover"
+              />
             } @else {
               <div
                 class="w-full h-full flex flex-col items-center justify-center gap-1 text-muted-color"

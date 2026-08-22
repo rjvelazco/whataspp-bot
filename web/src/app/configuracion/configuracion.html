@@ -4,8 +4,8 @@
 </header>
 
 <p class="mt-1 mb-4 text-sm text-muted-color max-w-[70ch]">
-  Cada tarjeta es un menú del bot. Ábrela para editar su mensaje, palabras que lo activan y opciones.
-  Los cambios que guardes son los que el bot envía a tus clientes.
+  Cada tarjeta es un menú del bot. Ábrela para editar su mensaje, palabras que lo activan y
+  opciones. Los cambios que guardes son los que el bot envía a tus clientes.
 </p>
 
 @if (issues().length) {
@@ -101,9 +101,7 @@
       }
 
       <!-- footer: option count + wired status -->
-      <div
-        class="mt-3 pt-3 border-t border-surface-200 flex items-center justify-between text-sm"
-      >
+      <div class="mt-3 pt-3 border-t border-surface-200 flex items-center justify-between text-sm">
         <span class="text-muted-color">{{ menu.options.length }} opciones</span>
         <span
           class="flex items-center gap-1.5"
@@ -201,7 +199,8 @@
       </div>
     </div>
 
-    <label class="text-sm text-muted-color flex flex-col gap-1.5">Mensaje
+    <label class="text-sm text-muted-color flex flex-col gap-1.5"
+      >Mensaje
       <div class="relative">
         <textarea
           pTextarea

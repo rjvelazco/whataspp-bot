@@ -102,7 +102,11 @@ async function handleMessage(transport: MessagingTransport, msg: IncomingMessage
 }
 
 /** Send an uploaded asset (catalog/promo/story) as an image or document. */
-async function sendAsset(transport: MessagingTransport, to: string, assetId: string): Promise<void> {
+async function sendAsset(
+  transport: MessagingTransport,
+  to: string,
+  assetId: string,
+): Promise<void> {
   const asset = getAsset(assetId);
   if (!asset) return; // deleted from the library — skip silently
   const path = join(config.uploadsDir, "assets", asset.filename);
@@ -148,7 +152,10 @@ async function performEffects(
         break;
       }
       case "notifyOwnerHandoff": {
-        await transport.sendText(store.owner_whatsapp, ownerHandoffMessage(effect.customerWa, store));
+        await transport.sendText(
+          store.owner_whatsapp,
+          ownerHandoffMessage(effect.customerWa, store),
+        );
         break;
       }
       case "cancelOrder": {

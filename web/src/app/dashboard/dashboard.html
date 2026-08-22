@@ -8,11 +8,15 @@
     <nav class="nav">
       <a class="nav-item clickable" routerLink="pagos" routerLinkActive="active">
         <i class="pi pi-wallet"></i> Pagos
-        @if (store.pendingVerify() > 0) { <span class="pill warn">{{ store.pendingVerify() }}</span> }
+        @if (store.pendingVerify() > 0) {
+          <span class="pill warn">{{ store.pendingVerify() }}</span>
+        }
       </a>
       <a class="nav-item clickable" routerLink="pedidos" routerLinkActive="active">
         <i class="pi pi-shopping-bag"></i> Pedidos
-        @if (store.toShip() > 0) { <span class="pill info">{{ store.toShip() }}</span> }
+        @if (store.toShip() > 0) {
+          <span class="pill info">{{ store.toShip() }}</span>
+        }
       </a>
       <a class="nav-item clickable" routerLink="productos" routerLinkActive="active">
         <i class="pi pi-box"></i> Productos

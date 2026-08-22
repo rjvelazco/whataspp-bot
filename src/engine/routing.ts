@@ -54,7 +54,11 @@ export type Route =
  *   4. Menu triggers — a message matching a menu's trigger jumps to it (NAV_STATES).
  *   5. Fallback — per-state dispatch (numbered reply, PEDIR, availability, "no entendí").
  */
-export function resolveIncoming(intent: Intent, conv: { state: ConvState }, menus: FlowMenu[]): Route {
+export function resolveIncoming(
+  intent: Intent,
+  conv: { state: ConvState },
+  menus: FlowMenu[],
+): Route {
   if (isGlobalIntent(intent)) return { kind: "global" };
 
   if (INFO_STATES.has(conv.state) && isInfoIntent(intent)) return { kind: "info" };

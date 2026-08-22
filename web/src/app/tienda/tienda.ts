@@ -239,7 +239,9 @@ export class Tienda implements OnInit, OnDestroy {
   // ---- live preview helpers (mirror the bot's real responses) ----
   protected readonly ratePreview = computed(() => {
     const rate = this.form().usd_rate;
-    return rate != null ? `Hoy la tasa está en Bs. ${rate} por $1.` : 'Aún no has puesto la tasa del día.';
+    return rate != null
+      ? `Hoy la tasa está en Bs. ${rate} por $1.`
+      : 'Aún no has puesto la tasa del día.';
   });
   protected readonly addressPreview = computed(() => {
     const address = this.form().address?.trim();

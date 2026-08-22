@@ -12,7 +12,10 @@ import { SettingsService, type StorySchedule, type StoryPostReason } from '../se
 import { apiErrorMessage } from '../api-error';
 
 /** Toast per outcome of "publicar ahora" — one table instead of an if/else ladder. */
-const POST_RESULT: Record<Exclude<StoryPostReason, 'ok'>, { severity: 'warn' | 'info'; summary: string }> = {
+const POST_RESULT: Record<
+  Exclude<StoryPostReason, 'ok'>,
+  { severity: 'warn' | 'info'; summary: string }
+> = {
   disconnected: { severity: 'warn', summary: 'WhatsApp no está conectado' },
   no_stories: { severity: 'info', summary: 'No hay historias para publicar' },
   busy: { severity: 'info', summary: 'Publicación en curso, intenta de nuevo' },
@@ -42,7 +45,9 @@ export class Recursos implements OnInit {
   /** Category currently uploading (for the button spinner). */
   protected readonly uploading = signal<AssetCategory | null>(null);
 
-  protected readonly catalog = computed(() => this.assets().filter((a) => a.category === 'catalog'));
+  protected readonly catalog = computed(() =>
+    this.assets().filter((a) => a.category === 'catalog'),
+  );
   protected readonly promos = computed(() => this.assets().filter((a) => a.category === 'promo'));
   protected readonly stories = computed(() => this.assets().filter((a) => a.category === 'story'));
 
@@ -66,14 +71,16 @@ export class Recursos implements OnInit {
     });
     this.settings.getContacts().subscribe({
       next: (contacts) => this.reachableContacts.set(contacts.filter((c) => !!c.phone).length),
-      error: () => this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los contactos' }),
+      error: () =>
+        this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los contactos' }),
     });
   }
 
   private load(): void {
     this.api.list().subscribe({
       next: (a) => this.assets.set(a),
-      error: () => this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los archivos' }),
+      error: () =>
+        this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los archivos' }),
     });
   }
 
@@ -91,7 +98,9 @@ export class Recursos implements OnInit {
         this.messages.add({
           severity: 'success',
           summary: 'Programación guardada',
-          detail: s.enabled ? `Se publicará cada día a las ${s.time}.` : 'Publicación automática desactivada.',
+          detail: s.enabled
+            ? `Se publicará cada día a las ${s.time}.`
+            : 'Publicación automática desactivada.',
         });
       },
       error: () => {
