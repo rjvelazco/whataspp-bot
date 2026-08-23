@@ -454,6 +454,16 @@ app-card .p-datatable-tbody > tr > td:last-child {
   padding-right: var(--card-inset);
 }
 
+/* A sortable header moves its padding onto the inner button, so that it is the button
+   and not the cell that is clickable. The inset therefore has to follow it in, or the
+   first sortable column would break the alignment the rule above establishes. */
+app-card th[appsortable] {
+  --cell-inset: 16px;
+}
+app-card th[appsortable]:first-child {
+  --cell-inset: var(--card-inset);
+}
+
 /* Column headers as quiet labels rather than competing with the data. */
 .p-datatable-thead > tr > th {
   font-size: var(--text-2xs);
@@ -462,6 +472,15 @@ app-card .p-datatable-tbody > tr > td:last-child {
   text-transform: uppercase;
   color: var(--color-ink-2);
   white-space: nowrap;
+}
+
+/* A row that opens something. Cursor and hover are the affordance on a pointer; the
+   row is focusable, so :focus-visible gives it a ring on a keyboard. */
+.is-clickable {
+  cursor: pointer;
+}
+.is-clickable:hover {
+  background: var(--color-wash);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

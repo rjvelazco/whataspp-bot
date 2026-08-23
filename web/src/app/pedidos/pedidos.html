@@ -141,12 +141,13 @@
             class="flex-1"
             severity="secondary"
             [outlined]="true"
-            label="Mensaje"
-            icon="pi pi-whatsapp"
             [href]="waLink(order.customer_wa)"
             target="_blank"
             rel="noopener"
-          ></a>
+          >
+            <i class="pi pi-whatsapp" aria-hidden="true"></i>
+            <span>Mensaje</span>
+          </a>
           @switch (order.status) {
             @case ('confirmed') {
               <p-button

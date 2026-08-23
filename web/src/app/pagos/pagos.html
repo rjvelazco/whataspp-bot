@@ -52,11 +52,36 @@
   >
     <ng-template pTemplate="header">
       <tr>
-        <th scope="col">Recibo</th>
-        <th scope="col">Fecha</th>
-        <th scope="col">Cliente</th>
-        <th scope="col" class="num">Total</th>
-        <th scope="col">Pago</th>
+        <th scope="col" appSortable key="id" [sort]="sort()" (sortChange)="sort.set($event)">
+          Recibo
+        </th>
+        <th
+          scope="col"
+          appSortable
+          key="date"
+          numeric
+          [sort]="sort()"
+          (sortChange)="sort.set($event)"
+        >
+          Fecha
+        </th>
+        <th scope="col" appSortable key="name" [sort]="sort()" (sortChange)="sort.set($event)">
+          Cliente
+        </th>
+        <th
+          scope="col"
+          class="num"
+          appSortable
+          key="total"
+          numeric
+          [sort]="sort()"
+          (sortChange)="sort.set($event)"
+        >
+          Total
+        </th>
+        <th scope="col" appSortable key="pay" [sort]="sort()" (sortChange)="sort.set($event)">
+          Pago
+        </th>
         <!-- Only earn their space once the table restacks into cards. -->
         <th scope="col" class="on-mobile">Artículos</th>
         <th scope="col" class="on-mobile">Entrega</th>
@@ -64,7 +89,17 @@
       </tr>
     </ng-template>
     <ng-template pTemplate="body" let-order>
-      <tr>
+      <!-- The whole row opens the receipt. It is a real button for keyboard and
+           assistive tech; the action buttons inside stop the click from bubbling. -->
+      <tr
+        class="is-clickable"
+        tabindex="0"
+        role="button"
+        [attr.aria-label]="'Ver comprobante del pedido ' + order.order_id"
+        (click)="open(order, $event)"
+        (keydown.enter)="open(order)"
+        (keydown.space)="open(order); $event.preventDefault()"
+      >
         <td data-label="Recibo">
           <span class="font-data text-sm">#{{ order.order_id }}</span>
         </td>
@@ -90,7 +125,7 @@
           <app-status-tag [status]="order.status" />
         </td>
         <td data-label="" class="num">
-          <div class="flex gap-2 flex-wrap justify-end">
+          <div class="row-actions flex gap-2 flex-wrap justify-end">
             @switch (order.status) {
               @case ('payment_submitted') {
                 <p-button
@@ -152,3 +187,5 @@
     </ng-template>
   </p-table>
 </app-card>
+
+<app-receipt-dialog [order]="selected()" (closed)="selected.set(null)" />

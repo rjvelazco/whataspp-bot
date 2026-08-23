@@ -92,6 +92,39 @@ export default tseslint.config(
     },
   },
   {
+    files: ['**/*.html'],
+    extends: [...angular.configs.templateRecommended],
+    rules: {
+      // Accessibility floor from ../CLAUDE.md. A named list rather than
+      // templateAccessibility, so adding a rule here is a deliberate decision.
+      '@angular-eslint/template/interactive-supports-focus': 'error',
+      '@angular-eslint/template/click-events-have-key-events': 'error',
+      '@angular-eslint/template/alt-text': 'error',
+      '@angular-eslint/template/valid-aria': 'error',
+      '@angular-eslint/template/role-has-required-aria': 'error',
+
+      // A <label> wrapping its control is valid implicit labelling, but the rule only
+      // recognises native form elements. Teach it the PrimeNG controls this app uses.
+      '@angular-eslint/template/label-has-associated-control': [
+        'error',
+        {
+          controlComponents: [
+            'p-select',
+            'p-inputnumber',
+            'p-toggleswitch',
+            'p-datepicker',
+            'p-selectbutton',
+            'p-textarea',
+            'p-checkbox',
+            'p-fileupload',
+          ],
+        },
+      ],
+
+      '@angular-eslint/template/elements-content': 'error',
+    },
+  },
+  {
     // pedidos.html has the app's one empty <a pButton></a>: PrimeNG renders its content
     // from the `label` input at runtime, which elements-content cannot see. Scoped off
     // here rather than disabled globally — it is one template, not a widespread idiom.
