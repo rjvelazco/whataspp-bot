@@ -1,5 +1,5 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, type OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
@@ -10,6 +10,9 @@ import { customerNumber, isVerified, itemsSummary, paymentRank } from '../order-
 import { StatusTag } from '../status-tag/status-tag';
 import { PayBadge } from '../pay-badge/pay-badge';
 import { ReceiptDialog } from './receipt-dialog';
+import { buildSheet, columnWidths, exportFilename } from './pagos-export';
+import { StoreService } from '../store.service';
+import { MessageService } from 'primeng/api';
 import {
   PageHead,
   StatCard,
@@ -46,10 +49,14 @@ type PagosSortKey = 'id' | 'date' | 'name' | 'total' | 'pay';
   templateUrl: './pagos.html',
   styleUrl: './pagos.css',
 })
-export class Pagos {
+export class Pagos implements OnInit {
   /** Rows per page in the table. */
   protected readonly PAGE_SIZE = 10;
   protected readonly store = inject(OrdersStore);
+  private readonly storeApi = inject(StoreService);
+  private readonly messages = inject(MessageService);
+  private readonly storeName = signal('tienda');
+  protected readonly exporting = signal(false);
 
   protected readonly filter = signal<PagosFilter>('all');
   /**
@@ -110,6 +117,45 @@ export class Pagos {
    * interaction handler on a non-focusable element, which is exactly what the
    * accessibility rules flag.
    */
+  ngOnInit(): void {
+    // Only for the export filename; the view itself needs nothing from the store.
+    this.storeApi.get().subscribe({
+      next: (s) => this.storeName.set(s.store_name),
+      error: () => {},
+    });
+  }
+
+  /**
+   * Export what is on screen — the current filter and sort, not the whole table. If
+   * someone has filtered to "Por verificar" and sorted by amount, that is the list they
+   * are asking for.
+   *
+   * The spreadsheet writer is imported here rather than at the top of the file so it
+   * stays out of the initial bundle: it is needed only when this button is pressed.
+   */
+  protected async exportToExcel(): Promise<void> {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    try {
+      // The /browser subpath: the package exposes no bare entry, and this is the build
+      // that triggers a download rather than writing to a filesystem path.
+      const { default: writeXlsxFile } = await import('write-excel-file/browser');
+      // The browser build returns { toBlob, toFile }; toFile triggers the download.
+      await writeXlsxFile(buildSheet(this.filteredRows()), {
+        columns: columnWidths,
+        sheet: 'Pagos',
+      }).toFile(exportFilename(this.storeName(), new Date()));
+    } catch {
+      this.messages.add({
+        severity: 'error',
+        summary: 'No se pudo generar el archivo',
+        detail: 'Vuelve a intentarlo.',
+      });
+    } finally {
+      this.exporting.set(false);
+    }
+  }
+
   protected open(order: Order, event?: Event): void {
     if (event && (event.target as HTMLElement | null)?.closest('.row-actions')) return;
     this.selected.set(order);

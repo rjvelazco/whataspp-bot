@@ -4,6 +4,15 @@
   lede="Revisa los comprobantes que envían tus clientes y confirma cada cobro."
 >
   <p-button
+    label="Exportar a Excel"
+    icon="pi pi-download"
+    severity="secondary"
+    [outlined]="true"
+    [loading]="exporting()"
+    [disabled]="!filteredRows().length"
+    (onClick)="exportToExcel()"
+  />
+  <p-button
     label="Actualizar"
     icon="pi pi-refresh"
     [outlined]="true"
