@@ -7,9 +7,10 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "lint": "eslint . --max-warnings 4 && stylelint \"src/**/*.css\" --max-warnings 0 && npm run lint:spacing && prettier --check \"src/**/*.{ts,html,css}\" \"scripts/*.mjs\" \"*.mjs\" \"spacing-baseline.json\"",
+    "lint": "eslint . --max-warnings 4 && stylelint \"src/**/*.css\" --max-warnings 0 && npm run lint:spacing && npm run test:spacing && prettier --check \"src/**/*.{ts,html,css}\" \"scripts/*.mjs\" \"*.mjs\" \"spacing-baseline.json\"",
     "format": "prettier --write \"src/**/*.{ts,html,css}\" \"scripts/*.mjs\" \"*.mjs\" \"spacing-baseline.json\"",
-    "lint:spacing": "node scripts/check-spacing-utilities.mjs"
+    "lint:spacing": "node scripts/check-spacing-utilities.mjs",
+    "test:spacing": "node --test scripts/*.test.mjs"
   },
   "prettier": {
     "printWidth": 100,

@@ -54,9 +54,10 @@ export const AppPreset = definePreset(Aura, {
           color: '{primary.700}',
           focusColor: '{primary.700}',
         },
-        // Neutrals from the design tokens: paper, wash, line, line-soft and the three
-        // ink weights. Slightly green-cast greys, so they sit with the emerald rather
-        // than fighting it.
+        // Neutrals. 0/50/100/200/400/500/700 are the design tokens (paper, wash,
+        // line-soft, line, and the three ink weights); 300/600/800/900/950 are
+        // interpolated around them. Slightly green-cast greys, so they sit with the
+        // emerald rather than fighting it.
         surface: {
           0: '#ffffff',
           50: '#eef2ee',
@@ -71,7 +72,9 @@ export const AppPreset = definePreset(Aura, {
           700: '#101a21',
           800: '#0d151b',
           900: '#0a1116',
-          950: '#101a21',
+          // Continues the ramp. It previously repeated 700, which made it *lighter*
+          // than 900 — so bg-surface-950 rendered lighter than bg-surface-900.
+          950: '#060a0d',
         },
       },
     },

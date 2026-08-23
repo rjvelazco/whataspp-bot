@@ -5,6 +5,91 @@
 @import 'tailwindcss';
 @plugin 'tailwindcss-primeui';
 
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-var-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-var-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/dm-mono-400-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/dm-mono-400-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/dm-mono-500-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/dm-mono-500-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/instrument-sans-var-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/instrument-sans-var-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    TOKENS. This block and src/app/theme/app-preset.ts are the only two places a
    colour, font or radius may be defined. See ../../CLAUDE.md rule 4.
@@ -15,6 +100,10 @@
      rose             — cancelled, destructive, error
    ───────────────────────────────────────────────────────────────────────────── */
 @theme {
+  /* Drop Tailwind's stock palette so bg-rose-600 and text-amber-500 cannot be written
+     by accident — they are off-brand and confusingly adjacent to our own rose/amber. */
+  --color-*: initial;
+
   /* Ink, lines and surfaces. */
   --color-ink: #101a21;
   --color-ink-2: #41585f;
@@ -33,10 +122,11 @@
   --color-rose: #9e241b;
   --color-rose-soft: #fadfdc;
 
-  /* success/warn/danger are kept as aliases of the three roles: ~120 templates
-     already say text-success / bg-warn-subtle, and pointing the aliases at the new
-     palette re-tints all of them here rather than in one unreviewable sweep. Prefer
-     the role names in new code. */
+  /* success/warn/danger stay as aliases of the three roles: 17 template usages
+     already say text-success or bg-success-subtle, and pointing the aliases at the
+     new palette re-tints them without touching those files. Tailwind follows a var()
+     chain when tree-shaking, so the targets survive even once the shell CSS that
+     also references them is gone. Prefer the role names in new code. */
   --color-success: var(--color-signal-ink);
   --color-success-subtle: var(--color-signal-soft);
   --color-warn: var(--color-amber);
@@ -50,21 +140,42 @@
   --font-body: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
   --font-data: 'DM Mono', ui-monospace, SFMono-Regular, monospace;
 
-  /* Three radii, mapped onto the utility names the templates already use:
-     rounded-md = controls, rounded-lg = tiles, rounded-xl = cards. */
+  /* Alias Tailwind's own namespaces, for the same reason the colours are aliased:
+     8 templates say font-mono, and without this they render Menlo next to .pill's
+     DM Mono — two mono faces on one screen. */
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-data);
+
+  /* Type scale. Tailwind's ramp has no 11px or 13px, which was already leaking as
+     text-[15px]; and its --text-base was 16px while body text is 15px, so text-base
+     rendered LARGER than default text. These three close both gaps. */
+  --text-2xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+
+  /* The prototype's three radii. Bare `rounded` and `rounded-2xl` are covered too,
+     because between them they are 29 of the 47 radius usages in the templates. */
+  --radius: 8px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+  --radius-2xl: 16px;
 
   --shadow-card: 0 1px 2px rgb(16 26 33 / 0.05), 0 8px 24px -16px rgb(16 26 33 / 0.28);
 }
 
-/* The focus ring, as one definition rather than per-component. */
+/* The focus ring, as one definition rather than per-component.
+   `outline` rather than `box-shadow`, for three reasons: a box-shadow is beaten by any
+   component that sets its own (app-card does, so a focusable card lost its ring
+   entirely); outlines are the only ring rendered in Windows forced-colors mode; and an
+   outline follows the element's own border box, so the rule does not have to impose a
+   border-radius and deform round controls. Solid signal, not 22% of it — the old
+   translucent shadow composited to about 1.4:1 on paper, below the 3:1 that
+   WCAG 1.4.11 requires of a focus indicator. */
 @layer base {
   :focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px rgb(10 108 72 / 0.22);
-    border-radius: var(--radius-md);
+    outline: 2px solid var(--color-signal);
+    outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {
     *,
@@ -93,9 +204,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Money and counts line up column to column. See ../../CLAUDE.md rule 7. */
-.tabular {
-  font-variant-numeric: tabular-nums;
+/* Visually hidden, but present for assistive technology. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -107,9 +223,11 @@ body {
      960px — the rail becomes a sticky horizontal top bar
      720px — tighter gutters and a smaller page title
 
-   Note on scrolling: at desktop widths .content is the scroll container, and
-   tienda.ts walks up the DOM to find it for its scroll-spy. Below 960px the page
-   scrolls instead; that component falls back to the viewport, so both work.
+   Note on scrolling: the document is the scroller at every width. .content used to
+   declare `overflow: auto` and never actually scrolled (its height is content-driven),
+   which made tienda.ts's scrollRoot() hand its IntersectionObserver a root that never
+   moves — so the scroll-spy silently did nothing above 960px. Dropping the declaration
+   lets scrollRoot() return null and observe the viewport, which works at every width.
    ───────────────────────────────────────────────────────────────────────────── */
 :root {
   --rail: 256px; /* 32 x 8 */
@@ -165,7 +283,10 @@ body {
 .brand-sub {
   font-family: var(--font-data);
   font-size: 11px;
-  color: var(--color-ink-3);
+  /* ink-2, not ink-3: at 11px, AA needs 4.5:1 and ink-3 gives 3.29:1 on paper.
+     ink-3 is reserved for large text and non-text. Same rule in the column headers
+     below, in app-page-head's eyebrow and in app-stat-card's label. */
+  color: var(--color-ink-2);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -212,12 +333,15 @@ body {
   font-family: var(--font-data);
   font-variant-numeric: tabular-nums;
   font-size: 11px;
+  /* DM Mono has no 600, and .nav-item.active sets one — without this the active
+     count renders synthetically emboldened. */
+  font-weight: 500;
 }
 .pill.warn {
   color: var(--color-amber);
 }
 .pill.info {
-  color: var(--color-ink-3);
+  color: var(--color-ink-2);
 }
 
 .rail-foot {
@@ -254,15 +378,15 @@ body {
 /* Only the live state pulses; a dead connection should not look busy. */
 .conn.ok .dot {
   background: var(--color-signal);
-  box-shadow: 0 0 0 0 rgb(10 108 72 / 0.5);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-signal) 50%, transparent);
   animation: conn-pulse 2.4s infinite;
 }
 @keyframes conn-pulse {
   70% {
-    box-shadow: 0 0 0 6px rgb(10 108 72 / 0);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-signal) 0%, transparent);
   }
   100% {
-    box-shadow: 0 0 0 0 rgb(10 108 72 / 0);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-signal) 0%, transparent);
   }
 }
 
@@ -299,8 +423,14 @@ body {
 .content {
   flex: 1;
   min-width: 0;
-  overflow: auto;
   padding: 32px var(--gutter) 64px;
+}
+
+/* The prototype centres the page and caps its measure; without this the views run
+   edge to edge on a wide monitor. */
+.content-inner {
+  max-width: 1200px;
+  margin-inline: auto;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -309,23 +439,28 @@ body {
    expressed for tables. It reads --card-inset from <app-card>, which is also what
    <app-toolbar> pads by — so the toolbar's first control and the table's first
    column share one edge, defined once. See ../../CLAUDE.md rule 2.
+
+   Scoped to app-card deliberately, with no fallback value. Unscoped, it also hit the
+   one table not yet inside a card (Productos), where --card-inset is undefined: the
+   first column took the fallback while every other cell kept PrimeNG's 8px, so the
+   rule *created* a misalignment in the only view it could not align.
    ───────────────────────────────────────────────────────────────────────────── */
-.p-datatable-thead > tr > th:first-child,
-.p-datatable-tbody > tr > td:first-child {
-  padding-left: var(--card-inset, 16px);
+app-card .p-datatable-thead > tr > th:first-child,
+app-card .p-datatable-tbody > tr > td:first-child {
+  padding-left: var(--card-inset);
 }
-.p-datatable-thead > tr > th:last-child,
-.p-datatable-tbody > tr > td:last-child {
-  padding-right: var(--card-inset, 16px);
+app-card .p-datatable-thead > tr > th:last-child,
+app-card .p-datatable-tbody > tr > td:last-child {
+  padding-right: var(--card-inset);
 }
 
 /* Column headers as quiet labels rather than competing with the data. */
 .p-datatable-thead > tr > th {
-  font-size: 11px;
+  font-size: var(--text-2xs);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--color-ink-3);
+  color: var(--color-ink-2);
   white-space: nowrap;
 }
 
@@ -333,6 +468,9 @@ body {
 @media (max-width: 960px) {
   :root {
     --gutter: 24px;
+    /* The document is the scroller here and the bar is sticky, so without this a
+       control focused by keyboard can be scrolled to sit behind the bar. */
+    scroll-padding-top: 64px;
   }
   .admin {
     flex-direction: column;
@@ -358,22 +496,27 @@ body {
     flex: 1;
     gap: 0;
     overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .nav::-webkit-scrollbar {
-    display: none;
+    /* Slack so a 2px ring with a 2px offset is not clipped by the scrollport, whose
+       height would otherwise equal the item height exactly. */
+    padding-block: 8px;
+    margin-block: -8px;
   }
   .nav-item {
     width: auto;
     padding: 0 16px;
     gap: 8px;
   }
-  /* Icon-only, except the current page, which keeps its label for orientation. */
-  .nav-item .nav-label {
-    display: none;
-  }
-  .nav-item.active .nav-label {
-    display: inline;
+  /* Icon-only, except the current page, which keeps its label for orientation.
+     Clipped rather than display:none — display:none removes the text from the
+     accessibility tree, which left four of the six links with no accessible name
+     at all. Sighted users see an icon; a screen reader still hears the page. */
+  .nav-item:not(.active) .nav-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .pill {
     margin-left: 0;
@@ -384,19 +527,24 @@ body {
     align-items: center;
     gap: 8px;
   }
-  /* Icon-only rather than hidden: disconnecting must stay reachable on a phone. */
+  /* Icon-only rather than hidden: disconnecting must stay reachable on a phone.
+     Both labels are clipped rather than display:none, so the connection state and the
+     button's purpose stay in the accessibility tree. */
   .conn {
     padding: 0 8px;
   }
-  .conn .conn-label {
-    display: none;
+  .conn .conn-label,
+  .disconnect-btn .disconnect-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .disconnect-btn {
     width: 40px;
     padding: 0;
-  }
-  .disconnect-btn .disconnect-label {
-    display: none;
   }
   .content {
     overflow: visible;

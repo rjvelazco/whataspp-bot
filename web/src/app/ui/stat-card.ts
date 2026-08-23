@@ -10,7 +10,13 @@ export type StatTone = 'neutral' | 'signal' | 'amber' | 'rose';
  */
 @Component({
   selector: 'app-stat-card',
-  host: { '[class]': "'tile tone-' + tone()" },
+  // One boolean per tone rather than rewriting the whole class attribute: narrower,
+  // and it cannot interfere with classes a caller puts on the element.
+  host: {
+    '[class.tone-signal]': "tone() === 'signal'",
+    '[class.tone-amber]': "tone() === 'amber'",
+    '[class.tone-rose]': "tone() === 'rose'",
+  },
   template: `
     <span class="label">{{ label() }}</span>
     <span class="value">{{ value() }}</span>
@@ -48,7 +54,8 @@ export type StatTone = 'neutral' | 'signal' | 'amber' | 'rose';
     }
     .label {
       font-size: 12px;
-      color: var(--color-ink-3);
+      /* ink-2, not ink-3: 12px needs AA's 4.5:1 and ink-3 gives 3.29:1 on paper. */
+      color: var(--color-ink-2);
     }
     .value {
       font-family: var(--font-display);
@@ -68,6 +75,9 @@ export type StatTone = 'neutral' | 'signal' | 'amber' | 'rose';
     .note {
       font-size: 12px;
       color: var(--color-ink-2);
+    }
+    :host(.tone-neutral)::before {
+      background: var(--color-line);
     }
   `,
 })

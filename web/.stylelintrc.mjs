@@ -9,8 +9,9 @@
 
 /** Every multiple of 8 up to 256px. Generated, so there are no arbitrary gaps. */
 const STEPS = Array.from({ length: 32 }, (_, i) => (i + 1) * 8);
-/** A literal length: zero, a multiple of 8, or a keyword. */
-const BARE = String.raw`(?:0|0px|(?:${STEPS.join('|')})px|auto|inherit)`;
+/** A literal length: zero, a (possibly negative) multiple of 8, or a keyword.
+    Negative values are on the grid too — a -8px bleed is how you cancel padding. */
+const BARE = String.raw`(?:0|-?0px|-?(?:${STEPS.join('|')})px|auto|inherit)`;
 /** A token, optionally with a fallback — which is itself checked, so
     `var(--card-inset, 16px)` passes and `var(--card-inset, 12px)` does not. */
 const TOKEN = String.raw`var\(--[a-z0-9-]+(?:,\s*${BARE})?\)`;
@@ -60,6 +61,15 @@ export default {
     ],
 
     'declaration-property-value-allowed-list': [SPACING_PROPERTIES, { message: SPACING_MESSAGE }],
+
+    // @apply is a hole in both fences: this file only checks declarations, and the
+    // template checker only walks .html/.ts — so `@apply p-3 gap-3` in a stylesheet is
+    // invisible to each. It is unused today and the views are pure utilities, so ban it
+    // rather than teach two tools to parse it.
+    'at-rule-disallowed-list': [
+      ['apply'],
+      { message: 'No @apply — put utilities in the template, where the grid check can see them.' },
+    ],
   },
 
   overrides: [

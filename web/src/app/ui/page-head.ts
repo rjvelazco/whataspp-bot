@@ -46,7 +46,8 @@ import { Component, input } from '@angular/core';
       font-size: 11px;
       letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: var(--color-ink-3);
+      /* ink-2, not ink-3: 11px needs AA's 4.5:1 and ink-3 gives 3.29:1 on paper. */
+      color: var(--color-ink-2);
       margin: 0 0 8px;
     }
     h1 {
