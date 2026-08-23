@@ -464,6 +464,73 @@ app-card .p-datatable-tbody > tr > td:last-child {
   white-space: nowrap;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   RESTACKING TABLES. Opt in with `table-restack` in a p-table's styleClass.
+   Below 720px the rows become labelled cards, taking each label from the cell's
+   data-label attribute, so a phone gets a readable stack instead of a table
+   scrolled sideways. Columns marked `on-mobile` are the ones that only earn
+   their space once there is a card to put them in.
+   ───────────────────────────────────────────────────────────────────────────── */
+.table-restack .num,
+.table-restack th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.table-restack .on-mobile {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .table-restack table,
+  .table-restack tbody,
+  .table-restack tr,
+  .table-restack td {
+    display: block;
+    width: 100%;
+  }
+  .table-restack thead {
+    display: none;
+  }
+  /* The row is the card. Spacing between its lines comes from the row's own gap
+     rather than per-cell padding, which keeps every value on the 8-point grid — the
+     prototype used 4px here. */
+  .table-restack tbody > tr {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px var(--card-inset);
+    border-bottom: 1px solid var(--color-line-soft);
+  }
+  .table-restack tbody > tr > td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border: 0;
+    padding: 0;
+  }
+  /* The column header, reattached to each cell. */
+  .table-restack tbody > tr > td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: var(--text-2xs);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-2);
+  }
+  .table-restack td.on-mobile {
+    display: flex;
+  }
+  /* A multi-line value reads as one block against its label, rather than having its
+     lines spread across the row by the flex layout. */
+  .table-restack .cell-stack {
+    text-align: right;
+  }
+  .table-restack .num {
+    text-align: right;
+  }
+}
+
 /* ── 960px: the rail becomes a top bar ───────────────────────────────────── */
 @media (max-width: 960px) {
   :root {

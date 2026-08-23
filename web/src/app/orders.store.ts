@@ -2,7 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { OrdersService, type Order } from './orders.service';
-import { isVerified } from './order-display';
+import { isVerified, paymentState } from './order-display';
 
 /**
  * Shared, app-wide order state + actions. Used by the shell (for nav badges)
@@ -24,6 +24,15 @@ export class OrdersStore {
     () => this.rows().filter((o) => o.status === 'payment_submitted').length,
   );
   readonly verifiedCount = computed(() => this.rows().filter(isVerified).length);
+  /**
+   * The third payment state. With this, the Pagos cards finally add up:
+   * total = verificado + por_verificar + sin_comprobante. Before, `total` counted
+   * cancelled orders while the other two cards excluded them, and pending_payment
+   * orders were counted by none of them — so no combination of the three matched.
+   */
+  readonly noReceiptCount = computed(
+    () => this.rows().filter((o) => paymentState(o) === 'sin_comprobante').length,
+  );
   readonly toShip = computed(() => this.rows().filter((o) => o.status === 'confirmed').length);
   readonly inTransit = computed(() => this.rows().filter((o) => o.status === 'shipped').length);
   readonly deliveredCount = computed(

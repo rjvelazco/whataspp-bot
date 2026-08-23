@@ -3,12 +3,11 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
-import { ImageModule } from 'primeng/image';
-import { AvatarModule } from 'primeng/avatar';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { OrdersStore } from '../orders.store';
 import { customerNumber, isVerified, itemsSummary } from '../order-display';
 import { StatusTag } from '../status-tag/status-tag';
+import { PayBadge } from '../pay-badge/pay-badge';
 import { PageHead, StatCard, StatRow, Card, Toolbar } from '../ui';
 
 type PagosFilter = 'all' | 'pending' | 'verified';
@@ -21,10 +20,9 @@ type PagosFilter = 'all' | 'pending' | 'verified';
     FormsModule,
     TableModule,
     ButtonModule,
-    ImageModule,
-    AvatarModule,
     SelectButtonModule,
     StatusTag,
+    PayBadge,
     PageHead,
     StatCard,
     StatRow,
@@ -40,6 +38,13 @@ export class Pagos {
   protected readonly store = inject(OrdersStore);
 
   protected readonly filter = signal<PagosFilter>('all');
+  /**
+   * Paginator page, held here rather than inside p-table. The order list is refetched
+   * every ten seconds and rows.set() replaces the array, which resets the table's own
+   * internal page — so without this the view jumps back to page 1 while you are reading
+   * page 3.
+   */
+  protected readonly first = signal(0);
   protected readonly filterOptions: { label: string; value: PagosFilter }[] = [
     { label: 'Todos', value: 'all' },
     { label: 'Por verificar', value: 'pending' },

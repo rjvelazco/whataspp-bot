@@ -19,6 +19,18 @@ import { Component } from '@angular/core';
       padding: 16px var(--card-inset, 24px);
       border-bottom: 1px solid var(--color-line-soft);
     }
+    /* On a phone a segmented filter would wrap its labels onto two lines and lose the
+       pill shape. Scroll the strip instead, and let each control keep its own width. */
+    @media (max-width: 720px) {
+      :host {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: thin;
+      }
+      :host ::ng-deep .p-togglebutton-label {
+        white-space: nowrap;
+      }
+    }
   `,
 })
 export class Toolbar {}

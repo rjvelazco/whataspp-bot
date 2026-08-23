@@ -131,9 +131,7 @@
             } @else {
               <span class="text-muted-color text-xs">Sin comprobante</span>
             }
-            <span class="inline-flex items-center gap-1 text-xs font-medium text-success">
-              <i class="pi pi-check-circle"></i> Verificado
-            </span>
+            <app-pay-badge [order]="order" />
           </div>
         </div>
 

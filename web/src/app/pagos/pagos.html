@@ -14,17 +14,17 @@
 </app-page-head>
 
 <app-stat-row>
-  <app-stat-card label="Pedidos" [value]="store.total()" note="Total recibidos" />
   <app-stat-card
     label="Por verificar"
     [value]="store.pendingVerify()"
-    note="Requieren tu revisión"
+    note="Enviaron comprobante"
     [tone]="store.pendingVerify() > 0 ? 'amber' : 'neutral'"
   />
+  <app-stat-card label="Sin comprobante" [value]="store.noReceiptCount()" note="Todavía no pagan" />
   <app-stat-card
-    label="Confirmados"
+    label="Verificados"
     [value]="store.verifiedCount()"
-    note="Pago verificado"
+    note="Cobro confirmado"
     tone="signal"
   />
 </app-stat-row>
@@ -43,56 +43,54 @@
 
   <p-table
     [value]="filteredRows()"
-    [paginator]="filteredRows().length > 10"
+    [paginator]="filteredRows().length > PAGE_SIZE"
     [rows]="PAGE_SIZE"
+    [first]="first()"
+    (onPage)="first.set($event.first ?? 0)"
     dataKey="order_id"
-    styleClass="p-datatable-sm"
+    styleClass="p-datatable-sm table-restack"
   >
     <ng-template pTemplate="header">
       <tr>
-        <th>Pedido</th>
-        <th>Fecha</th>
-        <th>Cliente</th>
-        <th>Artículos</th>
-        <th>Total</th>
-        <th>Estado</th>
-        <th>Comprobante</th>
-        <th>Acción</th>
+        <th scope="col">Recibo</th>
+        <th scope="col">Fecha</th>
+        <th scope="col">Cliente</th>
+        <th scope="col" class="num">Total</th>
+        <th scope="col">Pago</th>
+        <!-- Only earn their space once the table restacks into cards. -->
+        <th scope="col" class="on-mobile">Artículos</th>
+        <th scope="col" class="on-mobile">Entrega</th>
+        <th scope="col"><span class="sr-only">Acciones</span></th>
       </tr>
     </ng-template>
     <ng-template pTemplate="body" let-order>
       <tr>
-        <td>#{{ order.order_id }}</td>
-        <td>{{ order.created_at | date: 'short' }}</td>
-        <td>
-          <div class="flex items-center gap-2.5">
-            <p-avatar [label]="order.customer_name.slice(0, 2)" shape="circle" />
-            <span>
-              <span class="block font-medium">{{ order.customer_name }}</span>
-              <span class="block text-xs text-muted-color">
-                {{ customerNumber(order.customer_wa) }}
-              </span>
+        <td data-label="Recibo">
+          <span class="font-data text-sm">#{{ order.order_id }}</span>
+        </td>
+        <td data-label="Fecha" class="text-sm text-color">
+          {{ order.created_at | date: 'd MMM y, h:mm a' : undefined : 'es' }}
+        </td>
+        <td data-label="Cliente">
+          <!-- One wrapper, so the restacked row has a single value to right-align
+               instead of spreading the name and the number apart. -->
+          <span class="cell-stack">
+            <span class="block font-medium leading-tight">{{
+              order.customer_name || 'Sin nombre'
+            }}</span>
+            <span class="block font-data text-2xs text-ink-2 leading-tight">
+              {{ customerNumber(order.customer_wa) }}
             </span>
-          </div>
+          </span>
         </td>
-        <td class="max-w-60 text-sm text-color">{{ items(order) }}</td>
-        <td>{{ order.subtotal | currency: 'USD' }}</td>
-        <td><app-status-tag [status]="order.status" /></td>
-        <td>
-          @if (store.hasReceipt(order)) {
-            <p-image
-              [src]="store.receiptUrl(order.order_id)"
-              [preview]="true"
-              width="44"
-              alt="Comprobante"
-              (onImageError)="store.markReceiptMissing(order.order_id)"
-            />
-          } @else {
-            <span class="text-muted-color">—</span>
-          }
+        <td data-label="Total" class="num">{{ order.subtotal | currency: 'USD' }}</td>
+        <td data-label="Pago"><app-pay-badge [order]="order" /></td>
+        <td data-label="Artículos" class="on-mobile text-sm text-color">{{ items(order) }}</td>
+        <td data-label="Entrega" class="on-mobile">
+          <app-status-tag [status]="order.status" />
         </td>
-        <td>
-          <div class="flex gap-2 flex-wrap">
+        <td data-label="" class="num">
+          <div class="flex gap-2 flex-wrap justify-end">
             @switch (order.status) {
               @case ('payment_submitted') {
                 <p-button
@@ -143,11 +141,11 @@
       <tr>
         <td colspan="8" class="p-8 text-center text-muted-color">
           @if (filter() === 'verified') {
-            Aún no hay pagos verificados.
+            Todavía no has verificado ningún pago.
           } @else if (filter() === 'pending') {
-            No hay pagos por verificar. ✅
+            Nada por verificar. Todo al día.
           } @else {
-            Aún no hay pedidos. Cuando un cliente compre, aparecerá aquí.
+            Aún no ha llegado ningún pedido.
           }
         </td>
       </tr>
