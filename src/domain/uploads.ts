@@ -64,11 +64,14 @@ export function receiptFilename(orderId: string, mimetype: string): string {
  */
 export function toStoredFilename(value: string | null | undefined): string | null {
   if (!value) return null;
-  const trimmed = value.trim();
+  // Normalise separators before splitting: POSIX basename does not treat a backslash as
+  // one, so a Windows-shaped value would survive untouched and be "migrated" on every
+  // boot, forever.
+  const trimmed = value.trim().replace(/\\/g, "/");
   if (!trimmed || trimmed.includes("\0")) return null;
   const name = basename(trimmed);
-  // basename("/") is "/" and basename("..") is ".."; neither is a file.
-  if (!name || name === "." || name === ".." || name === sep) return null;
+  // basename("/") is "" and basename("..") is ".."; neither is a file.
+  if (!name || name === "." || name === "..") return null;
   return name;
 }
 
@@ -78,10 +81,33 @@ export function isLegacyPath(value: string | null | undefined): boolean {
   return isAbsolute(value) || value.includes("/") || value.includes("\\");
 }
 
+/** Seeded products carry remote URLs, which are passed through rather than resolved. */
+export function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//.test(value);
+}
+
+/**
+ * What to hand to something that will fetch or read a product photo — the URL itself if
+ * it is remote, otherwise the file inside productsDir.
+ *
+ * Both the admin API and the bot's own image send need this. The bot previously received
+ * `photo_url` verbatim and passed it to the transport, which worked only while the value
+ * was an absolute path; now that it is a bare filename, it has to be rejoined here.
+ */
+export function productPhotoSource(photoUrl: string, productsDir: string): string | null {
+  if (!photoUrl) return null;
+  return isHttpUrl(photoUrl) ? photoUrl : containedPath(productsDir, photoUrl);
+}
+
 /**
  * Resolve a stored filename inside the directory that owns it, refusing anything that
  * escapes. Every filesystem use of a database-sourced name goes through here: a bad or
  * hostile row must never let us read or delete an arbitrary file.
+ *
+ * The basename reduction is what actually contains the value; the startsWith check below
+ * is belt-and-braces. Note resolve() is lexical, so a symlink planted *inside* the
+ * directory still resolves inside it — that needs write access to the uploads tree, so
+ * it is defence in depth rather than a live hole.
  */
 export function containedPath(root: string, filename: string | null | undefined): string | null {
   const name = toStoredFilename(filename);

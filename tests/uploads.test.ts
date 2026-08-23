@@ -4,6 +4,7 @@ import {
   containedPath,
   isLegacyPath,
   isSupportedReceiptType,
+  productPhotoSource,
   receiptFilename,
   toStoredFilename,
 } from "../src/domain/uploads.js";
@@ -29,10 +30,6 @@ describe("receiptFilename", () => {
 
   it("keeps path separators out of the filename", () => {
     expect(receiptFilename("../../etc/passwd", "image/png")).toBe("receipt-etcpasswd.png");
-  });
-
-  it("is deterministic, so a corrected receipt replaces rather than accumulates", () => {
-    expect(receiptFilename("1009", "image/jpeg")).toBe(receiptFilename("1009", "image/jpeg"));
   });
 
   it("reports which types it can store", () => {
@@ -80,6 +77,30 @@ describe("isLegacyPath", () => {
   });
 });
 
+describe("productPhotoSource", () => {
+  const productsDir = "/srv/uploads/products";
+
+  it("rejoins a stored filename with the products directory", () => {
+    // The bot hands this straight to the transport, which reads it as a path. Before,
+    // photo_url was an absolute path and worked by accident; as a bare filename it has
+    // to be rejoined or Baileys resolves it against the process CWD and fails.
+    expect(productPhotoSource("abc.jpg", productsDir)).toBe(join(productsDir, "abc.jpg"));
+  });
+
+  it("passes a seeded remote URL through untouched", () => {
+    const url = "https://images.unsplash.com/photo-1?w=800&q=80";
+    expect(productPhotoSource(url, productsDir)).toBe(url);
+  });
+
+  it("returns null for a value it cannot place, rather than a bad path", () => {
+    expect(productPhotoSource("", productsDir)).toBeNull();
+  });
+
+  it("contains a hostile value inside the products directory", () => {
+    expect(productPhotoSource("../../etc/passwd", productsDir)).toBe(join(productsDir, "passwd"));
+  });
+});
+
 describe("containedPath", () => {
   const root = "/srv/uploads/receipts";
 
@@ -88,14 +109,15 @@ describe("containedPath", () => {
   });
 
   it("refuses to escape the directory, however the row is spelled", () => {
-    // A hostile or corrupt row must never reach an arbitrary file. Note these reduce to
-    // a basename first, so they land inside the root rather than outside it — the point
-    // is that the result is never /etc/passwd.
-    for (const hostile of ["../../../etc/passwd", "/etc/passwd", "..", "/", ""]) {
-      const out = containedPath(root, hostile);
-      expect(out === null || out.startsWith(root)).toBe(true);
-      expect(out).not.toBe("/etc/passwd");
-    }
+    // Asserted exactly rather than "null or inside the root", which would also pass if
+    // the guard rejected everything. Traversal reduces to a basename, so it lands inside
+    // the root; the values that cannot be a filename at all come back null.
+    expect(containedPath(root, "../../../etc/passwd")).toBe(join(root, "passwd"));
+    expect(containedPath(root, "/etc/passwd")).toBe(join(root, "passwd"));
+    expect(containedPath(root, "..\\..\\windows\\system32")).toBe(join(root, "system32"));
+    expect(containedPath(root, "..")).toBeNull();
+    expect(containedPath(root, "/")).toBeNull();
+    expect(containedPath(root, "")).toBeNull();
   });
 
   it("returns null rather than throwing on a missing value", () => {

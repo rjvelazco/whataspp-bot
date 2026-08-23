@@ -13,10 +13,12 @@ import type { Order } from '../orders.service';
  * tone means nothing has arrived. Colour lives here as its single source — the same
  * split StatusTag uses for delivery status.
  */
-const TONE: Record<PaymentState, 'success' | 'warn' | 'secondary'> = {
+const TONE: Record<PaymentState, 'success' | 'warn' | 'secondary' | 'danger'> = {
   verificado: 'success',
   por_verificar: 'warn',
   sin_comprobante: 'secondary',
+  // Rose, matching the design system's meaning for cancelled.
+  cancelado: 'danger',
 };
 
 @Component({
@@ -26,7 +28,15 @@ const TONE: Record<PaymentState, 'success' | 'warn' | 'secondary'> = {
 })
 export class PayBadge {
   readonly order = input.required<Order>();
-  private readonly state = computed(() => paymentState(this.order()));
+  /**
+   * Whether a receipt can actually be shown. Defaults to the row's own field, but the
+   * caller can pass the store's view — which excludes files the server could not serve —
+   * so the badge cannot say "Por verificar" beside a body that says nothing arrived.
+   */
+  readonly hasReceipt = input<boolean | undefined>(undefined);
+  private readonly state = computed(() =>
+    paymentState(this.order(), this.hasReceipt() ?? !!this.order().receipt_url),
+  );
   protected readonly label = computed(() => paymentLabel(this.state()));
   protected readonly tone = computed(() => TONE[this.state()]);
 }

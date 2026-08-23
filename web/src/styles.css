@@ -458,7 +458,10 @@ app-card .p-datatable-tbody > tr > td:last-child {
    and not the cell that is clickable. The inset therefore has to follow it in, or the
    first sortable column would break the alignment the rule above establishes. */
 app-card th[appsortable] {
-  --cell-inset: 16px;
+  /* Match PrimeNG's own p-datatable-sm cell padding, or every middle header sits 8px
+     right of the column it labels — including the right-aligned Total, which would be
+     inset from its own numbers. */
+  --cell-inset: 8px;
 }
 app-card th[appsortable]:first-child {
   --cell-inset: var(--card-inset);
@@ -474,13 +477,28 @@ app-card th[appsortable]:first-child {
   white-space: nowrap;
 }
 
-/* A row that opens something. Cursor and hover are the affordance on a pointer; the
-   row is focusable, so :focus-visible gives it a ring on a keyboard. */
+/* A row that opens something. Cursor and hover are the pointer affordance; the keyboard
+   path is a real control inside the row, not the row itself. */
 .is-clickable {
   cursor: pointer;
 }
 .is-clickable:hover {
   background: var(--color-wash);
+}
+
+/* The receipt id, as the row's actual control. Looks like the text it replaced. */
+.receipt-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.receipt-link:hover {
+  color: var(--color-signal-ink);
+  text-decoration: underline;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -591,6 +609,9 @@ app-card th[appsortable]:first-child {
     width: auto;
     padding: 0 16px;
     gap: 8px;
+    /* The containing block for the clipped label below. Without it the label positions
+       against the initial containing block and widens the whole document. */
+    position: relative;
   }
   /* Icon-only, except the current page, which keeps its label for orientation.
      Clipped rather than display:none — display:none removes the text from the

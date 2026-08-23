@@ -6,6 +6,9 @@
   [dismissableMask]="true"
   [style]="{ width: '32rem' }"
   styleClass="receipt-dialog"
+  closeAriaLabel="Cerrar el comprobante"
+  (onShow)="focusPrimaryAction()"
+  (onHide)="restoreFocus()"
 >
   <ng-template pTemplate="header">
     <h2 class="m-0 text-lg font-semibold">Comprobante</h2>
@@ -20,7 +23,7 @@
             {{ o.created_at | date: 'd MMM y, h:mm a' : undefined : 'es' }}
           </div>
         </div>
-        <app-pay-badge [order]="o" />
+        <app-pay-badge [order]="o" [hasReceipt]="store.hasReceipt(o)" />
       </div>
 
       <hr class="rule" />
@@ -40,7 +43,7 @@
         </div>
         @if (hasShipmentState()) {
           <div>
-            <dt>Envío</dt>
+            <dt>Estado</dt>
             <dd>{{ statusLabel(o.status) }}</dd>
           </div>
         }
@@ -72,6 +75,12 @@
             imageClass="proof-img"
             (onImageError)="store.markReceiptMissing(o.order_id)"
           />
+        } @else if (o.receipt_url) {
+          <!-- A receipt was sent but its file could not be served. "No lo envió" would be
+               untrue here, and it used to sit under a "Por verificar" badge. -->
+          <p class="m-0 text-sm text-ink-2">
+            El comprobante no se pudo cargar. Pídele al cliente que lo envíe de nuevo.
+          </p>
         } @else {
           <p class="m-0 text-sm text-ink-2">El cliente todavía no envió un comprobante.</p>
         }
@@ -91,7 +100,6 @@
             icon="pi pi-check"
             styleClass="w-full"
             class="flex-1"
-            [loading]="store.isBusy(o.order_id)"
             (onClick)="verify(o)"
           />
         }

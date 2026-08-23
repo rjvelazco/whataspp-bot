@@ -9,53 +9,78 @@ import type { Order } from '../orders.service';
  * reference number, so Método and Referencia have nothing to put in them.
  *
  * The library is imported dynamically by the caller. It is only needed the moment someone
- * clicks Exportar, and eagerly importing it would put a spreadsheet writer into the
- * initial bundle that every page load pays for.
+ * clicks Exportar, and importing it eagerly would put a spreadsheet writer into the
+ * bundle that every page load pays for.
  */
 
-/** Column headings, widths and how each cell is read off an order. */
-const COLUMNS: {
+/** Excel's own date format, so day-before-month is fixed in the file. */
+const DATE_FORMAT = 'dd/mm/yyyy hh:mm';
+
+/** How each column is titled, sized, and read off an order. */
+interface Column {
   header: string;
   width: number;
-  value: (order: Order) => string | number;
-  align?: 'right';
-}[] = [
-  { header: 'Pedido', width: 10, value: (o) => `#${o.order_id}` },
-  { header: 'Fecha', width: 20, value: (o) => formatDate(o.created_at) },
-  { header: 'Cliente', width: 18, value: (o) => o.customer_name || 'Sin nombre' },
-  { header: 'Teléfono', width: 20, value: (o) => customerNumber(o.customer_wa) },
-  { header: 'Artículos', width: 42, value: (o) => itemsSummary(o) },
-  { header: 'Total (USD)', width: 12, value: (o) => o.subtotal, align: 'right' },
-  { header: 'Pago', width: 16, value: (o) => paymentLabel(paymentState(o)) },
-  { header: 'Entrega', width: 30, value: (o) => o.delivery_address || 'A coordinar' },
+  cell: (order: Order) => Row[number];
+  /** Headers over numbers sit right; Excel already right-aligns the numbers themselves. */
+  alignHeader?: 'right';
+}
+
+const COLUMNS: Column[] = [
+  { header: 'Pedido', width: 10, cell: (o) => text(`#${o.order_id}`) },
+  { header: 'Fecha', width: 20, cell: (o) => date(o.created_at) },
+  { header: 'Cliente', width: 18, cell: (o) => text(o.customer_name || 'Sin nombre') },
+  // A string, not a number: a numeric cell would eat the leading +.
+  { header: 'Teléfono', width: 20, cell: (o) => text(customerNumber(o.customer_wa)) },
+  { header: 'Artículos', width: 42, cell: (o) => text(itemsSummary(o)) },
+  {
+    header: 'Total (USD)',
+    width: 12,
+    alignHeader: 'right',
+    // Numeric, so it still sums and filters in a spreadsheet.
+    cell: (o) => ({ type: Number, value: o.subtotal ?? 0, format: '#,##0.00' }),
+  },
+  { header: 'Pago', width: 16, cell: (o) => text(paymentLabel(paymentState(o))) },
+  { header: 'Entrega', width: 30, cell: (o) => text(o.delivery_address || 'A coordinar') },
 ];
 
+const text = (value: string): Row[number] => ({ type: String, value });
+
 /**
- * `2026-07-10T17:06:46Z` -> `10/07/2026 13:06`, in the reader's own timezone.
+ * A real Excel date cell, not text.
  *
- * Written out rather than handed to Excel as a date, because a real date cell is
- * reinterpreted by the reader's locale — the same file then shows July 10th to one
- * person and October 7th to another.
+ * A date cell carries an explicit number format, so dd/mm ordering is fixed in the file
+ * rather than re-derived from whoever opens it — and unlike text it stays sortable and
+ * date-filterable, which is the whole reason someone opens this in Excel.
+ *
+ * The offset shift is required: write-excel-file converts a Date with a bare
+ * `getTime() / msPerDay`, with no timezone compensation, so passing the Date as-is would
+ * render every timestamp in UTC. Shifting by the local offset makes the serial number
+ * mean the same wall-clock reading the admin panel shows.
  */
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ` +
-    `${pad(d.getHours())}:${pad(d.getMinutes())}`
-  );
+function date(iso: string | null | undefined): Row[number] {
+  if (!iso) return text('');
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return text(String(iso));
+  const localised = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60_000);
+  return { type: Date, value: localised, format: DATE_FORMAT };
 }
+
+/** Longest filename the common filesystems accept is 255 bytes; leave room to spare. */
+const MAX_SLUG = 40;
 
 /** A filename that sorts chronologically and says which store it came from. */
 export function exportFilename(storeName: string, now: Date): string {
   const slug = storeName
     .toLowerCase()
     .normalize('NFD')
+    // Escaped rather than written literally: a bare combining-marks range is two
+    // invisible characters in the source, which an editor or a paste can silently mangle.
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
+    .slice(0, MAX_SLUG)
     .replace(/^-|-$/g, '');
   const pad = (n: number) => String(n).padStart(2, '0');
+  // Local date, matching the owner's calendar day and the dates inside the file.
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   return `pagos-${slug || 'tienda'}-${stamp}.xlsx`;
 }
@@ -65,20 +90,10 @@ export function buildSheet(orders: readonly Order[]): SheetData {
   const header: Row = COLUMNS.map((c) => ({
     value: c.header,
     fontWeight: 'bold',
-    ...(c.align ? { align: c.align } : {}),
+    ...(c.alignHeader ? { align: c.alignHeader } : {}),
   }));
-
-  const body: Row[] = orders.map((order) =>
-    COLUMNS.map((c) => {
-      const value = c.value(order);
-      const align = c.align ? { align: c.align } : {};
-      return typeof value === 'number'
-        ? { type: Number, value, format: '#,##0.00', ...align }
-        : { type: String, value, ...align };
-    }),
-  );
-
-  return [header, ...body];
+  return [header, ...orders.map((order) => COLUMNS.map((c) => c.cell(order)))];
 }
 
-export const columnWidths = COLUMNS.map((c) => ({ width: c.width }));
+/** The library's `columns` option: widths only. */
+export const sheetColumns = COLUMNS.map((c) => ({ width: c.width }));

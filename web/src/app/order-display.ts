@@ -14,20 +14,31 @@ export function isVerified(order: Order): boolean {
  * states, so the cards contradicted the table. Deriving the payment axis needs no schema
  * change and no migration.
  *
- * Cancelled needs no special case. A cancelled-but-paid order genuinely reads
- * "Verificado" here, because Pagos answers exactly one question: was I paid?
+ * `cancelado` is its own state rather than being folded into the others. Cancelling
+ * overwrites `status` while leaving `receipt_url` in place, so a cancelled order is not
+ * derivably paid *or* unpaid — and calling it "Por verificar" would put an amber badge
+ * and a card count on something the owner cannot act on, next to an empty action cell.
+ * It is excluded from all three cards, which is why the cards sum to the live rows rather
+ * than to every row.
+ *
+ * This function is the single source: the badge, the three cards, the filter chips and
+ * the sidebar's amber pill all derive from it. They used to disagree — the cards keyed on
+ * `status === 'payment_submitted'` while the badge keyed on "unverified with a receipt",
+ * which differ for exactly the cancelled case.
  */
-export type PaymentState = 'verificado' | 'por_verificar' | 'sin_comprobante';
+export type PaymentState = 'verificado' | 'por_verificar' | 'sin_comprobante' | 'cancelado';
 
-export function paymentState(order: Order): PaymentState {
+export function paymentState(order: Order, hasReceipt = !!order.receipt_url): PaymentState {
+  if (order.status === 'cancelled') return 'cancelado';
   if (isVerified(order)) return 'verificado';
-  return order.receipt_url ? 'por_verificar' : 'sin_comprobante';
+  return hasReceipt ? 'por_verificar' : 'sin_comprobante';
 }
 
 const PAYMENT_LABEL: Record<PaymentState, string> = {
   verificado: 'Verificado',
   por_verificar: 'Por verificar',
   sin_comprobante: 'Sin comprobante',
+  cancelado: 'Anulado',
 };
 
 export function paymentLabel(state: PaymentState): string {
@@ -36,13 +47,14 @@ export function paymentLabel(state: PaymentState): string {
 
 /**
  * Sort rank for the Pago column: what needs acting on first, then what is merely
- * missing, then what is finished. Sorting the rendered label would order these
- * alphabetically, which is meaningless.
+ * missing, then what is finished, then what is closed. Sorting the rendered label would
+ * order these alphabetically, which is meaningless.
  */
 const PAYMENT_RANK: Record<PaymentState, number> = {
   por_verificar: 0,
   sin_comprobante: 1,
   verificado: 2,
+  cancelado: 3,
 };
 
 export function paymentRank(order: Order): number {

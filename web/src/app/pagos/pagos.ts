@@ -4,13 +4,14 @@ import { FormsModule } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { SelectButtonModule } from 'primeng/selectbutton';
+import { TooltipModule } from 'primeng/tooltip';
 import { OrdersStore } from '../orders.store';
 import type { Order } from '../orders.service';
-import { customerNumber, isVerified, itemsSummary, paymentRank } from '../order-display';
+import { customerNumber, itemsSummary, paymentRank, paymentState } from '../order-display';
 import { StatusTag } from '../status-tag/status-tag';
 import { PayBadge } from '../pay-badge/pay-badge';
 import { ReceiptDialog } from './receipt-dialog';
-import { buildSheet, columnWidths, exportFilename } from './pagos-export';
+import { buildSheet, exportFilename, sheetColumns } from './pagos-export';
 import { StoreService } from '../store.service';
 import { MessageService } from 'primeng/api';
 import {
@@ -36,6 +37,7 @@ type PagosSortKey = 'id' | 'date' | 'name' | 'total' | 'pay';
     TableModule,
     ButtonModule,
     SelectButtonModule,
+    TooltipModule,
     StatusTag,
     PayBadge,
     ReceiptDialog,
@@ -76,6 +78,16 @@ export class Pagos implements OnInit {
    */
   protected readonly sort = signal<SortState<PagosSortKey>>({ key: 'date', dir: 'desc' });
 
+  /** Re-sorting or re-filtering makes the current page meaningless; go back to the top. */
+  protected setSort(next: SortState<PagosSortKey>): void {
+    this.sort.set(next);
+    this.first.set(0);
+  }
+  protected setFilter(next: PagosFilter): void {
+    this.filter.set(next);
+    this.first.set(0);
+  }
+
   /**
    * What each column actually sorts by. Never the rendered text: sorting the formatted
    * date puts "10 jul" before "1 jul", and sorting the Pago label orders it
@@ -97,11 +109,13 @@ export class Pagos implements OnInit {
   protected readonly filteredRows = computed(() => {
     const rows = this.store.rows();
     const f = this.filter();
+    // Same predicate as the cards and the badge, so a chip can never show a different
+    // set from the card above it.
     const filtered =
       f === 'pending'
-        ? rows.filter((o) => o.status === 'payment_submitted')
+        ? rows.filter((o) => paymentState(o) === 'por_verificar')
         : f === 'verified'
-          ? rows.filter(isVerified)
+          ? rows.filter((o) => paymentState(o) === 'verificado')
           : rows;
     const { key, dir } = this.sort();
     return sortBy(filtered, this.sortValue[key], dir);
@@ -142,18 +156,32 @@ export class Pagos implements OnInit {
       const { default: writeXlsxFile } = await import('write-excel-file/browser');
       // The browser build returns { toBlob, toFile }; toFile triggers the download.
       await writeXlsxFile(buildSheet(this.filteredRows()), {
-        columns: columnWidths,
+        columns: sheetColumns,
         sheet: 'Pagos',
       }).toFile(exportFilename(this.storeName(), new Date()));
-    } catch {
+    } catch (err) {
+      // Keep the error: a bad row throws deterministically, and "try again" is advice
+      // that will never work. The console trace is the only way to find out why.
+      console.error('Pagos export failed', err);
       this.messages.add({
         severity: 'error',
         summary: 'No se pudo generar el archivo',
-        detail: 'Vuelve a intentarlo.',
+        detail: 'Revisa la consola para ver el detalle.',
       });
     } finally {
       this.exporting.set(false);
     }
+  }
+
+  /**
+   * Whether the delivery status says anything the Pago badge has not already said. Before
+   * payment clears, OrderStatus is still on its payment leg and its label repeats the
+   * badge — the same reasoning as in the receipt dialog.
+   */
+  protected hasShipmentState(order: Order): boolean {
+    return (
+      order.status === 'shipped' || order.status === 'delivered' || order.status === 'cancelled'
+    );
   }
 
   protected open(order: Order, event?: Event): void {

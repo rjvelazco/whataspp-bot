@@ -2,7 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { OrdersService, type Order } from './orders.service';
-import { isVerified, paymentState } from './order-display';
+import { paymentState, type PaymentState } from './order-display';
 
 /**
  * Shared, app-wide order state + actions. Used by the shell (for nav badges)
@@ -20,19 +20,26 @@ export class OrdersStore {
   private timer?: ReturnType<typeof setInterval>;
 
   readonly total = computed(() => this.rows().length);
-  readonly pendingVerify = computed(
-    () => this.rows().filter((o) => o.status === 'payment_submitted').length,
-  );
-  readonly verifiedCount = computed(() => this.rows().filter(isVerified).length);
+
   /**
-   * The third payment state. With this, the Pagos cards finally add up:
-   * total = verificado + por_verificar + sin_comprobante. Before, `total` counted
-   * cancelled orders while the other two cards excluded them, and pending_payment
-   * orders were counted by none of them — so no combination of the three matched.
+   * The payment counts, all derived from `paymentState` so the cards, the badge in each
+   * row, the filter chips and the sidebar pill can never disagree.
+   *
+   * They used to: `pendingVerify` keyed on `status === 'payment_submitted'` while the
+   * badge keyed on "unverified with a receipt". Those differ for a cancelled order that
+   * still carries a receipt — legal, and it kept its receipt — so the amber card and the
+   * amber badge counted different sets, which is the exact defect this was meant to fix.
+   *
+   * Cancelled orders are in none of the three, so together they sum to the live rows
+   * rather than to `total`.
    */
-  readonly noReceiptCount = computed(
-    () => this.rows().filter((o) => paymentState(o) === 'sin_comprobante').length,
-  );
+  private readonly paymentStates = computed(() => this.rows().map((o) => paymentState(o)));
+  private countOf(state: PaymentState): number {
+    return this.paymentStates().filter((s) => s === state).length;
+  }
+  readonly pendingVerify = computed(() => this.countOf('por_verificar'));
+  readonly noReceiptCount = computed(() => this.countOf('sin_comprobante'));
+  readonly verifiedCount = computed(() => this.countOf('verificado'));
   readonly toShip = computed(() => this.rows().filter((o) => o.status === 'confirmed').length);
   readonly inTransit = computed(() => this.rows().filter((o) => o.status === 'shipped').length);
   readonly deliveredCount = computed(

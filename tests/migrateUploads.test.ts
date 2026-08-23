@@ -54,7 +54,7 @@ describe("migrateUploadPaths", () => {
 
     const result = migrateUploadPaths(db, dirs);
 
-    expect(result).toEqual({ receipts: 1, photos: 0, moved: 1 });
+    expect(result).toEqual({ receipts: 1, photos: 0, moved: 1, failed: 0 });
     expect(readOrder(db, "1009").receipt_url).toBe("receipt-1009.jpeg");
     // The file moved into uploads/receipts/ and is still readable.
     expect(existsSync(join(dirs.receiptsDir, "receipt-1009.jpeg"))).toBe(true);
@@ -73,7 +73,7 @@ describe("migrateUploadPaths", () => {
     const second = migrateUploadPaths(db, dirs);
 
     expect(first.receipts).toBe(1);
-    expect(second).toEqual({ receipts: 0, photos: 0, moved: 0 });
+    expect(second).toEqual({ receipts: 0, photos: 0, moved: 0, failed: 0 });
     expect(readOrder(db, "1").receipt_url).toBe("receipt-1.jpg");
   });
 
@@ -85,7 +85,7 @@ describe("migrateUploadPaths", () => {
 
     const result = migrateUploadPaths(db, dirs);
 
-    expect(result).toEqual({ receipts: 1, photos: 0, moved: 0 });
+    expect(result).toEqual({ receipts: 1, photos: 0, moved: 0, failed: 0 });
     expect(readOrder(db, "2").receipt_url).toBe("receipt-2.jpg");
   });
 
@@ -122,6 +122,78 @@ describe("migrateUploadPaths", () => {
 
     expect(() => migrateUploadPaths(db, dirs)).not.toThrow();
     expect(readOrder(db, "good").receipt_url).toBe("receipt-g.jpg");
+  });
+
+  it("preserves every other field in data_json", () => {
+    // The whole order lives in the blob, so a careless write would drop the items, the
+    // total and the customer along with the path. This is the migration's real risk.
+    const db = makeDb();
+    const full = {
+      order_id: "5",
+      store_id: "novamoda",
+      customer_wa: "584149682817@s.whatsapp.net",
+      customer_name: "Adrian",
+      items: [{ code: "TOPBASICO", size: "M", color: "blanco", qty: 2, price: 12 }],
+      delivery_address: "C.C. Costa Verde",
+      subtotal: 24,
+      status: "delivered",
+      receipt_url: "/old/uploads/receipt-5.jpg",
+      created_at: "2026-07-10T17:06:46.228Z",
+    };
+    db.prepare(`INSERT INTO orders VALUES (?, ?)`).run("5", JSON.stringify(full));
+    writeFileSync(join(root, "receipt-5.jpg"), "x");
+
+    migrateUploadPaths(db, dirs);
+
+    expect(readOrder(db, "5")).toEqual({ ...full, receipt_url: "receipt-5.jpg" });
+  });
+
+  it("is idempotent for a Windows-shaped path too", () => {
+    // POSIX basename does not split on a backslash, so without normalising separators
+    // first this row was "migrated" identically on every single boot, forever.
+    const db = makeDb();
+    db.prepare(`INSERT INTO orders VALUES (?, ?)`).run(
+      "6",
+      order("6", "C:\\uploads\\receipt-6.jpg"),
+    );
+
+    const first = migrateUploadPaths(db, dirs);
+    const second = migrateUploadPaths(db, dirs);
+
+    expect(first.receipts).toBe(1);
+    expect(readOrder(db, "6").receipt_url).toBe("receipt-6.jpg");
+    expect(second.receipts).toBe(0);
+  });
+
+  it("relocates from the directory the row recorded, not just the current one", () => {
+    // The case this migration exists for: UPLOADS_DIR itself moved. The file is only at
+    // the path in the row, so looking exclusively in the new root would orphan it.
+    const db = makeDb();
+    const elsewhere = mkdtempSync(join(tmpdir(), "old-uploads-"));
+    const stored = join(elsewhere, "receipt-7.jpg");
+    writeFileSync(stored, "bytes");
+    db.prepare(`INSERT INTO orders VALUES (?, ?)`).run("7", order("7", stored));
+
+    const result = migrateUploadPaths(db, dirs);
+
+    expect(result.moved).toBe(1);
+    expect(existsSync(join(dirs.receiptsDir, "receipt-7.jpg"))).toBe(true);
+    expect(readOrder(db, "7").receipt_url).toBe("receipt-7.jpg");
+    rmSync(elsewhere, { recursive: true, force: true });
+  });
+
+  it("survives a filesystem error instead of taking the boot down", () => {
+    // A directory where the file should go makes renameSync throw. Before, that
+    // propagated out of a module-load side effect and the process never started — and it
+    // failed the same way on every retry.
+    const db = makeDb();
+    writeFileSync(join(root, "receipt-8.jpg"), "x");
+    mkdirSync(join(dirs.receiptsDir, "receipt-8.jpg"), { recursive: true });
+    db.prepare(`INSERT INTO orders VALUES (?, ?)`).run("8", order("8", "/old/receipt-8.jpg"));
+
+    expect(() => migrateUploadPaths(db, dirs)).not.toThrow();
+    // The row is still normalised, so the API stops leaking the old absolute path.
+    expect(readOrder(db, "8").receipt_url).toBe("receipt-8.jpg");
   });
 
   it("does not clobber a file already in the receipts directory", () => {

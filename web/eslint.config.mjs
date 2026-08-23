@@ -29,7 +29,10 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       eqeqeq: ['error', 'smart'],
-      'no-console': 'error',
+      // The browser has no logger, and swallowing a failure to keep this rule quiet is
+      // worse than the rule: an operation that fails deterministically needs a trace
+      // somewhere. console.log debugging is still banned.
+      'no-console': ['error', { allow: ['error', 'warn'] }],
 
       // Colour lives in the two token files and nowhere else. See ../CLAUDE.md rule 4.
       'no-restricted-syntax': [
@@ -51,12 +54,6 @@ export default tseslint.config(
     // The PrimeNG preset IS the place colours are defined.
     files: ['src/app/theme/app-preset.ts'],
     rules: { 'no-restricted-syntax': 'off' },
-  },
-  {
-    // console.error in the bootstrap catch is correct — there is no logger in the
-    // browser, and a failed bootstrap has no UI left to report through.
-    files: ['src/main.ts'],
-    rules: { 'no-console': 'off' },
   },
   {
     files: ['**/*.html'],

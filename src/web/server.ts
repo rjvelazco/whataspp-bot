@@ -73,9 +73,7 @@ const DEFAULT_STORY_SCHEDULE: StorySchedule = { enabled: false, time: "09:00" };
 const here = dirname(fileURLToPath(import.meta.url));
 const webDir = join(here, "..", "..", "web", "dist", "store-admin", "browser");
 const indexHtml = join(webDir, "index.html");
-const assetsDir = join(config.uploadsDir, "assets");
-const productsDir = join(config.uploadsDir, "products");
-const receiptsDir = config.receiptsDir;
+const { assetsDir, productsDir, receiptsDir } = config;
 
 /**
  * Allowed upload types, each mapped to the extension we store it under. The

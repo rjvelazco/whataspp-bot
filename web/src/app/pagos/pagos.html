@@ -6,6 +6,8 @@
   <p-button
     label="Exportar a Excel"
     icon="pi pi-download"
+    pTooltip="Exporta las filas que ves, con el filtro y el orden actuales"
+    tooltipPosition="bottom"
     severity="secondary"
     [outlined]="true"
     [loading]="exporting()"
@@ -43,7 +45,7 @@
     <p-selectbutton
       [options]="filterOptions"
       [ngModel]="filter()"
-      (ngModelChange)="filter.set($event)"
+      (ngModelChange)="setFilter($event)"
       optionLabel="label"
       optionValue="value"
       [allowEmpty]="false"
@@ -61,7 +63,7 @@
   >
     <ng-template pTemplate="header">
       <tr>
-        <th scope="col" appSortable key="id" [sort]="sort()" (sortChange)="sort.set($event)">
+        <th scope="col" appSortable key="id" numeric [sort]="sort()" (sortChange)="setSort($event)">
           Recibo
         </th>
         <th
@@ -70,11 +72,11 @@
           key="date"
           numeric
           [sort]="sort()"
-          (sortChange)="sort.set($event)"
+          (sortChange)="setSort($event)"
         >
           Fecha
         </th>
-        <th scope="col" appSortable key="name" [sort]="sort()" (sortChange)="sort.set($event)">
+        <th scope="col" appSortable key="name" [sort]="sort()" (sortChange)="setSort($event)">
           Cliente
         </th>
         <th
@@ -84,11 +86,11 @@
           key="total"
           numeric
           [sort]="sort()"
-          (sortChange)="sort.set($event)"
+          (sortChange)="setSort($event)"
         >
           Total
         </th>
-        <th scope="col" appSortable key="pay" [sort]="sort()" (sortChange)="sort.set($event)">
+        <th scope="col" appSortable key="pay" [sort]="sort()" (sortChange)="setSort($event)">
           Pago
         </th>
         <!-- Only earn their space once the table restacks into cards. -->
@@ -98,19 +100,16 @@
       </tr>
     </ng-template>
     <ng-template pTemplate="body" let-order>
-      <!-- The whole row opens the receipt. It is a real button for keyboard and
-           assistive tech; the action buttons inside stop the click from bubbling. -->
-      <tr
-        class="is-clickable"
-        tabindex="0"
-        role="button"
-        [attr.aria-label]="'Ver comprobante del pedido ' + order.order_id"
-        (click)="open(order, $event)"
-        (keydown.enter)="open(order)"
-        (keydown.space)="open(order); $event.preventDefault()"
-      >
+      <!-- Clicking the row is a pointer convenience only. The row keeps its table
+           semantics: role="button" on a <tr> makes assistive tech report a button whose
+           cells are generic, and nests buttons inside a button. The keyboard-and-AT path
+           is the real button in the Recibo cell below. -->
+      <tr class="is-clickable" (click)="open(order, $event)">
         <td data-label="Recibo">
-          <span class="font-data text-sm">#{{ order.order_id }}</span>
+          <button type="button" class="receipt-link font-data text-sm" (click)="open(order)">
+            #{{ order.order_id }}
+            <span class="sr-only">— ver comprobante</span>
+          </button>
         </td>
         <td data-label="Fecha" class="text-sm text-color">
           {{ order.created_at | date: 'd MMM y, h:mm a' : undefined : 'es' }}
@@ -128,10 +127,18 @@
           </span>
         </td>
         <td data-label="Total" class="num">{{ order.subtotal | currency: 'USD' }}</td>
-        <td data-label="Pago"><app-pay-badge [order]="order" /></td>
+        <td data-label="Pago">
+          <app-pay-badge [order]="order" [hasReceipt]="store.hasReceipt(order)" />
+        </td>
         <td data-label="Artículos" class="on-mobile text-sm text-color">{{ items(order) }}</td>
         <td data-label="Entrega" class="on-mobile">
-          <app-status-tag [status]="order.status" />
+          <!-- Only once there is a shipment to describe. Before payment clears, the
+               delivery label repeats the Pago badge two rows above it. -->
+          @if (hasShipmentState(order)) {
+            <app-status-tag [status]="order.status" />
+          } @else {
+            <span class="text-muted-color">—</span>
+          }
         </td>
         <td data-label="" class="num">
           <div class="row-actions flex gap-2 flex-wrap justify-end">

@@ -1,5 +1,5 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { Component, computed, inject, input, output } from '@angular/core';
+import { Component, ElementRef, computed, inject, input, output, viewChild } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { ImageModule } from 'primeng/image';
@@ -28,6 +28,8 @@ import type { Order } from '../orders.service';
 })
 export class ReceiptDialog {
   protected readonly store = inject(OrdersStore);
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+  private readonly primaryAction = viewChild<ElementRef<HTMLElement>>('primaryAction');
 
   /** The order to show, or null when the dialog is closed. */
   readonly order = input<Order | null>(null);
@@ -40,7 +42,7 @@ export class ReceiptDialog {
     return !!order && paymentState(order) === 'verificado';
   });
   /**
-   * Whether there is a shipment to describe yet.
+   * Whether there is a state worth naming beyond the payment badge.
    *
    * Before payment clears, OrderStatus is still on its payment leg, and its label reads
    * "Por verificar" — which as a line called Envío is simply wrong, and duplicates the
@@ -55,6 +57,46 @@ export class ReceiptDialog {
     const order = this.order();
     return order ? waLink(order.customer_wa) : '';
   });
+
+  /**
+   * Move focus into the dialog when it opens.
+   *
+   * PrimeNG focuses the first focusable element in the dialog's *content*, and this
+   * content is a read-only receipt with none — so focus stayed on the row behind it, the
+   * focus trap never engaged, and tabbing walked the page underneath the modal.
+   */
+  /** What had focus before the dialog opened, so it can be handed back on close. */
+  private trigger: HTMLElement | null = null;
+
+  /**
+   * Return focus to whatever opened the dialog.
+   *
+   * Without this, closing leaves focus on <body> and a keyboard user restarts from the
+   * top of the page. PrimeNG restores focus by itself when the trigger is still in the
+   * DOM and focusable, but the row list re-renders on the 10s poll, so it cannot rely on
+   * the element identity.
+   */
+  protected restoreFocus(): void {
+    const trigger = this.trigger;
+    this.trigger = null;
+    if (trigger?.isConnected) trigger.focus();
+  }
+
+  protected focusPrimaryAction(): void {
+    const active = this.host.nativeElement.ownerDocument?.activeElement;
+    this.trigger = active instanceof HTMLElement ? active : null;
+
+    // Queried from the document rather than through viewChild: the footer is an
+    // ng-template that PrimeNG projects into its own embedded view, which a view query
+    // on this component cannot reach. Prefer the footer's first action, and fall back to
+    // the close button for an already-verified order that has none — either way focus
+    // lands inside the dialog, which is what engages the focus trap.
+    const doc = this.host.nativeElement.ownerDocument;
+    const target =
+      doc?.querySelector<HTMLElement>('.receipt-dialog .p-dialog-footer button') ??
+      doc?.querySelector<HTMLElement>('.receipt-dialog .p-dialog-close-button');
+    target?.focus();
+  }
 
   protected close(): void {
     this.closed.emit();
