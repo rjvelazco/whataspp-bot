@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import QRCode from "qrcode";
 import { config } from "./config.js";
+import { receiptFilename } from "./domain/uploads.js";
 import { logger } from "./logger.js";
 import { silenceSignalNoise } from "./transport/silence-signal.js";
 import { WebServer } from "./web/server.js";
@@ -139,11 +140,13 @@ async function performEffects(
         const order = getOrder(orderId);
         if (!order) break;
         const buffer = await msg.image.download();
-        const ext = msg.image.mimetype.split("/")[1] ?? "jpg";
-        const path = join(config.uploadsDir, `receipt-${orderId}.${ext}`);
-        writeFileSync(path, buffer);
-        updateOrder({ ...order, receipt_url: path, status: "payment_submitted" });
-        logger.info({ orderId, path }, "receipt saved");
+        // Store the bare filename; the directory is rejoined at serve time. See
+        // src/domain/uploads.ts for why an absolute path here was a bug.
+        const filename = receiptFilename(orderId, msg.image.mimetype);
+        mkdirSync(config.receiptsDir, { recursive: true });
+        writeFileSync(join(config.receiptsDir, filename), buffer);
+        updateOrder({ ...order, receipt_url: filename, status: "payment_submitted" });
+        logger.info({ orderId, filename }, "receipt saved");
         break;
       }
       case "notifyOwner": {

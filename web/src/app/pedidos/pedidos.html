@@ -117,13 +117,14 @@
             <i class="pi pi-wallet"></i> Pago
           </div>
           <div class="flex items-center justify-between gap-2">
-            @if (order.receipt_url) {
+            @if (store.hasReceipt(order)) {
               <span class="inline-flex items-center gap-1.5 text-xs">
                 <p-image
                   [src]="store.receiptUrl(order.order_id)"
                   [preview]="true"
                   width="28"
                   alt="Comprobante"
+                  (onImageError)="store.markReceiptMissing(order.order_id)"
                 />
                 Comprobante
               </span>

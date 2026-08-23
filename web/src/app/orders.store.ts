@@ -47,6 +47,9 @@ export class OrdersStore {
     this.api.list().subscribe({
       next: (orders) => {
         this.rows.set(orders);
+        // A customer may have re-sent a comprobante that previously 404'd, so give every
+        // order another chance rather than remembering the failure forever.
+        this.missingReceipts.set(new Set());
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
@@ -89,6 +92,26 @@ export class OrdersStore {
 
   receiptUrl(orderId: string): string {
     return this.api.receiptUrl(orderId);
+  }
+
+  /**
+   * Orders whose comprobante the server could not serve.
+   *
+   * The template can only check that receipt_url is a non-empty string; whether the file
+   * is actually there is known to the server. When those two disagreed the browser
+   * painted its broken-image glyph instead of the designed placeholder, which is half of
+   * why the thumbnails looked broken. The image reports the failure and the view falls
+   * back properly.
+   */
+  private readonly missingReceipts = signal<ReadonlySet<string>>(new Set());
+
+  hasReceipt(order: Order): boolean {
+    return !!order.receipt_url && !this.missingReceipts().has(order.order_id);
+  }
+
+  markReceiptMissing(orderId: string): void {
+    if (this.missingReceipts().has(orderId)) return;
+    this.missingReceipts.update((s) => new Set(s).add(orderId));
   }
 
   private run(

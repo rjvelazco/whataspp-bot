@@ -1,10 +1,11 @@
 import express, { type Response } from "express";
 import multer from "multer";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { config } from "../config.js";
+import { containedPath } from "../domain/uploads.js";
 import { logger } from "../logger.js";
 import type {
   Asset,
@@ -74,6 +75,7 @@ const webDir = join(here, "..", "..", "web", "dist", "store-admin", "browser");
 const indexHtml = join(webDir, "index.html");
 const assetsDir = join(config.uploadsDir, "assets");
 const productsDir = join(config.uploadsDir, "products");
+const receiptsDir = config.receiptsDir;
 
 /**
  * Allowed upload types, each mapped to the extension we store it under. The
@@ -125,14 +127,17 @@ function sendStoredFile(res: Response, path: string): void {
 const isHttpUrl = (s: string): boolean => /^https?:\/\//.test(s);
 
 /**
- * Resolve a stored product photo path, refusing anything outside uploads/products.
- * Paths come from the DB, and a bad row must never let us read or delete an
- * arbitrary file, so every filesystem use of photo_url goes through here.
+ * Resolve a stored product photo, refusing anything outside uploads/products. Values
+ * come from the DB, and a bad row must never let us read or delete an arbitrary file,
+ * so every filesystem use of photo_url goes through here.
  */
 function localPhotoPath(photoUrl: string): string | null {
-  const abs = resolve(photoUrl);
-  const root = resolve(productsDir) + sep;
-  return abs.startsWith(root) ? abs : null;
+  return containedPath(productsDir, photoUrl);
+}
+
+/** The same guard for receipts, which previously had none at all. */
+function localReceiptPath(receiptUrl: string | null | undefined): string | null {
+  return containedPath(receiptsDir, receiptUrl);
 }
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
@@ -296,6 +301,7 @@ export class WebServer {
     }
     mkdirSync(assetsDir, { recursive: true });
     mkdirSync(productsDir, { recursive: true });
+    mkdirSync(receiptsDir, { recursive: true });
     const app = express();
     app.use(express.json());
 
@@ -346,16 +352,22 @@ export class WebServer {
 
     app.get("/api/orders/:id/receipt", (req, res) => {
       const order = getOrder(req.params.id);
-      if (
-        !order ||
-        order.store_id !== this.storeId ||
-        !order.receipt_url ||
-        !existsSync(order.receipt_url)
-      ) {
+      if (!order || order.store_id !== this.storeId) {
         res.status(404).send("no receipt");
         return;
       }
-      sendStoredFile(res, order.receipt_url);
+      const file = localReceiptPath(order.receipt_url);
+      if (!file || !existsSync(file)) {
+        res.status(404).send("no receipt");
+        return;
+      }
+      // The filename is deterministic per order, so a corrected comprobante reuses this
+      // URL. no-cache makes the browser revalidate rather than serve a stale image —
+      // sendFile already sets ETag and Last-Modified, so the common case is a cheap 304.
+      // (A ?v= cache-buster would work too, but the order list is refetched every ten
+      // seconds, so it would re-download every thumbnail on every poll.)
+      res.setHeader("Cache-Control", "no-cache");
+      sendStoredFile(res, file);
     });
 
     app.post("/api/orders/:id/verify", async (req, res) => {
@@ -518,7 +530,8 @@ export class WebServer {
         if (previous) rmSync(previous, { force: true });
         else logger.warn({ itemId: existing.item_id }, "ignoring photo_url outside uploads/products");
       }
-      const updated: CatalogItem = { ...existing, photo_url: join(productsDir, req.file.filename) };
+      // Bare filename, rejoined with productsDir at serve time.
+      const updated: CatalogItem = { ...existing, photo_url: req.file.filename };
       updateItem(updated);
       logger.info({ itemId: updated.item_id }, "product photo uploaded");
       res.json(updated);

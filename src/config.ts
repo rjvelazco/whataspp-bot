@@ -7,6 +7,9 @@ export const config = {
   dbPath: resolve(process.env.DB_PATH ?? "./store-bot.sqlite"),
   authDir: resolve(process.env.AUTH_DIR ?? "./auth"),
   uploadsDir: resolve(process.env.UPLOADS_DIR ?? "./uploads"),
+  /** Receipts sent by customers. A sibling of uploads/assets and uploads/products;
+   * the database stores only the filename within it. */
+  receiptsDir: resolve(process.env.UPLOADS_DIR ?? "./uploads", "receipts"),
   logLevel: process.env.LOG_LEVEL ?? "info",
   /** Level for Baileys' own internal logs. Defaults to "silent" — its decrypt
    * failures for Status/other-recipient messages are expected noise. Set to

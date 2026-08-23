@@ -79,12 +79,13 @@
         <td>{{ order.subtotal | currency: 'USD' }}</td>
         <td><app-status-tag [status]="order.status" /></td>
         <td>
-          @if (order.receipt_url) {
+          @if (store.hasReceipt(order)) {
             <p-image
               [src]="store.receiptUrl(order.order_id)"
               [preview]="true"
               width="44"
               alt="Comprobante"
+              (onImageError)="store.markReceiptMissing(order.order_id)"
             />
           } @else {
             <span class="text-muted-color">—</span>
