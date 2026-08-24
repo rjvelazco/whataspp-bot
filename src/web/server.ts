@@ -15,7 +15,7 @@ import type {
   Order,
   OrderStatus,
   Store,
-  StorySchedule,
+  Story,
   Variant,
 } from "../domain/types.js";
 import {
@@ -29,6 +29,9 @@ import {
   getStoreById,
   listAllItems,
   listAssets,
+  listStories,
+  getStory,
+  saveStory,
   listContacts,
   listOrders,
   saveMenus,
@@ -47,6 +50,8 @@ import {
 import { validateFlow } from "../engine/validateFlow.js";
 import { canTransition, nextStatuses } from "../domain/orderStatus.js";
 import type { StoryPostResult } from "../services/storyScheduler.js";
+import { deleteStoryAndMedia } from "../services/stories.js";
+import { parseTimeMinutes } from "../domain/storySchedule.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -65,11 +70,10 @@ export interface WebDeps {
   sendMessage: (to: string, body: string) => Promise<void>;
   /** Unlink the bot from WhatsApp (shows a fresh QR to re-pair). */
   disconnect: () => Promise<void>;
-  /** Post the store's "story" assets to WhatsApp Status right now. */
-  postStoryNow: () => Promise<StoryPostResult>;
+  /** Publish one scheduled story to WhatsApp Status right now. */
+  postStoryNow: (storyId: string) => Promise<StoryPostResult>;
 }
 
-const DEFAULT_STORY_SCHEDULE: StorySchedule = { enabled: false, time: "09:00" };
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webDir = join(here, "..", "..", "web", "dist", "store-admin", "browser");
@@ -87,6 +91,9 @@ const ASSET_EXT: Record<string, string> = {
   "image/png": ".png",
   "image/webp": ".webp",
   "application/pdf": ".pdf",
+  // A Status can be a short video. Only MP4: it is what WhatsApp itself produces and
+  // what every phone camera writes, and each extra container is another decoder.
+  "video/mp4": ".mp4",
 };
 const IMAGE_EXT: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -94,7 +101,20 @@ const IMAGE_EXT: Record<string, string> = {
   "image/webp": ".webp",
 };
 
+/** WhatsApp truncates a Status caption around here. */
+const MAX_CAPTION = 700;
+
+/** A real calendar date in "YYYY-MM-DD" — not "2026-02-31", which Date happily rolls over. */
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+}
+
 const MAX_ASSET_BYTES = 15 * 1024 * 1024;
+/** Video needs more room than a photo; WhatsApp itself caps a Status video at ~16MB. */
+const MAX_VIDEO_BYTES = 32 * 1024 * 1024;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
 /** Multer: store uploads with a random name and an extension we chose ourselves. */
@@ -103,9 +123,17 @@ const uploadAsset = multer({
     destination: (_req, _file, cb) => cb(null, assetsDir),
     filename: (_req, file, cb) => cb(null, `${randomUUID()}${ASSET_EXT[file.mimetype] ?? ""}`),
   }),
-  limits: { fileSize: MAX_ASSET_BYTES },
+  // The limit has to cover the largest type multer will accept; the per-type check
+  // below is what actually rejects an oversized image.
+  limits: { fileSize: MAX_VIDEO_BYTES },
   fileFilter: (_req, file, cb) => cb(null, file.mimetype in ASSET_EXT),
 });
+
+/** Whether an accepted upload is within the limit for its own type. */
+function withinTypeLimit(file: { mimetype: string; size: number }): boolean {
+  const max = file.mimetype.startsWith("video/") ? MAX_VIDEO_BYTES : MAX_ASSET_BYTES;
+  return file.size <= max;
+}
 
 /** Multer for product photos: images only, stored under uploads/products. */
 const uploadProductPhoto = multer({
@@ -250,6 +278,79 @@ export class WebServer {
    * legal, persist, notify the customer. Routing all of verify/cancel/ship/deliver
    * through here is what stops a finished order being moved again.
    */
+  /**
+   * Validate a story payload from the composer.
+   *
+   * The messages are Spanish and user-facing — the composer shows them verbatim rather
+   * than mapping codes to copy of its own.
+   */
+  private parseStoryInput(
+    body: unknown,
+  ):
+    | { value: Omit<Story, "id" | "store_id" | "last_posted_at" | "created_at"> }
+    | { error: string } {
+    const b = (body ?? {}) as Record<string, unknown>;
+
+    const mode = b["mode"];
+    if (mode !== "daily" && mode !== "weekly" && mode !== "once") {
+      return { error: "Elige cuándo se publica." };
+    }
+
+    const postTime = String(b["post_time"] ?? "");
+    if (parseTimeMinutes(postTime) === null) return { error: "La hora no es válida." };
+
+    const weekdays = Array.isArray(b["weekdays"])
+      ? [
+          ...new Set(
+            (b["weekdays"] as unknown[])
+              .map(Number)
+              .filter((n) => Number.isInteger(n) && n >= 1 && n <= 7),
+          ),
+        ].sort((x, y) => x - y)
+      : [];
+    if (mode === "weekly" && weekdays.length === 0) {
+      return { error: "Elige al menos un día de la semana." };
+    }
+
+    const postDate = typeof b["post_date"] === "string" ? b["post_date"] : null;
+    if (mode === "once" && (!postDate || !isCalendarDate(postDate))) {
+      return { error: "Elige la fecha de publicación." };
+    }
+
+    const mediaIds = Array.isArray(b["media"]) ? (b["media"] as unknown[]).map(String) : [];
+    if (mediaIds.length === 0) return { error: "Agrega al menos una imagen o un video." };
+    if (new Set(mediaIds).size !== mediaIds.length) {
+      return { error: "Hay un archivo repetido." };
+    }
+    for (const id of mediaIds) {
+      const asset = getAsset(id);
+      if (!asset || asset.store_id !== this.storeId || asset.category !== "story") {
+        return { error: "Uno de los archivos ya no está disponible." };
+      }
+    }
+
+    const caption = String(b["caption"] ?? "").trim();
+    if (caption.length > MAX_CAPTION) {
+      return { error: `El texto no puede pasar de ${MAX_CAPTION} caracteres.` };
+    }
+
+    return {
+      value: {
+        caption,
+        mode,
+        weekdays: mode === "weekly" ? weekdays : [],
+        post_date: mode === "once" ? postDate : null,
+        post_time: postTime,
+        // Only a one-time story may clean up after itself; on a repeating one this
+        // would delete the media it needs for the next run.
+        delete_after: mode === "once" && Boolean(b["delete_after"]),
+        enabled: b["enabled"] === undefined ? true : Boolean(b["enabled"]),
+        // Position is the array order, so reordering the strip is just a re-save.
+        media: mediaIds.map((asset_id, position) => ({ asset_id, position })),
+      },
+    };
+  }
+
   private async advance(
     res: Response,
     id: string,
@@ -412,7 +513,22 @@ export class WebServer {
         return;
       }
       if (!req.file) {
-        res.status(400).json({ error: `no file — must be JPG/PNG/WebP/PDF up to ${MAX_ASSET_BYTES / 1024 / 1024} MB` });
+        res
+          .status(400)
+          .json({ error: `Archivo no válido — usa JPG, PNG, WebP, PDF o MP4.` });
+        return;
+      }
+      // A video is only ever a Status. A catalogue file is something the bot sends to a
+      // customer in chat, where an MP4 is not what "mi catálogo" means.
+      if (req.file.mimetype.startsWith("video/") && category !== "story") {
+        rmSync(join(assetsDir, req.file.filename), { force: true });
+        res.status(400).json({ error: "Los videos solo se pueden usar como Estado." });
+        return;
+      }
+      if (!withinTypeLimit(req.file)) {
+        rmSync(join(assetsDir, req.file.filename), { force: true });
+        const mb = Math.round(MAX_ASSET_BYTES / 1024 / 1024);
+        res.status(400).json({ error: `La imagen no puede pesar más de ${mb} MB.` });
         return;
       }
       const asset: Asset = {
@@ -661,33 +777,73 @@ export class WebServer {
       res.json(listContacts(this.storeId));
     });
 
-    // --- Settings: story (Estados) daily schedule ---
-    app.get("/api/settings/story-schedule", (_req, res) => {
-      const store = getStoreById(this.storeId);
-      res.json(store?.story_schedule ?? DEFAULT_STORY_SCHEDULE);
+    // --- Stories (scheduled Estados) ---
+    app.get("/api/stories", (_req, res) => {
+      res.json(listStories(this.storeId));
     });
 
-    app.put("/api/settings/story-schedule", (req, res) => {
-      const enabled = Boolean(req.body?.enabled);
-      const time = String(req.body?.time ?? "");
-      if (!/^\d{1,2}:\d{2}$/.test(time)) {
-        res.status(400).json({ error: "time must be HH:MM" });
+    app.post("/api/stories", (req, res) => {
+      const parsed = this.parseStoryInput(req.body);
+      if ("error" in parsed) {
+        res.status(400).json({ error: parsed.error });
         return;
       }
-      const store = getStoreById(this.storeId);
-      if (!store) {
-        res.status(404).json({ error: "store not found" });
-        return;
-      }
-      const schedule: StorySchedule = { enabled, time };
-      upsertStore({ ...store, story_schedule: schedule });
-      logger.info(schedule, "story schedule saved");
-      res.json(schedule);
+      const story: Story = {
+        ...parsed.value,
+        id: randomUUID(),
+        store_id: this.storeId,
+        last_posted_at: null,
+        created_at: new Date().toISOString(),
+      };
+      saveStory(story);
+      logger.info({ story: story.id, media: story.media.length }, "story created");
+      res.json(story);
     });
 
-    // Publish stories to Status immediately (test / on-demand).
-    app.post("/api/story/post-now", async (_req, res) => {
-      const result = await this.deps.postStoryNow();
+    app.put("/api/stories/:id", (req, res) => {
+      const existing = getStory(req.params.id);
+      if (!existing || existing.store_id !== this.storeId) {
+        res.status(404).json({ error: "not found" });
+        return;
+      }
+      const parsed = this.parseStoryInput(req.body);
+      if ("error" in parsed) {
+        res.status(400).json({ error: parsed.error });
+        return;
+      }
+      // The guard survives an edit — otherwise saving a typo in the caption at 09:05
+      // would let the story post to every customer a second time.
+      const story: Story = {
+        ...parsed.value,
+        id: existing.id,
+        store_id: existing.store_id,
+        last_posted_at: existing.last_posted_at,
+        created_at: existing.created_at,
+      };
+      saveStory(story);
+      logger.info({ story: story.id }, "story updated");
+      res.json(story);
+    });
+
+    app.delete("/api/stories/:id", (req, res) => {
+      const story = getStory(req.params.id);
+      if (!story || story.store_id !== this.storeId) {
+        res.status(404).json({ error: "not found" });
+        return;
+      }
+      // Media are not reachable on their own, so they go with the story or they leak.
+      const removed = deleteStoryAndMedia(story.id, assetsDir);
+      res.json({ ok: true, removed });
+    });
+
+    // Publish one story to Status immediately (test / on-demand).
+    app.post("/api/stories/:id/post-now", async (req, res) => {
+      const story = getStory(req.params.id);
+      if (!story || story.store_id !== this.storeId) {
+        res.status(404).json({ error: "not found" });
+        return;
+      }
+      const result = await this.deps.postStoryNow(story.id);
       res.json(result);
     });
 

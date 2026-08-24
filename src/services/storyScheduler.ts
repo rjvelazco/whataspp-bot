@@ -1,9 +1,10 @@
-import { join } from "node:path";
 import { logger } from "../logger.js";
-import type { Asset, Store } from "../domain/types.js";
+import { isStoryDue } from "../domain/storySchedule.js";
+import type { StoryMediaFile } from "./stories.js";
+import type { Story } from "../domain/types.js";
 
 /** Result of a posting run, surfaced to the "Publicar ahora" button. */
-export type StoryPostReason = "ok" | "disconnected" | "no_stories" | "busy";
+export type StoryPostReason = "ok" | "disconnected" | "no_media" | "busy" | "not_found";
 
 export interface StoryPostResult {
   posted: number;
@@ -12,49 +13,50 @@ export interface StoryPostResult {
 }
 
 export interface StorySchedulerDeps {
-  /** Read the store fresh each tick, so admin edits take effect without a restart. */
-  getStore: () => Store | undefined;
-  /** Current "story" assets to publish. */
-  listStories: () => Asset[];
+  /** Read the stories fresh each tick, so admin edits take effect without a restart. */
+  listStories: () => Story[];
+  getStory: (id: string) => Story | undefined;
   /** Jids allowed to see the Status (privacy list). */
   listAudience: () => string[];
   /** Post one image to Status. */
   postImage: (path: string, audience: string[], caption?: string) => Promise<void>;
+  /** Post one video to Status. */
+  postVideo: (path: string, audience: string[], caption?: string) => Promise<void>;
+  /**
+   * The story's media, resolved to files on disk.
+   *
+   * Injected rather than imported so that the scheduler — the piece with the retry,
+   * dispatch and bookkeeping logic — can be tested without a database or a filesystem.
+   */
+  resolveMedia: (story: Story) => StoryMediaFile[];
   /** Whether WhatsApp is currently linked (posting while offline would hang). */
   isConnected: () => boolean;
-  uploadsDir: string;
+  /** Persist the once-per-day guard. */
+  markPosted: (storyId: string, at: string) => void;
+  /** Drop a one-time story that asked to clean up after itself. */
+  discardStory: (story: Story) => void;
+  /** Injectable clock, so the tests do not have to wait for a real minute to arrive. */
+  now?: () => Date;
 }
 
 const TICK_MS = 30_000;
-/** Fire within this window after the scheduled minute, so a brief drift/gap won't skip a day. */
-const WINDOW_MS = 2 * 60_000;
-
-function dateKey(d: Date): string {
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
-
-/** "09:00" → 540 minutes; null if malformed. */
-function parseMinutes(time: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(time);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
-}
 
 /**
- * Posts the store's "story" assets to WhatsApp Status once per day at the
- * configured local time. Uses server local time; posts "at or just after" the
- * scheduled minute (within a short window) so a restart near that time still fires.
+ * Publishes scheduled stories to WhatsApp Status.
+ *
+ * The scheduling decision itself lives in domain/storySchedule.ts; this class is the
+ * loop, the transport dispatch and the bookkeeping around it.
  */
 export class StoryScheduler {
   private timer?: ReturnType<typeof setInterval>;
-  /** Day (dateKey) we last auto-posted, so we fire at most once per day. */
-  private lastRun = "";
-  private running = false;
+  /** Stories currently publishing, so a tick and a button press cannot overlap. */
+  private readonly publishing = new Set<string>();
 
   constructor(private readonly deps: StorySchedulerDeps) {}
+
+  private now(): Date {
+    return this.deps.now?.() ?? new Date();
+  }
 
   start(): void {
     if (this.timer) return;
@@ -68,58 +70,75 @@ export class StoryScheduler {
     this.timer = undefined;
   }
 
-  private tick(): void {
-    const schedule = this.deps.getStore()?.story_schedule;
-    if (!schedule?.enabled) return;
-    const scheduledMin = parseMinutes(schedule.time);
-    if (scheduledMin === null) return;
-
-    const now = new Date();
-    const today = dateKey(now);
-    if (this.lastRun === today) return; // already posted today
-
-    const nowMs = now.getTime();
-    const scheduledMs = new Date(now).setHours(0, 0, 0, 0) + scheduledMin * 60_000;
-    if (nowMs < scheduledMs || nowMs >= scheduledMs + WINDOW_MS) return;
-
-    this.lastRun = today;
-    void this.postAll("scheduled");
+  /** Publish every story that is due right now. Exposed for tests. */
+  tick(): void {
+    const now = this.now();
+    for (const story of this.deps.listStories()) {
+      if (isStoryDue(story, now)) void this.publish(story, "scheduled");
+    }
   }
 
-  /** Manual trigger from the admin panel; does not affect the daily guard. */
-  async postNow(): Promise<StoryPostResult> {
-    return this.postAll("manual");
+  /**
+   * Manual publish from the admin panel.
+   *
+   * This counts as today's publication: it stamps the guard, so a story published by
+   * hand at 08:00 does not go out again at 09:00. Posting the same Status to every
+   * customer twice is a worse outcome than skipping one scheduled run, and the UI says
+   * so before the owner confirms.
+   */
+  async postNow(storyId: string): Promise<StoryPostResult> {
+    const story = this.deps.getStory(storyId);
+    if (!story) return { posted: 0, audience: 0, reason: "not_found" };
+    return this.publish(story, "manual");
   }
 
-  private async postAll(reason: "scheduled" | "manual"): Promise<StoryPostResult> {
-    if (this.running) return { posted: 0, audience: 0, reason: "busy" };
-    this.running = true;
+  private async publish(story: Story, reason: "scheduled" | "manual"): Promise<StoryPostResult> {
+    if (this.publishing.has(story.id)) return { posted: 0, audience: 0, reason: "busy" };
+    this.publishing.add(story.id);
     try {
       if (!this.deps.isConnected()) {
-        logger.warn({ reason }, "story post skipped — WhatsApp not connected");
+        logger.warn({ reason, story: story.id }, "story post skipped — WhatsApp not connected");
         return { posted: 0, audience: 0, reason: "disconnected" };
       }
-      const stories = this.deps.listStories().filter((a) => a.mimetype.startsWith("image/"));
+
+      const media = this.deps.resolveMedia(story);
       const audience = this.deps.listAudience();
-      if (stories.length === 0) {
-        logger.info({ reason }, "story post skipped — no story images");
-        return { posted: 0, audience: audience.length, reason: "no_stories" };
+      if (media.length === 0) {
+        logger.info({ reason, story: story.id }, "story post skipped — no usable media");
+        return { posted: 0, audience: audience.length, reason: "no_media" };
       }
 
       let posted = 0;
-      for (const asset of stories) {
-        const path = join(this.deps.uploadsDir, "assets", asset.filename);
+      for (const { asset, path } of media) {
         try {
-          await this.deps.postImage(path, audience);
+          // Each media file is its own Status, so each carries the caption — a
+          // follow-up frame with no text reads as a mistake to the customer.
+          const caption = story.caption || undefined;
+          if (asset.mimetype.startsWith("video/")) {
+            await this.deps.postVideo(path, audience, caption);
+          } else {
+            await this.deps.postImage(path, audience, caption);
+          }
           posted += 1;
         } catch (err) {
-          logger.error({ err, asset: asset.id }, "failed to post a story to Status");
+          logger.error({ err, story: story.id, asset: asset.id }, "failed to post a Status");
         }
       }
-      logger.info({ reason, posted, audience: audience.length }, "stories posted to Status");
+
+      if (posted > 0) {
+        this.deps.markPosted(story.id, this.now().toISOString());
+        // Only a one-time story may clean up after itself; on a repeating one this
+        // would delete the media it needs for the next run.
+        if (story.mode === "once" && story.delete_after) this.deps.discardStory(story);
+      }
+
+      logger.info(
+        { reason, story: story.id, posted, audience: audience.length },
+        "story posted to Status",
+      );
       return { posted, audience: audience.length, reason: "ok" };
     } finally {
-      this.running = false;
+      this.publishing.delete(story.id);
     }
   }
 }
