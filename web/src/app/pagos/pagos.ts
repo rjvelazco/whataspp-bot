@@ -24,11 +24,19 @@ import {
   TableSearch,
   TableState,
   Toolbar,
-  sortBy,
+  filterAndSort,
 } from '../ui';
 
 type PagosFilter = 'all' | 'pending' | 'verified';
 type PagosSortKey = 'id' | 'date' | 'name' | 'total' | 'pay';
+
+const SORT_LABEL: Record<PagosSortKey, string> = {
+  id: 'Recibo',
+  date: 'Fecha',
+  name: 'Cliente',
+  total: 'Total',
+  pay: 'Pago',
+};
 
 @Component({
   selector: 'app-pagos',
@@ -56,8 +64,6 @@ type PagosSortKey = 'id' | 'date' | 'name' | 'total' | 'pay';
   styleUrl: './pagos.css',
 })
 export class Pagos implements OnInit {
-  /** Rows per page in the table. */
-  protected readonly PAGE_SIZE = 10;
   protected readonly store = inject(OrdersStore);
   private readonly storeApi = inject(StoreService);
   private readonly messages = inject(MessageService);
@@ -65,8 +71,12 @@ export class Pagos implements OnInit {
   protected readonly exporting = signal(false);
 
   protected readonly filter = signal<PagosFilter>('all');
-  /** Search, sort and page — the same object Productos uses, so the rules match. */
-  protected readonly table = new TableState<PagosSortKey>({ key: 'date', dir: 'desc' });
+  /**
+   * Search, sort and page — the same object Productos uses, so the rules match.
+   *
+   * Opens on Fecha descending: the newest payment is the one you came to look at.
+   */
+  protected readonly table = new TableState<PagosSortKey>({ key: 'date', dir: 'desc' }, SORT_LABEL);
 
   /** The order whose receipt is open, or null. */
   protected readonly selected = signal<Order | null>(null);
@@ -105,15 +115,15 @@ export class Pagos implements OnInit {
         : f === 'verified'
           ? rows.filter((o) => paymentState(o) === 'verificado')
           : rows;
-    // Search narrows the same list the chips do, so the two compose.
-    const q = this.table.search().trim().toLowerCase();
-    const matched = q
-      ? filtered.filter((o) =>
-          `${o.order_id} ${o.customer_name} ${itemsSummary(o)}`.toLowerCase().includes(q),
-        )
-      : filtered;
-    const { key, dir } = this.table.sort();
-    return sortBy(matched, this.sortValue[key], dir);
+    // Search narrows the same list the chips do, so the two compose. Shared helper, so
+    // both views normalise the query the same way — accents included.
+    return filterAndSort(
+      filtered,
+      this.table.search(),
+      this.table.sort(),
+      (o) => `${o.order_id} ${o.customer_name} ${itemsSummary(o)}`,
+      this.sortValue,
+    );
   });
 
   protected readonly items = itemsSummary;

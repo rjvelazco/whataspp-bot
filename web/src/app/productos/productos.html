@@ -8,160 +8,110 @@
 
 <app-card>
   <app-toolbar>
-    <app-table-search [state]="table" placeholder="Buscar por nombre, código o categoría" />
+    <app-table-search
+      [state]="table"
+      placeholder="Buscar producto"
+      ariaLabel="Buscar por nombre, código o categoría"
+    />
     <span class="ml-auto text-sm text-ink-2">{{ sortLabel() }}</span>
     <span class="text-sm text-ink-2">{{ visibleRows().length }} de {{ items().length }}</span>
   </app-toolbar>
 
-  @if (loading()) {
-    <div class="p-8 text-center text-muted-color">Cargando…</div>
-  } @else {
-    <app-data-table
-      [rows]="visibleRows()"
-      [state]="table"
-      [columns]="8"
-      [pageSize]="PAGE_SIZE"
-      dataKey="item.item_id"
-    >
-      <ng-template #header>
-        <tr>
-          <th scope="col" style="width: 3.5rem"><span class="sr-only">Foto</span></th>
-          <th
-            scope="col"
-            appSortable
-            key="name"
-            [sort]="table.sort()"
-            (sortChange)="table.setSort($event)"
-          >
-            Producto
-          </th>
-          <th
-            scope="col"
-            appSortable
-            key="code"
-            [sort]="table.sort()"
-            (sortChange)="table.setSort($event)"
-          >
-            Código
-          </th>
-          <th
-            scope="col"
-            appSortable
-            key="cat"
-            [sort]="table.sort()"
-            (sortChange)="table.setSort($event)"
-          >
-            Categoría
-          </th>
-          <th
-            scope="col"
-            class="num"
-            appSortable
-            key="price"
-            numeric
-            [sort]="table.sort()"
-            (sortChange)="table.setSort($event)"
-          >
-            Precio
-          </th>
-          <th
-            scope="col"
-            class="num"
-            appSortable
-            key="stock"
-            numeric
-            [sort]="table.sort()"
-            (sortChange)="table.setSort($event)"
-          >
-            Stock
-          </th>
-          <th scope="col">Visible en el bot</th>
-          <th scope="col" style="width: 6rem"><span class="sr-only">Acciones</span></th>
-        </tr>
-      </ng-template>
+  <app-data-table [rows]="visibleRows()" [state]="table" [loading]="loading()">
+    <ng-template #header>
+      <tr>
+        <th scope="col" style="width: 3.5rem"><span class="sr-only">Foto</span></th>
+        <th scope="col" appSortable key="name" [state]="table">Producto</th>
+        <th scope="col" appSortable key="code" [state]="table">Código</th>
+        <th scope="col" appSortable key="cat" [state]="table">Categoría</th>
+        <th scope="col" class="num" appSortable key="price" numeric [state]="table">Precio</th>
+        <th scope="col" class="num" appSortable key="stock" numeric [state]="table">Stock</th>
+        <th scope="col">Visible en el bot</th>
+        <th scope="col" style="width: 6rem"><span class="sr-only">Acciones</span></th>
+      </tr>
+    </ng-template>
 
-      <ng-template #body let-row>
-        <tr [class.opacity-50]="!row.item.active">
-          <td data-label="">
-            @if (hasPhoto(row.item)) {
-              <img
-                [src]="photoSrc(row.item)"
-                [alt]="row.item.name"
-                class="w-10 h-10 rounded object-cover"
-              />
-            } @else {
-              <div
-                class="w-10 h-10 rounded bg-surface-100 flex items-center justify-center text-muted-color"
-              >
-                <i class="pi pi-image" aria-hidden="true"></i>
-              </div>
-            }
-          </td>
-          <td data-label="Producto" class="font-medium">{{ row.item.name }}</td>
-          <td data-label="Código">
-            <span class="font-data text-sm">{{ row.item.code }}</span>
-          </td>
-          <td data-label="Categoría" class="text-sm text-color">{{ row.item.category }}</td>
-          <td data-label="Precio" class="num">{{ row.item.price | currency: 'USD' }}</td>
-          <td data-label="Stock" class="num">
-            <!-- A bare count does not say "act on this". Rose means gone, amber means
-                 nearly gone; anything comfortable stays a plain number. -->
-            @switch (row.stockLevel) {
-              @case ('out') {
-                <p-tag value="Agotado" severity="danger" [rounded]="true" />
-              }
-              @case ('low') {
-                <p-tag [value]="row.stock + ' quedan'" severity="warn" [rounded]="true" />
-              }
-              @default {
-                {{ row.stock }}
-              }
-            }
-          </td>
-          <td data-label="Visible en el bot">
-            <p-toggleswitch
-              [ngModel]="row.item.active"
-              [disabled]="busyId() === row.item.item_id"
-              (onChange)="toggleActive(row.item)"
-              [ariaLabel]="'Mostrar ' + row.item.name + ' en el bot'"
-            />
-          </td>
-          <td data-label="" class="num">
-            <div class="flex gap-1 justify-end">
-              <p-button
-                icon="pi pi-pencil"
-                [text]="true"
-                [rounded]="true"
-                severity="secondary"
-                size="small"
-                pTooltip="Editar"
-                [ariaLabel]="'Editar ' + row.item.name"
-                (onClick)="edit(row.item)"
-              />
-              <p-button
-                icon="pi pi-trash"
-                [text]="true"
-                [rounded]="true"
-                severity="danger"
-                size="small"
-                pTooltip="Ocultar del bot"
-                [ariaLabel]="'Ocultar ' + row.item.name + ' del bot'"
-                (onClick)="confirmDelete(row.item)"
-              />
+    <ng-template #body let-row>
+      <tr [class.opacity-50]="!row.item.active">
+        <td data-label="">
+          @if (row.photo) {
+            <img [src]="row.photo" [alt]="row.item.name" class="w-10 h-10 rounded object-cover" />
+          } @else {
+            <div
+              class="w-10 h-10 rounded bg-surface-100 flex items-center justify-center text-muted-color"
+            >
+              <i class="pi pi-image" aria-hidden="true"></i>
             </div>
-          </td>
-        </tr>
-      </ng-template>
+          }
+        </td>
+        <td data-label="Producto" class="font-medium">{{ row.item.name }}</td>
+        <td data-label="Código">
+          <span class="font-data text-sm">{{ row.item.code }}</span>
+        </td>
+        <td data-label="Categoría" class="text-sm text-color">{{ row.item.category }}</td>
+        <td data-label="Precio" class="num">{{ row.item.price | currency: 'USD' }}</td>
+        <td data-label="Stock" class="num">
+          <!-- A bare count does not say "act on this". Rose means gone, amber means
+                 nearly gone; anything comfortable stays a plain number. -->
+          @switch (row.stockLevel) {
+            @case ('out') {
+              <p-tag value="Agotado" severity="danger" [rounded]="true" />
+            }
+            @case ('low') {
+              <p-tag
+                [value]="row.stock === 1 ? 'Queda 1' : 'Quedan ' + row.stock"
+                severity="warn"
+                [rounded]="true"
+              />
+            }
+            @default {
+              {{ row.stock }}
+            }
+          }
+        </td>
+        <td data-label="Visible en el bot">
+          <p-toggleswitch
+            [ngModel]="row.item.active"
+            [disabled]="busyId() === row.item.item_id"
+            (onChange)="toggleActive(row.item)"
+            [ariaLabel]="'Mostrar ' + row.item.name + ' en el bot'"
+          />
+        </td>
+        <td data-label="" class="num">
+          <div class="flex gap-2 justify-end">
+            <p-button
+              icon="pi pi-pencil"
+              [text]="true"
+              [rounded]="true"
+              severity="secondary"
+              size="small"
+              pTooltip="Editar"
+              [ariaLabel]="'Editar ' + row.item.name"
+              (onClick)="edit(row.item)"
+            />
+            <p-button
+              icon="pi pi-trash"
+              [text]="true"
+              [rounded]="true"
+              severity="danger"
+              size="small"
+              pTooltip="Ocultar del bot"
+              [ariaLabel]="'Ocultar ' + row.item.name + ' del bot'"
+              (onClick)="confirmDelete(row.item)"
+            />
+          </div>
+        </td>
+      </tr>
+    </ng-template>
 
-      <ng-template #empty>
-        @if (table.search()) {
-          Ningún producto coincide con “{{ table.search() }}”.
-        } @else {
-          Aún no hay productos — agrega el primero.
-        }
-      </ng-template>
-    </app-data-table>
-  }
+    <ng-template #empty>
+      @if (table.search()) {
+        Ningún producto coincide con “{{ table.search() }}”.
+      } @else {
+        Aún no hay productos — agrega el primero.
+      }
+    </ng-template>
+  </app-data-table>
 </app-card>
 
 <p-dialog

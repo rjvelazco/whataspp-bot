@@ -15,6 +15,11 @@ export function stockOf(variants: readonly { stock: number }[]): {
   stock: number;
   level: StockLevel;
 } {
-  const stock = variants.reduce((n, v) => n + (Number(v.stock) || 0), 0);
+  // Clamped at zero: the API already refuses negative writes, but a bad row would
+  // otherwise render "-3 quedan".
+  const stock = Math.max(
+    0,
+    variants.reduce((n, v) => n + (Number(v.stock) || 0), 0),
+  );
   return { stock, level: stock === 0 ? 'out' : stock <= LOW_STOCK ? 'low' : 'ok' };
 }

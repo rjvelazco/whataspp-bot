@@ -1,4 +1,4 @@
-import { signal } from '@angular/core';
+import { signal, type WritableSignal } from '@angular/core';
 import type { SortState } from './sort';
 
 /**
@@ -15,9 +15,17 @@ import type { SortState } from './sort';
 export class TableState<K extends string> {
   readonly search = signal('');
   readonly first = signal(0);
-  readonly sort;
+  readonly sort: WritableSignal<SortState<K>>;
 
-  constructor(initialSort: SortState<K>) {
+  /**
+   * @param initialSort which column the view opens on.
+   * @param names human names per sort key, for the toolbar hint. Taken here rather than
+   *   per call, so `label()` cannot be handed a map that does not match this state.
+   */
+  constructor(
+    initialSort: SortState<K>,
+    private readonly names: Record<K, string>,
+  ) {
     this.sort = signal<SortState<K>>(initialSort);
   }
 
@@ -36,8 +44,8 @@ export class TableState<K extends string> {
   }
 
   /** The active sort, for the small "Precio ↓" hint in a toolbar. */
-  label(names: Record<K, string>): string {
+  label(): string {
     const { key, dir } = this.sort();
-    return `${names[key]} ${dir === 'asc' ? '↑' : '↓'}`;
+    return `${this.names[key]} ${dir === 'asc' ? '↑' : '↓'}`;
   }
 }

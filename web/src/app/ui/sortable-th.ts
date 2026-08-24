@@ -1,11 +1,12 @@
-import { Component, computed, input, output } from '@angular/core';
-import { nextSort, type SortState } from './sort';
+import { Component, computed, input } from '@angular/core';
+import { nextSort } from './sort';
+import type { TableState } from './table-state';
 
 /**
  * A sortable column header. Used as an attribute on a real <th>, so PrimeNG's table
  * markup and the card inset rule are untouched:
  *
- *   <th appSortable key="date" numeric [sort]="sort()" (sortChange)="sort.set($event)">Fecha</th>
+ *   <th appSortable key="date" numeric [state]="table">Fecha</th>
  *
  * The label is wrapped in a button, because the thing being clicked should be a control
  * — that is what puts it in the tab order and gives it a focus ring for free. The header
@@ -83,19 +84,23 @@ import { nextSort, type SortState } from './sort';
 export class SortableTh<K extends string = string> {
   /** The value this column sorts by, matched against the current sort state. */
   readonly key = input.required<K>();
-  readonly sort = input.required<SortState<K>>();
+  /**
+   * The table's shared state. One binding rather than a sort in and an event out — with
+   * ten headers across two views, that was forty lines of the same pair.
+   */
+  readonly state = input.required<TableState<K>>();
   /** Numbers and dates open descending; text opens ascending. */
   readonly numeric = input(false, {
     transform: (v: boolean | string) => v !== false && v !== 'false',
   });
-  readonly sortChange = output<SortState<K>>();
 
+  private readonly sort = computed(() => this.state().sort());
   protected readonly active = computed(() => this.sort().key === this.key());
   protected readonly ariaSort = computed(() =>
     this.active() ? (this.sort().dir === 'asc' ? 'ascending' : 'descending') : 'none',
   );
 
   protected toggle(): void {
-    this.sortChange.emit(nextSort(this.sort(), this.key(), this.numeric()));
+    this.state().setSort(nextSort(this.sort(), this.key(), this.numeric()));
   }
 }

@@ -79,4 +79,43 @@ export const AppPreset = definePreset(Aura, {
       },
     },
   },
+  components: {
+    /**
+     * Tags carry the design system's own rose/amber/emerald, not Aura's ramps.
+     *
+     * p-tag drove StatusTag, PayBadge and the stock badges off Aura's red/orange
+     * (#B91C1C on #FEE2E2, #C2410C on #FFEDD5), which are near enough to look deliberate
+     * and wrong enough to break rule 4. One block here re-tints every call site.
+     */
+    tag: {
+      colorScheme: {
+        light: {
+          primary: { background: '#dceee3', color: '#075437' },
+          success: { background: '#dceee3', color: '#075437' },
+          warn: { background: '#fbeacc', color: '#8f5300' },
+          danger: { background: '#fadfdc', color: '#9e241b' },
+          secondary: { background: '#eaefec', color: '#41585f' },
+          info: { background: '#eaefec', color: '#41585f' },
+        },
+      },
+    },
+
+    /**
+     * A text button keeps a hairline border at rest.
+     *
+     * PrimeNG's text variant is transparent-bordered, so the row actions in Productos —
+     * the only two controls that act on a row — were invisible until hover, in a view
+     * that has to work at 390px where there is no hover. That is rule 6.
+     */
+    button: {
+      colorScheme: {
+        light: {
+          text: {
+            secondary: { hoverBackground: '#eaefec', activeBackground: '#dce4e1' },
+            danger: { hoverBackground: '#fadfdc', activeBackground: '#fadfdc' },
+          },
+        },
+      },
+    },
+  },
 });

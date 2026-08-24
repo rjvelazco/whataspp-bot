@@ -24,7 +24,7 @@ import {
   TableSearch,
   TableState,
   Toolbar,
-  sortBy,
+  filterAndSort,
 } from '../ui';
 
 /**
@@ -39,6 +39,8 @@ interface ProductRow {
   readonly stock: number;
   /** out = nothing left, low = at or under the threshold, ok = plain number. */
   readonly stockLevel: StockLevel;
+  /** Ready-to-use image URL, or null when the product has no photo. */
+  readonly photo: string | null;
 }
 
 type SortKey = 'name' | 'code' | 'cat' | 'price' | 'stock';
@@ -92,8 +94,6 @@ function emptyDraft(): CatalogItem {
   styleUrl: './productos.css',
 })
 export class Productos implements OnInit {
-  /** Rows per page in the table. */
-  protected readonly PAGE_SIZE = 10;
   private readonly api = inject(CatalogService);
   private readonly storeApi = inject(StoreService);
   private readonly messages = inject(MessageService);
@@ -106,17 +106,24 @@ export class Productos implements OnInit {
   protected readonly loading = signal(true);
 
   /** Search, sort and page — shared with every other list view. */
-  protected readonly table = new TableState<SortKey>({ key: 'name', dir: 'asc' });
+  protected readonly table = new TableState<SortKey>({ key: 'name', dir: 'asc' }, SORT_LABEL);
   /** The row being written to, so its switch can be disabled for the round trip. */
   protected readonly busyId = signal<string | null>(null);
 
-  protected readonly sortLabel = computed(() => this.table.label(SORT_LABEL));
+  protected readonly sortLabel = computed(() => this.table.label());
 
   /** Every item as a row, with its stock derived once. */
   private readonly rows = computed<ProductRow[]>(() =>
     this.items().map((item) => {
       const { stock, level } = stockOf(item.variants);
-      return { item, stock, stockLevel: level };
+      // The photo URL is derived here too, rather than being a method the template calls
+      // per row on every change-detection pass.
+      return {
+        item,
+        stock,
+        stockLevel: level,
+        photo: item.photo_url ? this.api.photoUrl(item.item_id) : null,
+      };
     }),
   );
 
@@ -128,16 +135,15 @@ export class Productos implements OnInit {
     stock: (r) => r.stock,
   };
 
-  protected readonly visibleRows = computed(() => {
-    const q = this.table.search().trim().toLowerCase();
-    const matched = q
-      ? this.rows().filter((r) =>
-          `${r.item.name} ${r.item.code} ${r.item.category}`.toLowerCase().includes(q),
-        )
-      : this.rows();
-    const { key, dir } = this.table.sort();
-    return sortBy(matched, this.sortValue[key], dir);
-  });
+  protected readonly visibleRows = computed(() =>
+    filterAndSort(
+      this.rows(),
+      this.table.search(),
+      this.table.sort(),
+      (r) => `${r.item.name} ${r.item.code} ${r.item.category}`,
+      this.sortValue,
+    ),
+  );
   protected readonly showDialog = signal(false);
   protected readonly isNew = signal(true);
   protected readonly saving = signal(false);
@@ -266,7 +272,10 @@ export class Productos implements OnInit {
    * can land in either order.
    */
   protected toggleActive(item: CatalogItem): void {
-    if (this.busyId()) return;
+    // Per item, not global: guarding on any in-flight write meant clicking a second row
+    // was silently swallowed — no request, no toast, and the switch snapped back when the
+    // first row's reload landed.
+    if (this.busyId() === item.item_id) return;
     this.busyId.set(item.item_id);
     const updated: CatalogItem = { ...item, active: !item.active };
     this.api.update(item.item_id, updated).subscribe({

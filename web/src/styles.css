@@ -433,6 +433,13 @@ body {
   margin-inline: auto;
 }
 
+/* Every tappable control has a visible boundary at rest — CLAUDE.md rule 6. PrimeNG's
+   text buttons are transparent-bordered, so an icon-only row action read as decoration
+   until hover, and on a touch screen never revealed itself at all. */
+.p-button-text {
+  border-color: var(--color-line-soft);
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    TABLE ALIGNMENT. PrimeNG owns its cell padding, and a component stylesheet
    cannot reach into it, so this is the one place the alignment rule can be
@@ -440,10 +447,11 @@ body {
    <app-toolbar> pads by — so the toolbar's first control and the table's first
    column share one edge, defined once. See ../../CLAUDE.md rule 2.
 
-   Scoped to app-card deliberately, with no fallback value. Unscoped, it also hit the
-   one table not yet inside a card (Productos), where --card-inset is undefined: the
-   first column took the fallback while every other cell kept PrimeNG's 8px, so the
-   rule *created* a misalignment in the only view it could not align.
+   Scoped to app-card deliberately, with no fallback value. Unscoped it also matched a
+   table outside a card, where --card-inset is undefined: the first column took the
+   fallback while every other cell kept PrimeNG's 8px, so the rule *created* a
+   misalignment in the one view it could not align. Both tables are carded now, but the
+   scoping is what keeps that true for the next one.
    ───────────────────────────────────────────────────────────────────────────── */
 app-card .p-datatable-thead > tr > th:first-child,
 app-card .p-datatable-tbody > tr > td:first-child {
@@ -666,6 +674,14 @@ app-card th[appsortable]:first-child {
   /* The brand name costs more than it earns on a phone: it left the nav scrollport
      about 120px wide, so only two icons were reachable at a time. The mark stays as the
      identity anchor, and the name is still in the accessibility tree. */
+  .brand {
+    /* position: relative is the companion to the clip below — the same pairing the 960px
+       .nav-item rule documents. gap: 0 because the clipped name leaves an empty flex
+       child behind, and 8px of it. */
+    position: relative;
+    padding: 0;
+    gap: 0;
+  }
   .brand-name {
     position: absolute;
     width: 1px;
@@ -673,9 +689,6 @@ app-card th[appsortable]:first-child {
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
-  }
-  .brand {
-    padding: 0;
   }
 }
 

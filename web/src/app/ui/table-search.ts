@@ -18,7 +18,7 @@ import type { TableState } from './table-state';
         [ngModel]="state().search()"
         (ngModelChange)="state().setSearch($event)"
         [placeholder]="placeholder()"
-        [attr.aria-label]="placeholder()"
+        [attr.aria-label]="ariaLabel() || placeholder()"
         class="w-full"
       />
     </p-iconfield>
@@ -35,5 +35,8 @@ import type { TableState } from './table-state';
 })
 export class TableSearch {
   readonly state = input.required<TableState<string>>();
+  /** Kept short: a long placeholder is truncated on a phone and cannot be read. */
   readonly placeholder = input('Buscar');
+  /** The full description, for assistive tech, when the placeholder has to be terse. */
+  readonly ariaLabel = input('');
 }

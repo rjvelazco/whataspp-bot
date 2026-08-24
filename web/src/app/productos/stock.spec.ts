@@ -11,10 +11,18 @@ describe('stockOf', () => {
     expect(stockOf([])).toEqual({ stock: 0, level: 'out' });
   });
 
-  it('warns at the threshold and below, but not above it', () => {
-    expect(stockOf([{ stock: LOW_STOCK }]).level).toBe('low');
-    expect(stockOf([{ stock: LOW_STOCK - 1 }]).level).toBe('low');
-    expect(stockOf([{ stock: LOW_STOCK + 1 }]).level).toBe('ok');
+  it('warns at five and below, but not at six', () => {
+    // Asserted against the literal the spec asks for, not against LOW_STOCK — otherwise
+    // the test passes for any threshold and pins only the shape of the rule.
+    expect(stockOf([{ stock: 5 }]).level).toBe('low');
+    expect(stockOf([{ stock: 1 }]).level).toBe('low');
+    expect(stockOf([{ stock: 6 }]).level).toBe('ok');
+    expect(LOW_STOCK).toBe(5);
+  });
+
+  it('never reports a negative total', () => {
+    expect(stockOf([{ stock: -3 }])).toEqual({ stock: 0, level: 'out' });
+    expect(stockOf([{ stock: 5 }, { stock: -10 }])).toEqual({ stock: 0, level: 'out' });
   });
 
   it('is the total that decides, not any single variant', () => {

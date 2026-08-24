@@ -6,7 +6,7 @@
   <p-button
     label="Exportar a Excel"
     icon="pi pi-download"
-    pTooltip="Exporta las filas que ves, con el filtro y el orden actuales"
+    pTooltip="Exporta las filas que ves, con la búsqueda, el filtro y el orden actuales"
     tooltipPosition="bottom"
     severity="secondary"
     [outlined]="true"
@@ -42,7 +42,11 @@
 
 <app-card>
   <app-toolbar>
-    <app-table-search [state]="table" placeholder="Buscar por cliente o recibo" />
+    <app-table-search
+      [state]="table"
+      placeholder="Buscar"
+      ariaLabel="Buscar por cliente, recibo o artículo"
+    />
     <p-selectbutton
       [options]="filterOptions"
       [ngModel]="filter()"
@@ -53,64 +57,14 @@
     />
   </app-toolbar>
 
-  <app-data-table
-    [rows]="filteredRows()"
-    [state]="table"
-    [columns]="8"
-    [pageSize]="PAGE_SIZE"
-    dataKey="order_id"
-  >
+  <app-data-table [rows]="filteredRows()" [state]="table" [loading]="store.loading()">
     <ng-template #header>
       <tr>
-        <th
-          scope="col"
-          appSortable
-          key="id"
-          numeric
-          [sort]="table.sort()"
-          (sortChange)="table.setSort($event)"
-        >
-          Recibo
-        </th>
-        <th
-          scope="col"
-          appSortable
-          key="date"
-          numeric
-          [sort]="table.sort()"
-          (sortChange)="table.setSort($event)"
-        >
-          Fecha
-        </th>
-        <th
-          scope="col"
-          appSortable
-          key="name"
-          [sort]="table.sort()"
-          (sortChange)="table.setSort($event)"
-        >
-          Cliente
-        </th>
-        <th
-          scope="col"
-          class="num"
-          appSortable
-          key="total"
-          numeric
-          [sort]="table.sort()"
-          (sortChange)="table.setSort($event)"
-        >
-          Total
-        </th>
-        <th
-          scope="col"
-          appSortable
-          key="pay"
-          [sort]="table.sort()"
-          (sortChange)="table.setSort($event)"
-        >
-          Pago
-        </th>
+        <th scope="col" appSortable key="id" numeric [state]="table">Recibo</th>
+        <th scope="col" appSortable key="date" numeric [state]="table">Fecha</th>
+        <th scope="col" appSortable key="name" [state]="table">Cliente</th>
+        <th scope="col" class="num" appSortable key="total" numeric [state]="table">Total</th>
+        <th scope="col" appSortable key="pay" [state]="table">Pago</th>
         <!-- Only earn their space once the table restacks into cards. -->
         <th scope="col" class="on-mobile">Artículos</th>
         <th scope="col" class="on-mobile">Entrega</th>
