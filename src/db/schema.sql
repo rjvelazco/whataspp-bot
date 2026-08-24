@@ -42,6 +42,31 @@ CREATE TABLE IF NOT EXISTS assets (
 );
 CREATE INDEX IF NOT EXISTS idx_assets_store ON assets(store_id, category);
 
+-- A scheduled Status (Estado): one caption, one schedule, one or more media files.
+CREATE TABLE IF NOT EXISTS stories (
+  id             TEXT PRIMARY KEY,
+  store_id       TEXT NOT NULL,
+  caption        TEXT NOT NULL DEFAULT '',
+  mode           TEXT NOT NULL,              -- 'daily' | 'weekly' | 'once'
+  weekdays       TEXT NOT NULL DEFAULT '',   -- ISO weekdays "1,3,5" (Mon=1); 'weekly' only
+  post_date      TEXT,                       -- local 'YYYY-MM-DD'; 'once' only
+  post_time      TEXT NOT NULL,              -- local 'HH:MM'
+  delete_after   INTEGER NOT NULL DEFAULT 0, -- drop the media once published; 'once' only
+  enabled        INTEGER NOT NULL DEFAULT 1,
+  -- Persisted, unlike the in-memory guard it replaces: a restart used to re-post a story
+  -- that had already gone out that day.
+  last_posted_at TEXT,
+  created_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_stories_store ON stories(store_id, enabled);
+
+CREATE TABLE IF NOT EXISTS story_media (
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  asset_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  PRIMARY KEY (story_id, asset_id)
+);
+
 CREATE TABLE IF NOT EXISTS menus (
   store_id  TEXT PRIMARY KEY,
   data_json TEXT NOT NULL   -- JSON array of FlowMenu
