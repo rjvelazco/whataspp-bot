@@ -21,28 +21,29 @@
     />
   </app-toolbar>
 
-  @if (catalog().length === 0) {
+  @if (catalogRows().length === 0) {
     <p class="m-0 p-8 text-center text-sm text-muted-color">
       Aún no hay archivos. Sube tu catálogo o tu lista de precios.
     </p>
   } @else {
     <ul class="file-list">
-      @for (a of catalog(); track a.id) {
+      @for (row of catalogRows(); track row.id) {
         <li class="file">
-          @if (isImage(a)) {
+          @if (row.thumb) {
             <img
               class="file-thumb"
-              [src]="thumbUrl(a.id)"
-              [alt]="a.original_name"
+              [src]="row.thumb"
+              [alt]="row.name"
               loading="lazy"
               decoding="async"
+              (error)="onThumbError(row.id)"
             />
           } @else {
-            <span class="file-kind" aria-hidden="true">{{ extensionOf(a) }}</span>
+            <span class="file-kind">{{ row.kind }}</span>
           }
           <span class="file-meta">
-            <span class="file-name" [title]="a.original_name">{{ a.original_name }}</span>
-            <span class="file-sub">{{ formatBytes(a.size) }}</span>
+            <span class="file-name" [title]="row.name">{{ row.name }}</span>
+            <span class="file-sub">{{ row.sizeLabel }}</span>
           </span>
           <span class="file-actions">
             <a
@@ -50,7 +51,7 @@
               severity="secondary"
               [outlined]="true"
               size="small"
-              [href]="fileUrl(a.id)"
+              [href]="row.href"
               target="_blank"
               rel="noopener"
             >
@@ -62,8 +63,8 @@
               severity="secondary"
               [outlined]="true"
               size="small"
-              [ariaLabel]="'Quitar ' + a.original_name"
-              (onClick)="remove(a)"
+              [ariaLabel]="'Quitar ' + row.name"
+              (onClick)="remove(row)"
             />
           </span>
         </li>
@@ -89,7 +90,7 @@
     />
   </app-toolbar>
 
-  <p class="m-0 px-6 pt-4 text-sm text-muted-color">
+  <p class="section-note text-sm text-muted-color">
     Solo llegan a clientes que te escribieron y te tienen guardado en sus contactos — es una regla
     de WhatsApp, no del bot. Ahora mismo alcanzan a
     <strong>{{ reachableContacts() }}</strong> contacto(s).
@@ -130,25 +131,35 @@
         size="small"
         [outlined]="true"
         severity="secondary"
-        [disabled]="postingNow() || stories().length === 0"
+        [disabled]="postingNow() || storyRows().length === 0"
         (onClick)="postStoryNow()"
       />
     </span>
   </div>
 
-  @if (stories().length === 0) {
+  @if (storyRows().length === 0) {
     <p class="m-0 p-8 text-center text-sm text-muted-color">
       Aún no hay estados. Sube una imagen para publicarla.
     </p>
   } @else {
     <div class="story-grid">
-      @for (a of stories(); track a.id) {
+      @for (row of storyRows(); track row.id) {
         <figure class="story">
-          <a class="story-img" [href]="fileUrl(a.id)" target="_blank" rel="noopener">
-            <img [src]="thumbUrl(a.id)" [alt]="a.original_name" loading="lazy" decoding="async" />
+          <a class="story-img" [href]="row.href" target="_blank" rel="noopener">
+            @if (row.thumb) {
+              <img
+                [src]="row.thumb"
+                [alt]="row.name"
+                loading="lazy"
+                decoding="async"
+                (error)="onThumbError(row.id)"
+              />
+            } @else {
+              <span class="story-kind">{{ row.kind }}</span>
+            }
           </a>
           <figcaption class="story-foot">
-            <span class="file-name" [title]="a.original_name">{{ a.original_name }}</span>
+            <span class="file-name" [title]="row.name">{{ row.name }}</span>
             <p-button
               icon="pi pi-trash"
               [text]="true"
@@ -156,8 +167,8 @@
               severity="danger"
               size="small"
               pTooltip="Quitar"
-              [ariaLabel]="'Quitar ' + a.original_name"
-              (onClick)="remove(a)"
+              [ariaLabel]="'Quitar ' + row.name"
+              (onClick)="remove(row)"
             />
           </figcaption>
         </figure>

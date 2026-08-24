@@ -25,7 +25,8 @@ if (!convCols.includes("menu_key")) {
 }
 
 /**
- * Rewrite legacy absolute file paths to bare filenames, and relocate the files.
+ * Boot migrations over stored uploads: fold retired asset categories, rewrite legacy
+ * absolute file paths to bare filenames, and relocate the files that moved.
  *
  * Called explicitly from startup rather than run on import: it mutates the filesystem,
  * and as a module-load side effect any stray import of the repositories — a script, a

@@ -453,12 +453,16 @@ export class WebServer {
       }
       const thumb = await ensureThumbnail(assetsDir, asset.filename, asset.mimetype);
       if (!thumb) {
+        // Cache the miss briefly. Without it a PDF — or an image sharp cannot decode —
+        // re-runs generation on every request, on every page load, forever.
+        res.setHeader("Cache-Control", "private, max-age=300");
         res.status(404).send("no thumbnail");
         return;
       }
       // Content-addressed by the asset's own filename, which never changes for a given
-      // upload, so it can be cached hard.
-      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      // upload, so it can be cached hard. private: the route is token-gated, and a shared
+      // intermediary has no business holding an authenticated image for a year.
+      res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
       sendStoredFile(res, thumb);
     });
 

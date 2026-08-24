@@ -56,6 +56,12 @@
   color: var(--color-ink-2);
 }
 
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* On a phone the two actions take the row for themselves and crush the filename to
    "Cat…", which is the one thing the row exists to show. Give the name the full width
    and let the actions sit under it. */
@@ -74,10 +80,10 @@
   }
 }
 
-.file-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* The card owns the inset — it narrows below 720px, and a literal would not follow. */
+.section-note {
+  margin: 0;
+  padding: 16px var(--card-inset) 0;
 }
 
 /* ── Estados: a Status is a 9:16 image, so the tile is one too. ── */
@@ -104,6 +110,15 @@
   height: 100%;
   object-fit: cover;
 }
+.story-kind {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-family: var(--font-data);
+  font-size: var(--text-2xs);
+  color: var(--color-ink-2);
+  text-transform: uppercase;
+}
 .story-foot {
   display: flex;
   align-items: center;
@@ -113,6 +128,15 @@
 .story-foot .file-name {
   flex: 1;
   font-size: var(--text-sm);
+}
+
+/* auto-fill gives one column below ~380px of content, so a 9:16 tile becomes 480px tall
+   and twenty Estados become ten thousand pixels of scrolling. Two up, like a phone's own
+   gallery. */
+@media (max-width: 720px) {
+  .story-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* ── The daily schedule strip ──

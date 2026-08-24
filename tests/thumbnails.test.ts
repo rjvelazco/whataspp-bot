@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import sharp from "sharp";
@@ -103,8 +111,44 @@ describe("ensureThumbnail", () => {
     writeFileSync(join(dir, "lies.jpg"), "this is not a jpeg");
     expect(await ensureThumbnail(dir, "lies.jpg", "image/jpeg")).toBeNull();
     expect(existsSync(join(dir, "lies.thumb.webp"))).toBe(false);
-    // No staging file left behind either.
+    // No staging file left behind either — the failed encode must clean up after itself.
+    expect(readdirSync(dir).filter((f) => f.includes(".tmp-"))).toEqual([]);
     expect(readFileSync(join(dir, "lies.jpg"), "utf8")).toBe("this is not a jpeg");
+  });
+
+  it("keeps a traversal filename inside the assets directory", async () => {
+    // The filename comes from the database and this code writes and deletes, so a bad
+    // row must not reach out of the tree. Containment works by reduction: "../x.jpg" is
+    // treated as "x.jpg" here, never as the x.jpg one level up.
+    const outside = mkdtempSync(join(tmpdir(), "thumb-outside-"));
+    try {
+      await writePhoto(outside, "secret.jpg", 200, 200);
+      const victim = join(outside, "keep.thumb.webp");
+      writeFileSync(victim, "important");
+
+      // Nothing named secret.jpg in dir, so there is nothing to thumbnail...
+      expect(await ensureThumbnail(dir, "../secret.jpg", "image/jpeg")).toBeNull();
+      // ...and in particular the sibling directory was neither read nor written.
+      expect(existsSync(join(outside, "secret.thumb.webp"))).toBe(false);
+
+      removeThumbnail(dir, "../keep.jpg");
+      expect(existsSync(victim)).toBe(true);
+
+      // Reduced, not rejected: the same name resolves against dir when it exists there.
+      await writePhoto(dir, "secret.jpg", 200, 200);
+      expect(await ensureThumbnail(dir, "../secret.jpg", "image/jpeg")).toBe(
+        join(dir, "secret.thumb.webp"),
+      );
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("returns null for a filename that cannot name a file at all", async () => {
+    for (const bad of ["", "..", "/", "with\u0000null.jpg"]) {
+      expect(await ensureThumbnail(dir, bad, "image/jpeg")).toBeNull();
+      expect(() => removeThumbnail(dir, bad)).not.toThrow();
+    }
   });
 
   it("removeThumbnail deletes it and is safe when there is none", async () => {

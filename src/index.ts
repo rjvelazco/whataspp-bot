@@ -127,7 +127,7 @@ async function sendProductPhoto(
   await transport.sendImage(to, source, reply.caption);
 }
 
-/** Send an uploaded asset (catalog/promo/story) as an image or document. */
+/** Send an uploaded asset (catalog/story) as an image or document. */
 async function sendAsset(
   transport: MessagingTransport,
   to: string,
