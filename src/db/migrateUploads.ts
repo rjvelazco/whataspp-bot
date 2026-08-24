@@ -141,3 +141,20 @@ function relocate(
     return false;
   }
 }
+
+/**
+ * Fold retired "promo" assets into "catalog".
+ *
+ * The Promociones / Flyers section was removed — it duplicated the catalogue's purpose in
+ * a section of its own. Without this the rows would still exist and simply stop being
+ * shown anywhere, which loses a shop owner's files silently.
+ *
+ * Idempotent: once no promo rows remain it does nothing.
+ */
+export function migratePromoAssets(db: Database.Database): number {
+  const { changes } = db
+    .prepare(`UPDATE assets SET category = 'catalog' WHERE category = 'promo'`)
+    .run();
+  if (changes > 0) logger.info({ moved: changes }, "moved promo assets into the catalogue");
+  return changes;
+}

@@ -23,7 +23,6 @@ import { apiIssues } from '../api-error';
 
 const CATEGORY_LABEL: Record<AssetCategory, string> = {
   catalog: 'Catálogo',
-  promo: 'Promo',
   story: 'Historia',
 };
 

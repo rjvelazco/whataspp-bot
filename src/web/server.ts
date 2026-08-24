@@ -400,14 +400,14 @@ export class WebServer {
       await this.advance(res, req.params.id, "delivered", customerDeliveredMessage);
     });
 
-    // --- Assets (catalog / promo files) ---
+    // --- Assets (catalogue documents and Status images) ---
     app.get("/api/assets", (_req, res) => {
       res.json(listAssets(this.storeId));
     });
 
     app.post("/api/assets/:category", uploadAsset.single("file"), (req, res) => {
       const category = req.params.category as AssetCategory;
-      if (category !== "catalog" && category !== "promo" && category !== "story") {
+      if (category !== "catalog" && category !== "story") {
         res.status(400).json({ error: "invalid category" });
         return;
       }

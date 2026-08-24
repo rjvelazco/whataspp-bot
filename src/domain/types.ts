@@ -165,9 +165,16 @@ export interface FlowIssue {
   message: string;
 }
 
-export type AssetCategory = "catalog" | "promo" | "story";
+/**
+ * What an uploaded file is for.
+ *
+ * "promo" was retired: it held flyers in a section of its own that duplicated the
+ * catalogue's purpose without earning the space. Existing promo rows are folded into
+ * "catalog" on boot — see migratePromoAssets.
+ */
+export type AssetCategory = "catalog" | "story";
 
-/** An uploaded file (catalog/menu or promo/flyer) stored under uploads/assets/. */
+/** An uploaded file (a catalogue document, or an image to post as a Status). */
 export interface Asset {
   id: string;
   store_id: string;

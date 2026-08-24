@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { migrateUploadPaths } from "./migrateUploads.js";
+import { migratePromoAssets, migrateUploadPaths } from "./migrateUploads.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -34,6 +34,7 @@ if (!convCols.includes("menu_key")) {
  * every boot is fine.
  */
 export function migrateStoredUploads(): void {
+  migratePromoAssets(db);
   const migrated = migrateUploadPaths(db, {
     uploadsDir: config.uploadsDir,
     receiptsDir: config.receiptsDir,

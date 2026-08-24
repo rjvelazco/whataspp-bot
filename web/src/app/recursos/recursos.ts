@@ -1,5 +1,4 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
@@ -10,6 +9,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
 import { SettingsService, type StorySchedule, type StoryPostReason } from '../settings.service';
 import { apiErrorMessage } from '../api-error';
+import { Card, PageHead, Toolbar } from '../ui';
 
 /** Toast per outcome of "publicar ahora" — one table instead of an if/else ladder. */
 const POST_RESULT: Record<
@@ -24,13 +24,15 @@ const POST_RESULT: Record<
 @Component({
   selector: 'app-recursos',
   imports: [
-    NgTemplateOutlet,
     FormsModule,
     ButtonModule,
     FileUploadModule,
     ToggleSwitchModule,
     InputTextModule,
     TooltipModule,
+    PageHead,
+    Card,
+    Toolbar,
   ],
   templateUrl: './recursos.html',
   styleUrl: './recursos.css',
@@ -48,7 +50,6 @@ export class Recursos implements OnInit {
   protected readonly catalog = computed(() =>
     this.assets().filter((a) => a.category === 'catalog'),
   );
-  protected readonly promos = computed(() => this.assets().filter((a) => a.category === 'promo'));
   protected readonly stories = computed(() => this.assets().filter((a) => a.category === 'story'));
 
   // --- Story (Estados) daily schedule ---
@@ -177,6 +178,12 @@ export class Recursos implements OnInit {
             }),
         }),
     });
+  }
+
+  /** `catalogo-julio.pdf` -> `PDF`, for the tile a non-image file gets instead of a thumbnail. */
+  protected extensionOf(a: Asset): string {
+    const match = /\.([a-z0-9]+)$/i.exec(a.original_name);
+    return match ? match[1] : 'archivo';
   }
 
   protected isImage(a: Asset): boolean {
