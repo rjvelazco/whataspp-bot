@@ -103,6 +103,18 @@ describe('storyStatusLine', () => {
     ).toBe('Ya se publicó.');
   });
 
+  it('says a one-off missed its date instead of promising it again', () => {
+    // It will never fire: runsOnDate only matches the exact date. Repeating the promise
+    // would leave the owner waiting for a publication that cannot happen.
+    expect(storyStatusLine(story({ mode: 'once', post_date: '2026-08-01' }), '2026-08-24')).toBe(
+      'No se publicó — la fecha ya pasó. Edítala para reprogramarla.',
+    );
+    // Today still counts as reachable.
+    expect(storyStatusLine(story({ mode: 'once', post_date: '2026-08-24' }), '2026-08-24')).toBe(
+      'Se publica una sola vez, el 24 de agosto a las 9:00 AM.',
+    );
+  });
+
   it('otherwise describes the schedule', () => {
     expect(storyStatusLine(story())).toBe('Se publica todos los días a las 9:00 AM.');
     // A repeating story that already ran today still describes what it does.

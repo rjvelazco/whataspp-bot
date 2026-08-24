@@ -233,6 +233,21 @@ export function deleteAsset(id: string): void {
   db.prepare(`DELETE FROM assets WHERE id = ?`).run(id);
 }
 
+// ---------- meta (migration markers) ----------
+
+export function getMeta(key: string): string | undefined {
+  const row = db.prepare(`SELECT value FROM app_meta WHERE key = ?`).get(key) as
+    { value: string } | undefined;
+  return row?.value;
+}
+
+export function setMeta(key: string, value: string): void {
+  db.prepare(
+    `INSERT INTO app_meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(key, value);
+}
+
 // ---------- stories (scheduled Estados) ----------
 
 /**
@@ -378,7 +393,7 @@ export function assetInUse(assetId: string, exceptStoryId?: string): boolean {
 }
 
 /** Record a successful publish. This stamp is the once-per-day guard. */
-export function markStoryPosted(id: string, at: string): void {
+export function markStoryPosted(id: string, at: string | null): void {
   db.prepare(`UPDATE stories SET last_posted_at = ? WHERE id = ?`).run(at, id);
 }
 

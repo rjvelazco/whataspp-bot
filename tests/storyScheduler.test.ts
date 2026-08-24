@@ -54,6 +54,7 @@ function harness(over: Partial<StorySchedulerDeps> = {}, initial: Story[] = [sto
   const captions: (string | undefined)[] = [];
   const media: Record<string, Asset> = {
     a1: asset("a1", "image/jpeg"),
+    a2: asset("a2", "image/jpeg"),
     v1: asset("v1", "video/mp4"),
   };
 
@@ -206,6 +207,94 @@ describe("StoryScheduler.postNow", () => {
     const result = await h.scheduler.postNow("st1");
     expect(result.posted).toBe(0); // a1x resolves to nothing, a1 threw
     expect(h.stories[0].last_posted_at).toBeNull();
+  });
+
+  it("stamps the guard before the first frame goes out, not after the last", async () => {
+    const order: string[] = [];
+    const h = harness(
+      {
+        markPosted: (id, at) => {
+          order.push(at ? "stamp" : "restore");
+          void id;
+          void at;
+        },
+        postImage: async () => {
+          order.push("post");
+        },
+      },
+      [
+        story({
+          media: [
+            { asset_id: "a1", position: 0 },
+            { asset_id: "a1", position: 1 },
+          ],
+        }),
+      ],
+    );
+    await h.scheduler.postNow("st1");
+
+    // A frame can be a 32MB upload, so the loop takes a real share of the 120s window.
+    // If the process dies partway through, the guard has to already be written or a
+    // restart re-broadcasts every frame that had gone out.
+    expect(order).toEqual(["stamp", "post", "post"]);
+  });
+
+  it("restores the guard when every frame failed", async () => {
+    const h = harness(
+      {
+        postImage: async () => {
+          throw new Error("network");
+        },
+      },
+      [story({ last_posted_at: null })],
+    );
+    await h.scheduler.postNow("st1");
+    expect(h.stories[0].last_posted_at).toBeNull();
+  });
+
+  it("keeps yesterday's stamp when today's run failed entirely", async () => {
+    const yesterday = new Date(2026, 7, 23, 9, 0).toISOString();
+    const h = harness(
+      {
+        postImage: async () => {
+          throw new Error("network");
+        },
+      },
+      [story({ last_posted_at: yesterday })],
+    );
+    await h.scheduler.postNow("st1");
+    // Restored to what it was, not blanked.
+    expect(h.stories[0].last_posted_at).toBe(yesterday);
+  });
+
+  it("never deletes media when only some frames published", async () => {
+    let call = 0;
+    const h = harness(
+      {
+        postImage: async () => {
+          call += 1;
+          if (call === 2) throw new Error("network");
+        },
+      },
+      [
+        story({
+          mode: "once",
+          post_date: "2026-08-24",
+          delete_after: true,
+          media: [
+            { asset_id: "a1", position: 0 },
+            { asset_id: "a2", position: 1 },
+          ],
+        }),
+      ],
+    );
+    const result = await h.scheduler.postNow("st1");
+
+    // One of the two frames went out; the other threw.
+    expect(result.posted).toBe(1);
+    // discardStory erases the files. On a partial run that would destroy the originals
+    // of frames the customer never received.
+    expect(h.deps.discardStory).not.toHaveBeenCalled();
   });
 
   it("deletes a one-time story that asked to clean up, and only that kind", async () => {

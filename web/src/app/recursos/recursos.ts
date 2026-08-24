@@ -249,8 +249,20 @@ export class Recursos implements OnInit {
   }
 
   protected postStoryNow(story: Story): void {
-    // Per story, not global: one publish in flight must not disable the other buttons.
-    if (this.postingId()) return;
+    if (this.postingId() === story.id) return;
+    // An irreversible broadcast to every customer, which also consumes today's
+    // scheduled run — it deserves at least the confirmation the delete button gets.
+    this.confirm.confirm({
+      header: 'Publicar ahora',
+      message: `Se publica de inmediato a ${this.reachableContacts()} contacto(s). Cuenta como la publicación de hoy, así que no se volverá a publicar sola.`,
+      icon: 'pi pi-send',
+      acceptLabel: 'Publicar',
+      rejectLabel: 'Cancelar',
+      accept: () => this.sendStory(story),
+    });
+  }
+
+  private sendStory(story: Story): void {
     this.postingId.set(story.id);
     this.storiesApi.postNow(story.id).subscribe({
       next: (r) => {

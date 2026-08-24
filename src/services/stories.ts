@@ -1,6 +1,13 @@
 import { rmSync } from "node:fs";
 import { containedPath } from "../domain/uploads.js";
-import { assetInUse, deleteAsset, deleteStory, getAsset, getStory } from "../db/repositories.js";
+import {
+  assetInUse,
+  deleteAsset,
+  deleteStory,
+  getAsset,
+  getStory,
+  listAssets,
+} from "../db/repositories.js";
 import { removeThumbnail } from "./thumbnails.js";
 import { logger } from "../logger.js";
 import type { Asset, Story } from "../domain/types.js";
@@ -63,10 +70,15 @@ export function deleteStoryAndMedia(storyId: string, assetsDir: string): number 
   if (!story) return 0;
 
   let removed = 0;
-  for (const { asset } of resolveStoryMedia(story, assetsDir)) {
+  // Iterated over story.media rather than the resolved files: resolveStoryMedia drops a
+  // row whose filename will not resolve, and the cascade below would then take the
+  // story_media row with it, leaving an assets row nothing can ever reach.
+  for (const item of story.media) {
     // Nothing in the UI shares media between stories, but a file another story still
     // points at must survive this one.
-    if (assetInUse(asset.id, story.id)) continue;
+    if (assetInUse(item.asset_id, story.id)) continue;
+    const asset = getAsset(item.asset_id);
+    if (!asset) continue;
     deleteAssetAndFile(asset, assetsDir);
     removed += 1;
   }
@@ -97,5 +109,37 @@ export function discardDroppedMedia(
     removed += 1;
   }
   if (removed > 0) logger.info({ story: before.id, removed }, "removed media dropped from a story");
+  return removed;
+}
+
+/** A composer session abandoned less than this ago is left alone. */
+const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Delete story media that belongs to no story.
+ *
+ * Since Estados lists stories rather than uploads, an asset no story points at cannot be
+ * seen or removed from anywhere in the UI — it is bytes on disk and a row nothing can
+ * ever reach. They appear whenever a composer session dies between uploading a file and
+ * saving the story: a closed tab, a lost connection, a rejected payload.
+ *
+ * Catalogue files are deliberately untouched: those are reachable on their own.
+ */
+export function sweepOrphanStoryMedia(
+  storeId: string,
+  assetsDir: string,
+  now: number = Date.now(),
+): number {
+  let removed = 0;
+  for (const asset of listAssets(storeId)) {
+    if (asset.category !== "story") continue;
+    if (assetInUse(asset.id)) continue;
+    // A grace period, so a story being composed across a restart is not swept away.
+    const age = now - Date.parse(asset.created_at);
+    if (!Number.isFinite(age) || age < ORPHAN_GRACE_MS) continue;
+    deleteAssetAndFile(asset, assetsDir);
+    removed += 1;
+  }
+  if (removed > 0) logger.info({ removed }, "swept story media that belonged to no story");
   return removed;
 }

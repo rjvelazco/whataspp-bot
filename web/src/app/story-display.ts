@@ -87,9 +87,21 @@ export function scheduleSummary(s: ScheduleDraft): string {
   }
 }
 
+/** Today as "YYYY-MM-DD", local — the same calendar the schedule is written in. */
+function todayKey(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 /** The line under a story card: what it will do next, or what it already did. */
-export function storyStatusLine(story: Story): string {
+export function storyStatusLine(story: Story, today = todayKey()): string {
   if (!story.enabled) return 'En pausa. No se publica hasta que la actives.';
   if (story.mode === 'once' && story.last_posted_at) return 'Ya se publicó.';
+  // A one-off whose date has gone will never fire. Saying so beats repeating a promise
+  // the scheduler cannot keep.
+  if (story.mode === 'once' && story.post_date && story.post_date < today) {
+    return 'No se publicó — la fecha ya pasó. Edítala para reprogramarla.';
+  }
   return scheduleSummary(story);
 }

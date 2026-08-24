@@ -114,6 +114,13 @@
   height: 100%;
   object-fit: cover;
 }
+.strip-blank {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-ink-3);
+}
 .strip-kind {
   position: absolute;
   left: 0;
@@ -189,6 +196,16 @@
   border-left: 3px solid var(--color-signal);
   background: var(--color-wash);
   font-size: var(--text-sm);
+}
+
+/* Dashed border = creates something new. The same rule "Nueva historia" follows. */
+:host ::ng-deep .dashed-add .p-button {
+  border-style: dashed;
+}
+.count {
+  float: right;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
 }
 
 .foot {

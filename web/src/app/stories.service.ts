@@ -1,21 +1,17 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import type { Story, StoryMediaItem, StoryMode } from './api-types';
+import type {
+  Story,
+  StoryMediaItem,
+  StoryMode,
+  StoryPostReason,
+  StoryPostResult,
+} from './api-types';
 
-export type { Story, StoryMediaItem, StoryMode };
-
-/**
- * Outcome of publishing a story. Web-only — it is the scheduler's return shape, not a
- * stored entity. Branching on the union means a new outcome is a compile error here.
- */
-export type StoryPostReason = 'ok' | 'disconnected' | 'no_media' | 'busy' | 'not_found';
-
-export interface StoryPostResult {
-  posted: number;
-  audience: number;
-  reason: StoryPostReason;
-}
+// Re-exported, never re-declared: this union had already drifted once (no_stories ->
+// no_media) while it was written out by hand on both sides.
+export type { Story, StoryMediaItem, StoryMode, StoryPostReason, StoryPostResult };
 
 /** What the API accepts. `media` is asset ids in posting order. */
 export interface StoryInput {

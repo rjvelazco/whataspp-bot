@@ -28,6 +28,7 @@ import {
   getOrder,
   getStoreById,
   listAllItems,
+  assetInUse,
   listAssets,
   listStories,
   getStory,
@@ -51,7 +52,7 @@ import { validateFlow } from "../engine/validateFlow.js";
 import { canTransition, nextStatuses } from "../domain/orderStatus.js";
 import type { StoryPostResult } from "../services/storyScheduler.js";
 import { deleteStoryAndMedia, discardDroppedMedia } from "../services/stories.js";
-import { parseTimeMinutes } from "../domain/storySchedule.js";
+import { localDateKey, parseTimeMinutes } from "../domain/storySchedule.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -286,6 +287,7 @@ export class WebServer {
    */
   private parseStoryInput(
     body: unknown,
+    existing?: Story,
   ):
     | { value: Omit<Story, "id" | "store_id" | "last_posted_at" | "created_at"> }
     | { error: string } {
@@ -315,6 +317,16 @@ export class WebServer {
     const postDate = typeof b["post_date"] === "string" ? b["post_date"] : null;
     if (mode === "once" && (!postDate || !isCalendarDate(postDate))) {
       return { error: "Elige la fecha de publicación." };
+    }
+    // A date already behind us would save cleanly and then never fire, while the card
+    // went on promising a publication. Only refused when it is actually a change, so an
+    // owner can still pause or edit a story whose date has since passed.
+    if (
+      mode === "once" &&
+      postDate !== existing?.post_date &&
+      postDate! < localDateKey(new Date())
+    ) {
+      return { error: "Esa fecha ya pasó. Elige una fecha de hoy en adelante." };
     }
 
     const mediaIds = Array.isArray(b["media"]) ? (b["media"] as unknown[]).map(String) : [];
@@ -509,6 +521,8 @@ export class WebServer {
     app.post("/api/assets/:category", uploadAsset.single("file"), (req, res) => {
       const category = req.params.category as AssetCategory;
       if (category !== "catalog" && category !== "story") {
+        // multer has already written the file, and the limit is now 32MB.
+        if (req.file) rmSync(join(assetsDir, req.file.filename), { force: true });
         res.status(400).json({ error: "invalid category" });
         return;
       }
@@ -527,8 +541,13 @@ export class WebServer {
       }
       if (!withinTypeLimit(req.file)) {
         rmSync(join(assetsDir, req.file.filename), { force: true });
-        const mb = Math.round(MAX_ASSET_BYTES / 1024 / 1024);
-        res.status(400).json({ error: `La imagen no puede pesar más de ${mb} MB.` });
+        const video = req.file.mimetype.startsWith("video/");
+        const mb = Math.round((video ? MAX_VIDEO_BYTES : MAX_ASSET_BYTES) / 1024 / 1024);
+        res.status(400).json({
+          error: video
+            ? `El video no puede pesar más de ${mb} MB.`
+            : `La imagen no puede pesar más de ${mb} MB.`,
+        });
         return;
       }
       const asset: Asset = {
@@ -588,7 +607,15 @@ export class WebServer {
         res.status(404).json({ error: "not found" });
         return;
       }
-      rmSync(join(assetsDir, asset.filename), { force: true });
+      // A story that still points at this file would publish fewer frames — or none,
+      // while isStoryDue keeps firing daily on media that no longer exists.
+      if (assetInUse(asset.id)) {
+        res.status(409).json({ error: "Este archivo se usa en una historia." });
+        return;
+      }
+      // Contained like every other filesystem use of a DB-sourced name.
+      const stored = containedPath(assetsDir, asset.filename);
+      if (stored) rmSync(stored, { force: true });
       removeThumbnail(assetsDir, asset.filename);
       deleteAsset(asset.id);
       logger.info({ id: asset.id }, "asset deleted");
@@ -806,7 +833,7 @@ export class WebServer {
         res.status(404).json({ error: "not found" });
         return;
       }
-      const parsed = this.parseStoryInput(req.body);
+      const parsed = this.parseStoryInput(req.body, existing);
       if ("error" in parsed) {
         res.status(400).json({ error: parsed.error });
         return;

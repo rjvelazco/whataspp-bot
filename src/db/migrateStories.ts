@@ -15,8 +15,15 @@ import type { Asset, Store, Story } from "../domain/types.js";
  * already posted as its own Status.
  */
 
+/** Key under which the marker is stored, so this can never fold twice. */
+export const LEGACY_STORY_MIGRATION_KEY = "stories:folded_legacy_schedule";
+
 export interface LegacyStoryMigrationDeps {
   getStore: () => Store | undefined;
+  /** Whether this migration has already run, from a marker rather than from user data. */
+  hasRun: () => boolean;
+  /** Record that it ran, and stop the old setting being read again. */
+  markRun: (store: Store) => void;
   /** Assets in the "story" category, for this store. */
   listStoryAssets: () => Asset[];
   /** Stories that already exist, so the migration can tell it has already run. */
@@ -31,16 +38,26 @@ const DEFAULT_TIME = "09:00";
 /**
  * Returns the story it created, or null when there was nothing to do.
  *
- * Idempotent by the presence of any story at all: once the owner has stories, the old
- * setting is history and must never be folded in a second time.
+ * Idempotence rests on a persisted marker, not on "the owner has no stories yet". The
+ * latter is user data: deleting your only story took the count back to zero, and the
+ * legacy `{ enabled: true }` was still sitting in the store row waiting to be read — so
+ * the next orphaned upload would have been folded into a live daily story and started
+ * broadcasting a file nobody scheduled.
  */
 export function migrateLegacyStorySchedule(deps: LegacyStoryMigrationDeps): Story | null {
+  if (deps.hasRun()) return null;
   const store = deps.getStore();
   if (!store) return null;
-  if (deps.listStories().length > 0) return null;
+  if (deps.listStories().length > 0) {
+    deps.markRun(store);
+    return null;
+  }
 
   const assets = deps.listStoryAssets();
-  if (assets.length === 0) return null;
+  if (assets.length === 0) {
+    deps.markRun(store);
+    return null;
+  }
 
   const legacy = store.story_schedule;
   const story: Story = {
@@ -64,6 +81,7 @@ export function migrateLegacyStorySchedule(deps: LegacyStoryMigrationDeps): Stor
   };
 
   deps.saveStory(story);
+  deps.markRun(store);
   logger.info(
     { story: story.id, media: story.media.length, enabled: story.enabled },
     "folded the legacy story schedule into one daily story",

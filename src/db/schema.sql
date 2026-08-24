@@ -42,6 +42,13 @@ CREATE TABLE IF NOT EXISTS assets (
 );
 CREATE INDEX IF NOT EXISTS idx_assets_store ON assets(store_id, category);
 
+-- Markers for one-off migrations, so idempotence never depends on user data. Deleting
+-- the last story must not make a migration eligible to run a second time.
+CREATE TABLE IF NOT EXISTS app_meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 -- A scheduled Status (Estado): one caption, one schedule, one or more media files.
 CREATE TABLE IF NOT EXISTS stories (
   id             TEXT PRIMARY KEY,

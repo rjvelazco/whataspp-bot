@@ -1,9 +1,13 @@
+<!-- Not mask-dismissable, and not closable mid-save: cancelling deletes the files
+     uploaded here, so a stray backdrop click would discard a three-step draft, and a
+     close during a save would race those DELETEs against the POST that references them. -->
 <p-dialog
   [visible]="open()"
   (visibleChange)="$event ? open.set(true) : cancel()"
   [modal]="true"
   [draggable]="false"
-  [dismissableMask]="true"
+  [dismissableMask]="false"
+  [closable]="!saving()"
   [style]="{ width: '640px', maxWidth: '96vw' }"
   [header]="title()"
 >
@@ -32,10 +36,14 @@
 
       @if (media().length > 0) {
         <ul class="strip">
-          @for (a of media(); track a.id) {
+          @for (m of mediaView(); track m.id) {
             <li class="strip-item">
-              <img [src]="thumbUrl(a.id)" [alt]="a.original_name" loading="lazy" />
-              @if (isVideo(a)) {
+              @if (m.thumb) {
+                <img [src]="m.thumb" [alt]="m.alt" loading="lazy" />
+              } @else {
+                <span class="strip-blank" aria-hidden="true"><i class="pi pi-play"></i></span>
+              }
+              @if (m.isVideo) {
                 <span class="strip-kind">MP4</span>
               }
               <p-button
@@ -44,9 +52,8 @@
                 [text]="true"
                 size="small"
                 severity="danger"
-                styleClass="strip-remove"
-                [ariaLabel]="'Quitar ' + a.original_name"
-                (onClick)="removeMedia(a)"
+                [ariaLabel]="'Quitar ' + m.alt"
+                (onClick)="removeMedia(m.asset)"
               />
             </li>
           }
@@ -62,7 +69,7 @@
         chooseIcon="pi pi-plus"
         [chooseLabel]="uploading() ? 'Subiendo…' : 'Agregar archivos'"
         [disabled]="uploading()"
-        styleClass="add-media"
+        styleClass="add-media dashed-add"
         (uploadHandler)="onFiles($event)"
       />
       <p class="pane-note">Los videos deben ser MP4 y durar 30 segundos o menos.</p>
@@ -73,10 +80,14 @@
   @if (step() === 2) {
     <section class="pane pane-split">
       <ul class="strip strip-compact">
-        @for (a of media(); track a.id) {
+        @for (m of mediaView(); track m.id) {
           <li class="strip-item">
-            <img [src]="thumbUrl(a.id)" [alt]="a.original_name" loading="lazy" />
-            @if (isVideo(a)) {
+            @if (m.thumb) {
+              <img [src]="m.thumb" [alt]="m.alt" loading="lazy" />
+            } @else {
+              <span class="strip-blank" aria-hidden="true"><i class="pi pi-play"></i></span>
+            }
+            @if (m.isVideo) {
               <span class="strip-kind">MP4</span>
             }
           </li>
@@ -89,11 +100,15 @@
           pTextarea
           id="story-caption"
           rows="5"
+          [maxlength]="captionMax"
           placeholder="Vestidos nuevos, tallas S a XL. Escríbenos para apartar."
           [ngModel]="caption()"
           (ngModelChange)="caption.set($event)"
         ></textarea>
-        <p class="pane-note">Se muestra sobre cada archivo. Puedes dejarlo vacío.</p>
+        <p class="pane-note">
+          Se muestra sobre cada archivo. Puedes dejarlo vacío.
+          <span class="count">{{ caption().length }}/{{ captionMax }}</span>
+        </p>
       </div>
     </section>
   }
@@ -136,6 +151,7 @@
             inputId="story-date"
             dateFormat="dd/mm/yy"
             [showIcon]="true"
+            [minDate]="today"
             [ngModel]="postDate()"
             (ngModelChange)="postDate.set($event)"
           />

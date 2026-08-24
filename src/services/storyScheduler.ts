@@ -1,16 +1,9 @@
 import { logger } from "../logger.js";
 import { isStoryDue } from "../domain/storySchedule.js";
 import type { StoryMediaFile } from "./stories.js";
-import type { Story } from "../domain/types.js";
+import type { Story, StoryPostResult } from "../domain/types.js";
 
-/** Result of a posting run, surfaced to the "Publicar ahora" button. */
-export type StoryPostReason = "ok" | "disconnected" | "no_media" | "busy" | "not_found";
-
-export interface StoryPostResult {
-  posted: number;
-  audience: number;
-  reason: StoryPostReason;
-}
+export type { StoryPostReason, StoryPostResult } from "../domain/types.js";
 
 export interface StorySchedulerDeps {
   /** Read the stories fresh each tick, so admin edits take effect without a restart. */
@@ -31,8 +24,8 @@ export interface StorySchedulerDeps {
   resolveMedia: (story: Story) => StoryMediaFile[];
   /** Whether WhatsApp is currently linked (posting while offline would hang). */
   isConnected: () => boolean;
-  /** Persist the once-per-day guard. */
-  markPosted: (storyId: string, at: string) => void;
+  /** Persist the once-per-day guard. Null restores "never posted". */
+  markPosted: (storyId: string, at: string | null) => void;
   /** Drop a one-time story that asked to clean up after itself. */
   discardStory: (story: Story) => void;
   /** Injectable clock, so the tests do not have to wait for a real minute to arrive. */
@@ -108,6 +101,16 @@ export class StoryScheduler {
         return { posted: 0, audience: audience.length, reason: "no_media" };
       }
 
+      // Stamped BEFORE the first frame goes out, not after the last one.
+      //
+      // The loop can take a large share of the 120s window — a frame may be a 32MB
+      // upload — so a crash or a redeploy partway through used to leave the guard null
+      // and let a restart re-broadcast every frame that had already been sent. Posting
+      // nothing because we crashed is the failure this module already argues for;
+      // posting twice is the one it exists to prevent.
+      const previous = story.last_posted_at;
+      this.deps.markPosted(story.id, this.now().toISOString());
+
       let posted = 0;
       for (const { asset, path } of media) {
         try {
@@ -125,11 +128,15 @@ export class StoryScheduler {
         }
       }
 
-      if (posted > 0) {
-        this.deps.markPosted(story.id, this.now().toISOString());
-        // Only a one-time story may clean up after itself; on a repeating one this
-        // would delete the media it needs for the next run.
-        if (story.mode === "once" && story.delete_after) this.deps.discardStory(story);
+      // Nothing went out, so nothing may be recorded as having gone out.
+      if (posted === 0) this.deps.markPosted(story.id, previous);
+
+      // Only a one-time story may clean up after itself — on a repeating one this would
+      // delete the media it needs for the next run — and only when every frame actually
+      // published. discardStory erases the files, so a partial run would destroy the
+      // originals of frames the customer never received.
+      if (posted === media.length && story.mode === "once" && story.delete_after) {
+        this.deps.discardStory(story);
       }
 
       logger.info(

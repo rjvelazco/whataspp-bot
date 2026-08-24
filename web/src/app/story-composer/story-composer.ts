@@ -17,6 +17,9 @@ import { TimeWheel } from './time-wheel';
 /** A Status video longer than this is refused before it is uploaded. */
 const MAX_VIDEO_SECONDS = 30;
 
+/** Matches MAX_CAPTION on the server; shown as a counter rather than found on save. */
+const MAX_CAPTION = 700;
+
 const STEPS = [
   { n: 1, label: 'Archivos' },
   { n: 2, label: 'Texto' },
@@ -51,6 +54,9 @@ export class StoryComposer {
   readonly saved = output<void>();
 
   protected readonly steps = STEPS;
+  protected readonly captionMax = MAX_CAPTION;
+  /** Nothing can be scheduled for a date that has already gone. */
+  protected readonly today = new Date();
   protected readonly weekdayOptions = WEEKDAYS;
   protected readonly modes: { label: string; value: StoryMode }[] = [
     { label: 'Todos los días', value: 'daily' },
@@ -137,13 +143,17 @@ export class StoryComposer {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
 
-  protected thumbUrl(id: string): string {
-    return this.assetsApi.thumbUrl(id);
-  }
-
-  protected isVideo(a: Asset): boolean {
-    return a.mimetype.startsWith('video/');
-  }
+  /** The media strip, resolved once per change rather than per binding per pass. */
+  protected readonly mediaView = computed(() =>
+    this.media().map((a) => ({
+      id: a.id,
+      alt: a.original_name,
+      // sharp does not decode MP4, so a video never has a thumbnail to draw.
+      thumb: a.mimetype.startsWith('video/') ? null : this.assetsApi.thumbUrl(a.id),
+      isVideo: a.mimetype.startsWith('video/'),
+      asset: a,
+    })),
+  );
 
   protected setMode(mode: StoryMode): void {
     this.mode.set(mode);
@@ -178,8 +188,8 @@ export class StoryComposer {
     if (!file.type.startsWith('video/')) return null;
     if (file.type !== 'video/mp4') return `${file.name}: solo se admite video MP4.`;
     const seconds = await this.videoSeconds(file);
-    // Checked here as well as on the server, so a 3-minute clip is refused before the
-    // owner waits through its upload.
+    // Checked in the browser because the server cannot: reading a video's duration
+    // needs a decoder the bot does not ship. The size limit is the server-side backstop.
     if (seconds !== null && seconds > MAX_VIDEO_SECONDS) {
       return `${file.name}: el video dura ${Math.round(seconds)}s y el máximo es ${MAX_VIDEO_SECONDS}s.`;
     }
@@ -284,6 +294,9 @@ export class StoryComposer {
 
   /** Closing without saving: the files uploaded here belong to nothing, so remove them. */
   protected cancel(): void {
+    // A save in flight is about to reference these files; deleting them would either
+    // fail the POST or create a story whose media no longer exist.
+    if (this.saving()) return;
     for (const id of this.pending()) {
       this.assetsApi.remove(id).subscribe({ error: () => undefined });
     }

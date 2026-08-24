@@ -58,6 +58,16 @@ export interface StorySchedule {
   time: string;
 }
 
+/** Why a publish attempt ended the way it did. */
+export type StoryPostReason = "ok" | "disconnected" | "no_media" | "busy" | "not_found";
+
+export interface StoryPostResult {
+  posted: number;
+  /** How many contacts the Status was sent to. */
+  audience: number;
+  reason: StoryPostReason;
+}
+
 /** How often a story republishes. */
 export type StoryMode = "daily" | "weekly" | "once";
 

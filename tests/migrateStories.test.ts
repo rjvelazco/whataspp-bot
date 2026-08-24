@@ -29,8 +29,13 @@ const asset = (id: string, created_at: string): Asset => ({
 
 function harness(over: Partial<Parameters<typeof migrateLegacyStorySchedule>[0]> = {}) {
   const saved: Story[] = [];
+  const marker = { ran: false };
   let counter = 0;
   const deps = {
+    hasRun: () => marker.ran,
+    markRun: () => {
+      marker.ran = true;
+    },
     getStore: () => store({ story_schedule: { enabled: true, time: "10:30" } }),
     listStoryAssets: () => [
       asset("b", "2026-08-02T00:00:00.000Z"),
@@ -42,7 +47,7 @@ function harness(over: Partial<Parameters<typeof migrateLegacyStorySchedule>[0]>
     now: () => new Date(2026, 7, 24, 12, 0),
     ...over,
   };
-  return { deps, saved };
+  return { deps, saved, marker };
 }
 
 describe("migrateLegacyStorySchedule", () => {
@@ -86,6 +91,24 @@ describe("migrateLegacyStorySchedule", () => {
     expect(migrateLegacyStorySchedule(h.deps)).not.toBeNull();
     expect(migrateLegacyStorySchedule(h.deps)).toBeNull();
     expect(h.saved).toHaveLength(1);
+  });
+
+  it("stays done after the owner deletes every story", () => {
+    const h = harness();
+    migrateLegacyStorySchedule(h.deps);
+    h.saved.length = 0; // the owner deleted their only story
+
+    // Idempotence must not rest on the story count. It used to: with zero stories and
+    // the legacy { enabled: true } still in the store row, the next orphaned upload was
+    // folded into a live daily story and started broadcasting a file nobody scheduled.
+    expect(migrateLegacyStorySchedule(h.deps)).toBeNull();
+    expect(h.saved).toHaveLength(0);
+  });
+
+  it("marks itself done even when there was nothing to migrate", () => {
+    const empty = harness({ listStoryAssets: () => [] });
+    expect(migrateLegacyStorySchedule(empty.deps)).toBeNull();
+    expect(empty.marker.ran).toBe(true);
   });
 
   it("does nothing when there is nothing to carry", () => {

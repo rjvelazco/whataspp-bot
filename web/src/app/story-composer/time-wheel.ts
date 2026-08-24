@@ -1,8 +1,10 @@
 import {
   Component,
+  DestroyRef,
   ElementRef,
   afterNextRender,
   effect,
+  inject,
   model,
   signal,
   viewChild,
@@ -143,16 +145,26 @@ export class TimeWheel {
   private committing = false;
   private settle?: ReturnType<typeof setTimeout>;
   /**
-   * Scroll events caused by us are ignored until this moment.
+   * The scroll offsets we last asked for, per column.
    *
-   * Without it the wheel fights itself: scrollTo fires `scroll`, the debounced reader
-   * takes the position mid-animation, and commits a value nobody chose — which is how
-   * a wheel opened on 9:00 AM settled on 9:02 PM, and how an arrow key was undone by
-   * the smooth scroll it had just started.
+   * The wheel would otherwise fight itself: scrollTo fires `scroll`, the debounced
+   * reader takes the position mid-animation, and commits a value nobody chose — that is
+   * how a wheel opened on 9:00 AM settled on 9:02 PM, and how an arrow key was undone by
+   * its own smooth scroll. Comparing against the requested offsets, rather than gating on
+   * a shared deadline, means a flick on the minute column is never swallowed because the
+   * hour column happens to be animating.
    */
-  private ignoreScrollUntil = 0;
+  private readonly requested = new WeakMap<HTMLElement, { top: number; deadline: number }>();
+  private frame?: number;
 
   constructor() {
+    // A timer or a frame that outlives the view would write the parent's signal from a
+    // destroyed component — reachable by pressing "Atrás" within the settle window.
+    inject(DestroyRef).onDestroy(() => {
+      clearTimeout(this.settle);
+      if (this.frame !== undefined) cancelAnimationFrame(this.frame);
+    });
+
     effect(() => {
       const next = parseTime(this.value());
       this.parts.set(next);
@@ -162,11 +174,13 @@ export class TimeWheel {
       }
       // An outside change (opening the dialog on an existing story) has to move the
       // wheels; our own commit must not, or the wheel fights the finger mid-scroll.
-      requestAnimationFrame(() => this.position(next, 'auto'));
+      this.frame = requestAnimationFrame(() => this.position(next, 'auto'));
     });
     // requestAnimationFrame, not the current frame: on the frame the dialog step appears
     // the columns have no scroll height yet, so scrollTop silently clamps to 0.
-    afterNextRender(() => requestAnimationFrame(() => this.position(this.parts(), 'auto')));
+    afterNextRender(() => {
+      this.frame = requestAnimationFrame(() => this.position(this.parts(), 'auto'));
+    });
   }
 
   protected pad(n: number): string {
@@ -174,12 +188,28 @@ export class TimeWheel {
   }
 
   private position(parts: Parts, behavior: ScrollBehavior): void {
-    // A smooth scroll keeps firing events for a while after it is asked for.
-    this.ignoreScrollUntil = Date.now() + (behavior === 'smooth' ? 600 : 300);
     clearTimeout(this.settle);
-    this.hourCol().nativeElement.scrollTo({ top: (parts.hour - 1) * ITEM, behavior });
-    this.minuteCol().nativeElement.scrollTo({ top: parts.minute * ITEM, behavior });
-    this.meridiemCol().nativeElement.scrollTo({ top: parts.meridiem * ITEM, behavior });
+    const targets: [HTMLElement, number][] = [
+      [this.hourCol().nativeElement, (parts.hour - 1) * ITEM],
+      [this.minuteCol().nativeElement, parts.minute * ITEM],
+      [this.meridiemCol().nativeElement, parts.meridiem * ITEM],
+    ];
+    // The deadline is what stops a column that never arrives from blocking commits
+    // forever: the user can scroll a column away from where we sent it, and then it is
+    // their position that is correct, not ours.
+    const deadline = Date.now() + (behavior === 'smooth' ? 600 : 300);
+    for (const [el, top] of targets) {
+      this.requested.set(el, { top, deadline });
+      el.scrollTo({ top, behavior });
+    }
+  }
+
+  /** True while this column is still travelling to the offset we asked it for. */
+  private isSettling(el: HTMLElement): boolean {
+    const target = this.requested.get(el);
+    if (!target) return false;
+    if (Date.now() > target.deadline) return false;
+    return Math.abs(el.scrollTop - target.top) > 1;
   }
 
   /**
@@ -189,7 +219,6 @@ export class TimeWheel {
    * value that never commits on an older iPhone is exactly the phone this control is for.
    */
   protected onScroll(): void {
-    if (Date.now() < this.ignoreScrollUntil) return;
     clearTimeout(this.settle);
     this.settle = setTimeout(() => this.commitFromScroll(), SETTLE_MS);
   }
@@ -199,6 +228,19 @@ export class TimeWheel {
   }
 
   private commitFromScroll(): void {
+    // Any column still animating towards a position we asked for would report a
+    // half-way offset, so wait for the next settle instead of reading it now.
+    const columns = [
+      this.hourCol().nativeElement,
+      this.minuteCol().nativeElement,
+      this.meridiemCol().nativeElement,
+    ];
+    if (columns.some((el) => this.isSettling(el))) {
+      this.settle = setTimeout(() => this.commitFromScroll(), SETTLE_MS);
+      return;
+    }
+    for (const el of columns) this.requested.delete(el);
+
     const parts: Parts = {
       hour: this.indexOf(this.hourCol().nativeElement, 11) + 1,
       minute: this.indexOf(this.minuteCol().nativeElement, 59),
