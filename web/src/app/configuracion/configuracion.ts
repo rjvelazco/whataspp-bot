@@ -244,8 +244,9 @@ export class Configuracion implements OnInit {
   protected assetIsImage(a: Asset): boolean {
     return a.mimetype.startsWith('image/');
   }
+  /** The chip draws a ~24px image, so it gets the thumbnail, not the original. */
   protected assetUrl(id: string): string {
-    return this.assetsApi.fileUrl(id);
+    return this.assetsApi.thumbUrl(id);
   }
   protected addAttachment(assetId: string): void {
     if (!assetId) return;

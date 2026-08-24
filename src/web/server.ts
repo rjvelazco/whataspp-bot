@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { config } from "../config.js";
 import { containedPath } from "../domain/uploads.js";
+import { ensureThumbnail, removeThumbnail } from "../services/thumbnails.js";
 import { logger } from "../logger.js";
 import type {
   Asset,
@@ -438,6 +439,29 @@ export class WebServer {
       sendStoredFile(res, join(assetsDir, asset.filename));
     });
 
+    /**
+      * The thumbnail, generated on first request and cached beside the original.
+      *
+      * 404 when the asset cannot have one (a PDF), which the UI already handles by
+      * drawing its file icon.
+      */
+    app.get("/api/assets/:id/thumb", async (req, res) => {
+      const asset = getAsset(req.params.id);
+      if (!asset || asset.store_id !== this.storeId) {
+        res.status(404).send("not found");
+        return;
+      }
+      const thumb = await ensureThumbnail(assetsDir, asset.filename, asset.mimetype);
+      if (!thumb) {
+        res.status(404).send("no thumbnail");
+        return;
+      }
+      // Content-addressed by the asset's own filename, which never changes for a given
+      // upload, so it can be cached hard.
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      sendStoredFile(res, thumb);
+    });
+
     app.delete("/api/assets/:id", (req, res) => {
       const asset = getAsset(req.params.id);
       if (!asset || asset.store_id !== this.storeId) {
@@ -445,6 +469,7 @@ export class WebServer {
         return;
       }
       rmSync(join(assetsDir, asset.filename), { force: true });
+      removeThumbnail(assetsDir, asset.filename);
       deleteAsset(asset.id);
       logger.info({ id: asset.id }, "asset deleted");
       res.json({ ok: true });

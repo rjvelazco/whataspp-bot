@@ -150,10 +150,15 @@
             rel="noopener"
           >
             @if (isImage(a)) {
+              <!-- The thumbnail, not the original: the tile is ~160px and the upload can
+                   be several megabytes. lazy/async so a long library does not block
+                   first paint on images below the fold. -->
               <img
-                [src]="fileUrl(a.id)"
+                [src]="thumbUrl(a.id)"
                 [alt]="a.original_name"
                 class="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
               />
             } @else {
               <div

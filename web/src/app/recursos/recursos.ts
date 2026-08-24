@@ -183,6 +183,10 @@ export class Recursos implements OnInit {
     return a.mimetype.startsWith('image/');
   }
 
+  protected thumbUrl(id: string): string {
+    return this.api.thumbUrl(id);
+  }
+
   protected fileUrl(id: string): string {
     return this.api.fileUrl(id);
   }
