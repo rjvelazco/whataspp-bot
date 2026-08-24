@@ -663,6 +663,20 @@ app-card th[appsortable]:first-child {
   .content {
     padding: 24px var(--gutter) 48px;
   }
+  /* The brand name costs more than it earns on a phone: it left the nav scrollport
+     about 120px wide, so only two icons were reachable at a time. The mark stays as the
+     identity anchor, and the name is still in the accessibility tree. */
+  .brand-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .brand {
+    padding: 0;
+  }
 }
 
 .cdk-drag-preview {

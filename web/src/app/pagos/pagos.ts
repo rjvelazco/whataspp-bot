@@ -15,14 +15,16 @@ import { buildSheet, exportFilename, sheetColumns } from './pagos-export';
 import { StoreService } from '../store.service';
 import { MessageService } from 'primeng/api';
 import {
+  Card,
+  DataTable,
   PageHead,
+  SortableTh,
   StatCard,
   StatRow,
-  Card,
+  TableSearch,
+  TableState,
   Toolbar,
-  SortableTh,
   sortBy,
-  type SortState,
 } from '../ui';
 
 type PagosFilter = 'all' | 'pending' | 'verified';
@@ -47,6 +49,8 @@ type PagosSortKey = 'id' | 'date' | 'name' | 'total' | 'pay';
     Card,
     Toolbar,
     SortableTh,
+    DataTable,
+    TableSearch,
   ],
   templateUrl: './pagos.html',
   styleUrl: './pagos.css',
@@ -61,31 +65,15 @@ export class Pagos implements OnInit {
   protected readonly exporting = signal(false);
 
   protected readonly filter = signal<PagosFilter>('all');
-  /**
-   * Paginator page, held here rather than inside p-table. The order list is refetched
-   * every ten seconds and rows.set() replaces the array, which resets the table's own
-   * internal page — so without this the view jumps back to page 1 while you are reading
-   * page 3.
-   */
-  protected readonly first = signal(0);
+  /** Search, sort and page — the same object Productos uses, so the rules match. */
+  protected readonly table = new TableState<PagosSortKey>({ key: 'date', dir: 'desc' });
 
   /** The order whose receipt is open, or null. */
   protected readonly selected = signal<Order | null>(null);
 
-  /**
-   * Sort state. Fecha opens descending because the newest payment is the one you came to
-   * look at; the rest is whatever was clicked last.
-   */
-  protected readonly sort = signal<SortState<PagosSortKey>>({ key: 'date', dir: 'desc' });
-
-  /** Re-sorting or re-filtering makes the current page meaningless; go back to the top. */
-  protected setSort(next: SortState<PagosSortKey>): void {
-    this.sort.set(next);
-    this.first.set(0);
-  }
   protected setFilter(next: PagosFilter): void {
     this.filter.set(next);
-    this.first.set(0);
+    this.table.setPage(0);
   }
 
   /**
@@ -117,8 +105,15 @@ export class Pagos implements OnInit {
         : f === 'verified'
           ? rows.filter((o) => paymentState(o) === 'verificado')
           : rows;
-    const { key, dir } = this.sort();
-    return sortBy(filtered, this.sortValue[key], dir);
+    // Search narrows the same list the chips do, so the two compose.
+    const q = this.table.search().trim().toLowerCase();
+    const matched = q
+      ? filtered.filter((o) =>
+          `${o.order_id} ${o.customer_name} ${itemsSummary(o)}`.toLowerCase().includes(q),
+        )
+      : filtered;
+    const { key, dir } = this.table.sort();
+    return sortBy(matched, this.sortValue[key], dir);
   });
 
   protected readonly items = itemsSummary;

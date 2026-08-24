@@ -19,13 +19,17 @@ import { Component } from '@angular/core';
       padding: 16px var(--card-inset, 24px);
       border-bottom: 1px solid var(--color-line-soft);
     }
-    /* On a phone a segmented filter would wrap its labels onto two lines and lose the
-       pill shape. Scroll the strip instead, and let each control keep its own width. */
+    /* On a phone the toolbar wraps, but the controls inside it do not: a single row
+       squeezed the search box to about 190px and clipped its placeholder, while a
+       segmented filter that wraps loses its pill shape. So the strip gains rows and each
+       control keeps its own width. */
     @media (max-width: 720px) {
       :host {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        scrollbar-width: thin;
+        flex-wrap: wrap;
+        row-gap: 8px;
+      }
+      :host ::ng-deep p-selectbutton {
+        flex: 0 0 auto;
       }
       :host ::ng-deep .p-togglebutton-label {
         white-space: nowrap;
