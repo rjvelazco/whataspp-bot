@@ -19,7 +19,9 @@ export type {
   Asset,
   AssetCategory,
   Contact,
-  StorySchedule,
+  Story,
+  StoryMode,
+  StoryMediaItem,
   Store,
   StorePayments,
 } from '../../../src/domain/types';

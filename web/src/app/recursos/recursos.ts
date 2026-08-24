@@ -7,8 +7,11 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { InputTextModule } from 'primeng/inputtext';
 import { TooltipModule } from 'primeng/tooltip';
 import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
-import { SettingsService, type StorySchedule, type StoryPostReason } from '../settings.service';
+import { SettingsService } from '../settings.service';
+import { StoriesService, type Story, type StoryPostReason } from '../stories.service';
 import { apiErrorMessage } from '../api-error';
+import { storyStatusLine } from '../story-display';
+import { StoryComposer } from '../story-composer/story-composer';
 import { Card, PageHead, Toolbar } from '../ui';
 
 /** Toast per outcome of "publicar ahora" — one table instead of an if/else ladder. */
@@ -17,9 +20,23 @@ const POST_RESULT: Record<
   { severity: 'warn' | 'info'; summary: string }
 > = {
   disconnected: { severity: 'warn', summary: 'WhatsApp no está conectado' },
-  no_stories: { severity: 'info', summary: 'No hay historias para publicar' },
+  no_media: { severity: 'info', summary: 'La historia no tiene archivos' },
   busy: { severity: 'info', summary: 'Publicación en curso, intenta de nuevo' },
+  not_found: { severity: 'info', summary: 'La historia ya no existe' },
 };
+
+/** A story as its card renders it, with the media resolved and the copy composed. */
+interface StoryCard {
+  story: Story;
+  thumbs: { id: string; alt: string; video: boolean; thumb: string | null }[];
+  /** Media beyond the four the card shows. */
+  extra: number;
+  caption: string;
+  status: string;
+}
+
+/** How many media thumbnails fit on a card before it just counts the rest. */
+const CARD_THUMBS = 4;
 
 /**
  * The short label a file without a thumbnail shows instead.
@@ -71,13 +88,15 @@ function formatBytes(bytes: number): string {
     PageHead,
     Card,
     Toolbar,
+    StoryComposer,
   ],
   templateUrl: './recursos.html',
   styleUrl: './recursos.css',
 })
 export class Recursos implements OnInit {
-  private readonly api = inject(AssetsService);
+  private readonly assetsApi = inject(AssetsService);
   private readonly settings = inject(SettingsService);
+  private readonly storiesApi = inject(StoriesService);
   private readonly messages = inject(MessageService);
   private readonly confirm = inject(ConfirmationService);
 
@@ -94,42 +113,63 @@ export class Recursos implements OnInit {
    */
   private readonly thumbFailed = signal<ReadonlySet<string>>(new Set());
 
-  protected readonly catalogRows = computed(() => this.rowsFor('catalog'));
-  protected readonly storyRows = computed(() => this.rowsFor('story'));
-
-  private rowsFor(category: AssetCategory): AssetRow[] {
+  protected readonly catalogRows = computed<AssetRow[]>(() => {
     const failed = this.thumbFailed();
     return this.assets()
-      .filter((a) => a.category === category)
+      .filter((a) => a.category === 'catalog')
       .map((a) => ({
         id: a.id,
         name: a.original_name,
         thumb:
-          a.mimetype.startsWith('image/') && !failed.has(a.id) ? this.api.thumbUrl(a.id) : null,
-        href: this.api.fileUrl(a.id),
+          a.mimetype.startsWith('image/') && !failed.has(a.id)
+            ? this.assetsApi.thumbUrl(a.id)
+            : null,
+        href: this.assetsApi.fileUrl(a.id),
         kind: kindOf(a),
         sizeLabel: formatBytes(a.size),
       }));
-  }
+  });
 
-  // --- Story (Estados) daily schedule ---
-  protected readonly scheduleEnabled = signal(false);
-  protected readonly scheduleTime = signal('09:00');
-  protected readonly savingSchedule = signal(false);
-  protected readonly postingNow = signal(false);
+  // --- Estados: scheduled stories ---
+  protected readonly stories = signal<Story[]>([]);
+  protected readonly composerOpen = signal(false);
+  protected readonly editingStory = signal<Story | null>(null);
+  /** The story currently publishing, so one busy button never blocks the others. */
+  protected readonly postingId = signal<string | null>(null);
   /** How many contacts (with a phone number) the Status can reach. */
   protected readonly reachableContacts = signal(0);
 
+  protected readonly storyCards = computed<StoryCard[]>(() => {
+    const byId = new Map(this.assets().map((a) => [a.id, a]));
+    const failed = this.thumbFailed();
+    return this.stories().map((story) => {
+      const media = story.media
+        .map((m) => byId.get(m.asset_id))
+        .filter((a): a is Asset => a !== undefined);
+      return {
+        story,
+        thumbs: media.slice(0, CARD_THUMBS).map((a) => ({
+          id: a.id,
+          alt: a.original_name,
+          video: a.mimetype.startsWith('video/'),
+          // Same rule as the file list: a thumbnail that 404s must not paint the
+          // browser's broken-image glyph. A video has no thumbnail at all — sharp
+          // does not decode MP4 — so it always takes the placeholder.
+          thumb:
+            a.mimetype.startsWith('image/') && !failed.has(a.id)
+              ? this.assetsApi.thumbUrl(a.id)
+              : null,
+        })),
+        extra: Math.max(0, media.length - CARD_THUMBS),
+        caption: story.caption || 'Sin texto',
+        status: storyStatusLine(story),
+      };
+    });
+  });
+
   ngOnInit(): void {
     this.load();
-    this.settings.getStorySchedule().subscribe({
-      next: (s) => {
-        this.scheduleEnabled.set(s.enabled);
-        this.scheduleTime.set(s.time);
-      },
-      error: () =>
-        this.messages.add({ severity: 'error', summary: 'No se pudo cargar la programación' }),
-    });
+    this.loadStories();
     this.settings.getContacts().subscribe({
       next: (contacts) => this.reachableContacts.set(contacts.filter((c) => !!c.phone).length),
       error: () =>
@@ -138,7 +178,7 @@ export class Recursos implements OnInit {
   }
 
   private load(): void {
-    this.api.list().subscribe({
+    this.assetsApi.list().subscribe({
       next: (a) => {
         // A re-uploaded file can reuse an id we had written off; start each list clean.
         this.thumbFailed.set(new Set());
@@ -149,57 +189,112 @@ export class Recursos implements OnInit {
     });
   }
 
+  /** A story card's media thumbnail. */
+  protected thumbUrl(id: string): string {
+    return this.assetsApi.thumbUrl(id);
+  }
+
   /** The thumbnail 404'd or failed to decode: fall back to the label for this asset. */
   protected onThumbError(id: string): void {
     this.thumbFailed.update((failed) => new Set(failed).add(id));
   }
 
-  protected saveSchedule(): void {
-    const schedule: StorySchedule = {
-      enabled: this.scheduleEnabled(),
-      time: this.scheduleTime(),
-    };
-    this.savingSchedule.set(true);
-    this.settings.saveStorySchedule(schedule).subscribe({
-      next: (s) => {
-        this.savingSchedule.set(false);
-        this.scheduleEnabled.set(s.enabled);
-        this.scheduleTime.set(s.time);
-        this.messages.add({
-          severity: 'success',
-          summary: 'Programación guardada',
-          detail: s.enabled
-            ? `Se publicará cada día a las ${s.time}.`
-            : 'Publicación automática desactivada.',
-        });
-      },
-      error: () => {
-        this.savingSchedule.set(false);
-        this.messages.add({ severity: 'error', summary: 'No se pudo guardar la programación' });
-      },
+  private loadStories(): void {
+    this.storiesApi.list().subscribe({
+      next: (list) => this.stories.set(list),
+      error: () =>
+        this.messages.add({ severity: 'error', summary: 'No se pudieron cargar las historias' }),
     });
   }
 
-  protected postStoryNow(): void {
-    if (this.storyRows().length === 0) return;
-    this.postingNow.set(true);
-    this.settings.postStoryNow().subscribe({
+  /** Reload both: a story card draws its thumbnails from the asset list. */
+  protected onStorySaved(): void {
+    this.load();
+    this.loadStories();
+  }
+
+  protected newStory(): void {
+    this.editingStory.set(null);
+    this.composerOpen.set(true);
+  }
+
+  protected editStory(story: Story): void {
+    this.editingStory.set(story);
+    this.composerOpen.set(true);
+  }
+
+  protected toggleStory(story: Story, enabled: boolean): void {
+    this.storiesApi
+      .update(story.id, {
+        caption: story.caption,
+        mode: story.mode,
+        weekdays: story.weekdays,
+        post_date: story.post_date,
+        post_time: story.post_time,
+        delete_after: story.delete_after,
+        enabled,
+        media: story.media.map((m) => m.asset_id),
+      })
+      .subscribe({
+        next: () => this.loadStories(),
+        error: (e) => {
+          this.loadStories(); // put the switch back where the server says it is
+          this.messages.add({
+            severity: 'error',
+            summary: 'No se pudo cambiar',
+            detail: apiErrorMessage(e),
+          });
+        },
+      });
+  }
+
+  protected postStoryNow(story: Story): void {
+    // Per story, not global: one publish in flight must not disable the other buttons.
+    if (this.postingId()) return;
+    this.postingId.set(story.id);
+    this.storiesApi.postNow(story.id).subscribe({
       next: (r) => {
-        this.postingNow.set(false);
+        this.postingId.set(null);
         if (r.reason === 'ok') {
           this.messages.add({
             severity: 'success',
-            summary: 'Historias publicadas',
-            detail: `${r.posted} historia(s) enviada(s) a ${r.audience} contacto(s).`,
+            summary: 'Historia publicada',
+            detail: `${r.posted} archivo(s) enviado(s) a ${r.audience} contacto(s). Cuenta como la publicación de hoy.`,
           });
+          this.loadStories();
           return;
         }
         this.messages.add(POST_RESULT[r.reason] ?? POST_RESULT.busy);
       },
       error: () => {
-        this.postingNow.set(false);
+        this.postingId.set(null);
         this.messages.add({ severity: 'error', summary: 'No se pudo publicar' });
       },
+    });
+  }
+
+  protected removeStory(story: Story): void {
+    this.confirm.confirm({
+      header: 'Eliminar historia',
+      message:
+        'Se elimina la programación y también los archivos que publica. Esta acción no se puede deshacer.',
+      icon: 'pi pi-trash',
+      acceptLabel: 'Eliminar',
+      rejectLabel: 'Cancelar',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () =>
+        this.storiesApi.remove(story.id).subscribe({
+          next: () => {
+            this.messages.add({ severity: 'success', summary: 'Historia eliminada' });
+            this.onStorySaved();
+          },
+          error: (e) =>
+            this.messages.add({
+              severity: 'error',
+              summary: 'No se pudo eliminar',
+              detail: apiErrorMessage(e),
+            }),
+        }),
     });
   }
 
@@ -208,7 +303,7 @@ export class Recursos implements OnInit {
     if (!file) return;
 
     this.uploading.set(category);
-    this.api.upload(category, file).subscribe({
+    this.assetsApi.upload(category, file).subscribe({
       next: () => {
         this.uploading.set(null);
         this.messages.add({ severity: 'success', summary: 'Archivo subido' });
@@ -234,7 +329,7 @@ export class Recursos implements OnInit {
       rejectLabel: 'Cancelar',
       acceptButtonStyleClass: 'p-button-danger',
       accept: () =>
-        this.api.remove(row.id).subscribe({
+        this.assetsApi.remove(row.id).subscribe({
           next: () => {
             this.messages.add({ severity: 'success', summary: 'Eliminado' });
             this.load();

@@ -111,6 +111,19 @@ describe("story repositories", () => {
     expect(orphans.n).toBe(0);
   });
 
+  it("assetInUse tells a shared media file from an orphaned one", () => {
+    repos.saveStory(story({ id: "one", media: [{ asset_id: "shared", position: 0 }] }));
+    repos.saveStory(story({ id: "two", media: [{ asset_id: "shared", position: 0 }] }));
+    repos.saveStory(story({ id: "solo", media: [{ asset_id: "only-here", position: 0 }] }));
+
+    // This is what stops a delete taking a file another story still points at.
+    expect(repos.assetInUse("shared", "one")).toBe(true);
+    expect(repos.assetInUse("only-here", "solo")).toBe(false);
+    // Without an exception, any reference counts.
+    expect(repos.assetInUse("only-here")).toBe(true);
+    expect(repos.assetInUse("never-used")).toBe(false);
+  });
+
   it("markStoryPosted writes the guard the scheduler reads", () => {
     repos.saveStory(story({ id: "stamp" }));
     expect(repos.getStory("stamp")?.last_posted_at).toBeNull();

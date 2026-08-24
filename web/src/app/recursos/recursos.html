@@ -77,16 +77,12 @@
 <app-card class="block">
   <app-toolbar>
     <h2 class="m-0 text-lg font-semibold">Estados</h2>
-    <p-fileupload
+    <p-button
       class="ml-auto"
-      mode="basic"
-      [auto]="true"
-      [customUpload]="true"
-      accept="image/*"
-      chooseIcon="pi pi-upload"
-      [chooseLabel]="uploading() === 'story' ? 'Subiendo…' : 'Subir imagen'"
-      [disabled]="uploading() === 'story'"
-      (uploadHandler)="onFile($event, 'story')"
+      label="Nueva historia"
+      icon="pi pi-plus"
+      styleClass="new-story"
+      (onClick)="newStory()"
     />
   </app-toolbar>
 
@@ -96,83 +92,88 @@
     <strong>{{ reachableContacts() }}</strong> contacto(s).
   </p>
 
-  <!-- Daily auto-post schedule -->
-  <div class="schedule">
-    <label class="flex items-center gap-2 text-sm">
-      <p-toggleswitch
-        [ngModel]="scheduleEnabled()"
-        (ngModelChange)="scheduleEnabled.set($event)"
-        ariaLabel="Publicar automáticamente cada día"
-      />
-      Publicar automáticamente cada día
-    </label>
-    <span class="flex items-center gap-2" [class.opacity-50]="!scheduleEnabled()">
-      <i class="pi pi-clock text-muted-color" aria-hidden="true"></i>
-      <input
-        pInputText
-        type="time"
-        class="w-32"
-        aria-label="Hora de publicación"
-        [ngModel]="scheduleTime()"
-        (ngModelChange)="scheduleTime.set($event)"
-        [disabled]="!scheduleEnabled()"
-      />
-    </span>
-    <span class="schedule-actions">
-      <p-button
-        [label]="savingSchedule() ? 'Guardando…' : 'Guardar'"
-        size="small"
-        [disabled]="savingSchedule()"
-        (onClick)="saveSchedule()"
-      />
-      <p-button
-        [label]="postingNow() ? 'Publicando…' : 'Publicar ahora'"
-        icon="pi pi-send"
-        size="small"
-        [outlined]="true"
-        severity="secondary"
-        [disabled]="postingNow() || storyRows().length === 0"
-        (onClick)="postStoryNow()"
-      />
-    </span>
-  </div>
-
-  @if (storyRows().length === 0) {
+  @if (storyCards().length === 0) {
     <p class="m-0 p-8 text-center text-sm text-muted-color">
-      Aún no hay estados. Sube una imagen para publicarla.
+      Aún no hay historias. Crea una para publicar tus Estados a la hora que elijas.
     </p>
   } @else {
-    <div class="story-grid">
-      @for (row of storyRows(); track row.id) {
-        <figure class="story">
-          <a class="story-img" [href]="row.href" target="_blank" rel="noopener">
-            @if (row.thumb) {
-              <img
-                [src]="row.thumb"
-                [alt]="row.name"
-                loading="lazy"
-                decoding="async"
-                (error)="onThumbError(row.id)"
-              />
-            } @else {
-              <span class="story-kind">{{ row.kind }}</span>
+    <ul class="story-list">
+      @for (card of storyCards(); track card.story.id) {
+        <li class="story-card" [class.is-paused]="!card.story.enabled">
+          <span class="story-strip">
+            @for (t of card.thumbs; track t.id) {
+              <span class="story-thumb">
+                @if (t.thumb) {
+                  <img
+                    [src]="t.thumb"
+                    [alt]="t.alt"
+                    loading="lazy"
+                    decoding="async"
+                    (error)="onThumbError(t.id)"
+                  />
+                } @else {
+                  <span class="story-blank" aria-hidden="true">
+                    <i class="pi" [class.pi-play]="t.video" [class.pi-image]="!t.video"></i>
+                  </span>
+                }
+                @if (t.video && t.thumb) {
+                  <span class="story-video" aria-hidden="true">
+                    <i class="pi pi-play"></i>
+                  </span>
+                }
+              </span>
             }
-          </a>
-          <figcaption class="story-foot">
-            <span class="file-name" [title]="row.name">{{ row.name }}</span>
+            @if (card.extra > 0) {
+              <span class="story-more">+{{ card.extra }}</span>
+            }
+          </span>
+
+          <span class="story-meta">
+            <span class="story-caption">{{ card.caption }}</span>
+            <span class="story-status">{{ card.status }}</span>
+          </span>
+
+          <span class="story-actions">
+            <label class="story-toggle">
+              <p-toggleswitch
+                [ngModel]="card.story.enabled"
+                (ngModelChange)="toggleStory(card.story, $event)"
+                [ariaLabel]="'Publicar automáticamente: ' + card.caption"
+              />
+              <span class="sr-only">Publicar automáticamente</span>
+            </label>
+            <p-button
+              [label]="postingId() === card.story.id ? 'Publicando…' : 'Publicar ahora'"
+              icon="pi pi-send"
+              size="small"
+              [outlined]="true"
+              severity="secondary"
+              [disabled]="postingId() !== null"
+              (onClick)="postStoryNow(card.story)"
+            />
+            <p-button
+              icon="pi pi-pencil"
+              size="small"
+              [outlined]="true"
+              severity="secondary"
+              [ariaLabel]="'Editar ' + card.caption"
+              pTooltip="Editar"
+              (onClick)="editStory(card.story)"
+            />
             <p-button
               icon="pi pi-trash"
-              [text]="true"
-              [rounded]="true"
-              severity="danger"
               size="small"
-              pTooltip="Quitar"
-              [ariaLabel]="'Quitar ' + row.name"
-              (onClick)="remove(row)"
+              [outlined]="true"
+              severity="danger"
+              [ariaLabel]="'Eliminar ' + card.caption"
+              pTooltip="Eliminar"
+              (onClick)="removeStory(card.story)"
             />
-          </figcaption>
-        </figure>
+          </span>
+        </li>
       }
-    </div>
+    </ul>
   }
 </app-card>
+
+<app-story-composer [(open)]="composerOpen" [editing]="editingStory()" (saved)="onStorySaved()" />

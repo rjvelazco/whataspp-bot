@@ -364,6 +364,19 @@ export function deleteStory(id: string): void {
   db.prepare(`DELETE FROM stories WHERE id = ?`).run(id);
 }
 
+/**
+ * Whether any story still uses this asset.
+ *
+ * Story media are not reachable on their own, so a media file dropped from a story has
+ * to be deleted with it — but only once nothing else points at it.
+ */
+export function assetInUse(assetId: string, exceptStoryId?: string): boolean {
+  const row = db
+    .prepare(`SELECT COUNT(*) AS n FROM story_media WHERE asset_id = ? AND story_id IS NOT ?`)
+    .get(assetId, exceptStoryId ?? null) as { n: number };
+  return row.n > 0;
+}
+
 /** Record a successful publish. This stamp is the once-per-day guard. */
 export function markStoryPosted(id: string, at: string): void {
   db.prepare(`UPDATE stories SET last_posted_at = ? WHERE id = ?`).run(at, id);

@@ -1,0 +1,214 @@
+:host {
+  display: block;
+}
+
+/* ── Progress ───────────────────────────────────────────────────────────── */
+.steps {
+  margin-bottom: 24px;
+}
+.steps-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-line-soft);
+  overflow: hidden;
+}
+.steps-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-signal);
+  transition: width 240ms ease;
+}
+.steps-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-2xs);
+  color: var(--color-ink-3);
+}
+.steps-labels li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.steps-n {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  font-family: var(--font-data);
+}
+.steps-labels .is-current {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.steps-labels .is-current .steps-n {
+  border-color: var(--color-signal);
+  color: var(--color-signal);
+}
+.steps-labels .is-done .steps-n {
+  border-color: var(--color-signal);
+  background: var(--color-signal-soft);
+  color: var(--color-signal-ink);
+}
+
+/* ── Panes ──────────────────────────────────────────────────────────────── */
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* One height for all three, so the dialog does not jump between steps. */
+  min-height: 320px;
+}
+.pane-split {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 24px;
+}
+.pane-lede,
+.pane-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-2);
+}
+.pane-note {
+  font-size: var(--text-2xs);
+  color: var(--color-ink-3);
+}
+.pane-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+.pane-field label,
+.pane-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+/* ── Media strip ────────────────────────────────────────────────────────── */
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.strip-item {
+  position: relative;
+  width: 72px;
+  height: 96px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+  overflow: hidden;
+  background: var(--color-wash);
+}
+.strip-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.strip-kind {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 0 8px;
+  border-top-right-radius: var(--radius-md);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-data);
+  font-size: var(--text-2xs);
+}
+.strip-compact {
+  flex: 0 0 88px;
+  flex-direction: column;
+}
+
+/* ── Weekday chips ──────────────────────────────────────────────────────── */
+.days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.days legend {
+  padding: 0 0 8px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.day {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  /* Solid at rest: these act on the schedule that already exists. */
+  border: 1px solid var(--color-line);
+  background: var(--color-paper);
+  font-family: var(--font-data);
+  color: var(--color-ink-2);
+  cursor: pointer;
+}
+.day.is-on {
+  border-color: var(--color-signal);
+  background: var(--color-signal-soft);
+  color: var(--color-signal-ink);
+  font-weight: 500;
+}
+.day:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+/* ── Delete-after ───────────────────────────────────────────────────────── */
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--text-sm);
+}
+.check small {
+  display: block;
+  font-size: var(--text-2xs);
+  color: var(--color-ink-3);
+}
+.check.is-off > span {
+  color: var(--color-ink-3);
+}
+
+.summary {
+  margin: 0;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border-left: 3px solid var(--color-signal);
+  background: var(--color-wash);
+  font-size: var(--text-sm);
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .pane-split {
+    flex-direction: column;
+  }
+  .strip-compact {
+    flex-direction: row;
+    flex-basis: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .steps-fill {
+    transition: none;
+  }
+}

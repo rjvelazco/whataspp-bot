@@ -1,6 +1,6 @@
 import { rmSync } from "node:fs";
 import { containedPath } from "../domain/uploads.js";
-import { deleteAsset, deleteStory, getAsset, getStory } from "../db/repositories.js";
+import { assetInUse, deleteAsset, deleteStory, getAsset, getStory } from "../db/repositories.js";
 import { removeThumbnail } from "./thumbnails.js";
 import { logger } from "../logger.js";
 import type { Asset, Story } from "../domain/types.js";
@@ -64,10 +64,38 @@ export function deleteStoryAndMedia(storyId: string, assetsDir: string): number 
 
   let removed = 0;
   for (const { asset } of resolveStoryMedia(story, assetsDir)) {
+    // Nothing in the UI shares media between stories, but a file another story still
+    // points at must survive this one.
+    if (assetInUse(asset.id, story.id)) continue;
     deleteAssetAndFile(asset, assetsDir);
     removed += 1;
   }
   deleteStory(storyId); // story_media cascades
   logger.info({ story: storyId, removed }, "story deleted with its media");
+  return removed;
+}
+
+/**
+ * Delete the media an edit dropped from a story.
+ *
+ * PUT replaces the media list wholesale, so without this a file removed in the composer
+ * keeps its assets row, belongs to no story, and can never be reached or deleted again.
+ */
+export function discardDroppedMedia(
+  before: Story,
+  keptAssetIds: string[],
+  assetsDir: string,
+): number {
+  const kept = new Set(keptAssetIds);
+  let removed = 0;
+  for (const item of before.media) {
+    if (kept.has(item.asset_id)) continue;
+    if (assetInUse(item.asset_id, before.id)) continue;
+    const asset = getAsset(item.asset_id);
+    if (!asset) continue;
+    deleteAssetAndFile(asset, assetsDir);
+    removed += 1;
+  }
+  if (removed > 0) logger.info({ story: before.id, removed }, "removed media dropped from a story");
   return removed;
 }

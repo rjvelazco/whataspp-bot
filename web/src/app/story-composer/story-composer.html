@@ -1,0 +1,187 @@
+<p-dialog
+  [visible]="open()"
+  (visibleChange)="$event ? open.set(true) : cancel()"
+  [modal]="true"
+  [draggable]="false"
+  [dismissableMask]="true"
+  [style]="{ width: '640px', maxWidth: '96vw' }"
+  [header]="title()"
+>
+  <!-- Progress. The bar is the affordance; the labels say what each step is. -->
+  <div class="steps">
+    <div class="steps-track" aria-hidden="true">
+      <div class="steps-fill" [style.width.%]="(step() / 3) * 100"></div>
+    </div>
+    <ol class="steps-labels">
+      @for (s of steps; track s.n) {
+        <li [class.is-done]="step() > s.n" [class.is-current]="step() === s.n">
+          <span class="steps-n">{{ s.n }}</span>
+          {{ s.label }}
+        </li>
+      }
+    </ol>
+  </div>
+
+  <!-- ── Step 1 — media ──────────────────────────────────────────────────── -->
+  @if (step() === 1) {
+    <section class="pane">
+      <p class="pane-lede">
+        Sube las imágenes o los videos que quieres publicar como Estado. Cada archivo se publica por
+        separado.
+      </p>
+
+      @if (media().length > 0) {
+        <ul class="strip">
+          @for (a of media(); track a.id) {
+            <li class="strip-item">
+              <img [src]="thumbUrl(a.id)" [alt]="a.original_name" loading="lazy" />
+              @if (isVideo(a)) {
+                <span class="strip-kind">MP4</span>
+              }
+              <p-button
+                icon="pi pi-times"
+                [rounded]="true"
+                [text]="true"
+                size="small"
+                severity="danger"
+                styleClass="strip-remove"
+                [ariaLabel]="'Quitar ' + a.original_name"
+                (onClick)="removeMedia(a)"
+              />
+            </li>
+          }
+        </ul>
+      }
+
+      <p-fileupload
+        mode="basic"
+        [auto]="true"
+        [customUpload]="true"
+        [multiple]="true"
+        accept="image/*,video/mp4"
+        chooseIcon="pi pi-plus"
+        [chooseLabel]="uploading() ? 'Subiendo…' : 'Agregar archivos'"
+        [disabled]="uploading()"
+        styleClass="add-media"
+        (uploadHandler)="onFiles($event)"
+      />
+      <p class="pane-note">Los videos deben ser MP4 y durar 30 segundos o menos.</p>
+    </section>
+  }
+
+  <!-- ── Step 2 — caption ────────────────────────────────────────────────── -->
+  @if (step() === 2) {
+    <section class="pane pane-split">
+      <ul class="strip strip-compact">
+        @for (a of media(); track a.id) {
+          <li class="strip-item">
+            <img [src]="thumbUrl(a.id)" [alt]="a.original_name" loading="lazy" />
+            @if (isVideo(a)) {
+              <span class="strip-kind">MP4</span>
+            }
+          </li>
+        }
+      </ul>
+
+      <div class="pane-field">
+        <label for="story-caption">Texto del Estado</label>
+        <textarea
+          pTextarea
+          id="story-caption"
+          rows="5"
+          placeholder="Vestidos nuevos, tallas S a XL. Escríbenos para apartar."
+          [ngModel]="caption()"
+          (ngModelChange)="caption.set($event)"
+        ></textarea>
+        <p class="pane-note">Se muestra sobre cada archivo. Puedes dejarlo vacío.</p>
+      </div>
+    </section>
+  }
+
+  <!-- ── Step 3 — schedule ───────────────────────────────────────────────── -->
+  @if (step() === 3) {
+    <section class="pane">
+      <p-selectbutton
+        [options]="modes"
+        optionLabel="label"
+        optionValue="value"
+        [allowEmpty]="false"
+        [ngModel]="mode()"
+        (ngModelChange)="setMode($event)"
+        aria-label="Cada cuánto se publica"
+      />
+
+      @if (mode() === 'weekly') {
+        <fieldset class="days">
+          <legend>Días de la semana</legend>
+          @for (d of weekdayOptions; track d.value) {
+            <button
+              type="button"
+              class="day"
+              [class.is-on]="weekdays().includes(d.value)"
+              [attr.aria-pressed]="weekdays().includes(d.value)"
+              [attr.aria-label]="d.label"
+              (click)="toggleWeekday(d.value)"
+            >
+              {{ d.short }}
+            </button>
+          }
+        </fieldset>
+      }
+
+      @if (mode() === 'once') {
+        <div class="pane-field">
+          <label for="story-date">Fecha</label>
+          <p-datepicker
+            inputId="story-date"
+            dateFormat="dd/mm/yy"
+            [showIcon]="true"
+            [ngModel]="postDate()"
+            (ngModelChange)="postDate.set($event)"
+          />
+        </div>
+      }
+
+      <div class="pane-field">
+        <span class="pane-label" id="story-time-label">Hora</span>
+        <app-time-wheel [value]="postTime()" (valueChange)="postTime.set($event)" />
+      </div>
+
+      <label class="check" [class.is-off]="mode() !== 'once'">
+        <p-checkbox
+          [binary]="true"
+          [disabled]="mode() !== 'once'"
+          [ngModel]="deleteAfter()"
+          (ngModelChange)="deleteAfter.set($event)"
+          inputId="story-delete-after"
+        />
+        <span>
+          Borrar el archivo después de publicar
+          @if (mode() !== 'once') {
+            <small>Solo para una publicación única — una historia que se repite lo necesita.</small>
+          }
+        </span>
+      </label>
+
+      <p class="summary">{{ summary() }}</p>
+    </section>
+  }
+
+  <ng-template #footer>
+    <div class="foot">
+      @if (step() > 1) {
+        <p-button label="Atrás" severity="secondary" [text]="true" (onClick)="back()" />
+      }
+      <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="cancel()" />
+      @if (step() < 3) {
+        <p-button label="Continuar" [disabled]="!canContinue()" (onClick)="next()" />
+      } @else {
+        <p-button
+          [label]="saving() ? 'Guardando…' : 'Guardar'"
+          [disabled]="!canSave() || saving()"
+          (onClick)="save()"
+        />
+      }
+    </div>
+  </ng-template>
+</p-dialog>

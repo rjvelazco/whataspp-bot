@@ -50,7 +50,7 @@ import {
 import { validateFlow } from "../engine/validateFlow.js";
 import { canTransition, nextStatuses } from "../domain/orderStatus.js";
 import type { StoryPostResult } from "../services/storyScheduler.js";
-import { deleteStoryAndMedia } from "../services/stories.js";
+import { deleteStoryAndMedia, discardDroppedMedia } from "../services/stories.js";
 import { parseTimeMinutes } from "../domain/storySchedule.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
@@ -821,6 +821,13 @@ export class WebServer {
         created_at: existing.created_at,
       };
       saveStory(story);
+      // The media list is replaced wholesale, so anything the owner removed in the
+      // composer has to be deleted here or it becomes an unreachable file on disk.
+      discardDroppedMedia(
+        existing,
+        story.media.map((m) => m.asset_id),
+        assetsDir,
+      );
       logger.info({ story: story.id }, "story updated");
       res.json(story);
     });
