@@ -281,4 +281,12 @@ export class BaileysTransport implements MessagingTransport {
       { broadcast: true, statusJidList: audience },
     );
   }
+
+  async postStatusVideo(path: string, audience: string[], caption?: string): Promise<void> {
+    await this.sock?.sendMessage(
+      "status@broadcast",
+      { video: { url: path }, caption },
+      { broadcast: true, statusJidList: audience },
+    );
+  }
 }

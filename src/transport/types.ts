@@ -53,6 +53,10 @@ export interface MessagingTransport {
    * Baileys-only; a Cloud API adapter would throw (Status isn't supported there).
    */
   postStatusImage(path: string, audience: string[], caption?: string): Promise<void>;
+  /**
+   * Post a video to WhatsApp Status. Same contract as postStatusImage — Baileys-only.
+   */
+  postStatusVideo(path: string, audience: string[], caption?: string): Promise<void>;
   /** Connect (Baileys: restore creds / print pairing QR). Resolves once linked. */
   start(): Promise<void>;
   /** Unlink from WhatsApp, wipe the session, and re-init for fresh pairing. */
