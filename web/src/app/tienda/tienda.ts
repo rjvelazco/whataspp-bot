@@ -13,6 +13,7 @@ import {
   StoreService,
   type BotPreview,
   type RateSource,
+  type RateSourceOption,
   type Store,
   type StoreKeywords,
   type StoreUpdate,
@@ -24,44 +25,15 @@ type PaymentKey = 'pago_movil' | 'zelle' | 'binance';
 type KeywordTopic = keyof StoreKeywords;
 type SectionId = 'general' | 'ubicacion' | 'envios' | 'tasa' | 'pagos';
 
-/**
- * The four rate sources, in the order the dropdown offers them.
- *
- * Each carries its own unit and its own one-line note, because the note is the thing
- * that answers the owner's real question: do I have to update this myself? Three of the
- * four do not — FEEDBACK assumed the parallel rate was manual, but dolarapi serves it.
- */
-const RATE_SOURCES: {
-  value: RateSource;
-  label: string;
-  unit: string;
-  note: string;
-}[] = [
-  {
-    value: 'usd_oficial',
-    label: 'Dólar oficial',
-    unit: 'Bs. por $1',
-    note: 'Se actualiza sola varias veces al día.',
-  },
-  {
-    value: 'usd_paralelo',
-    label: 'Dólar paralelo',
-    unit: 'Bs. por $1',
-    note: 'Se actualiza sola varias veces al día.',
-  },
-  {
-    value: 'eur_oficial',
-    label: 'Euro oficial',
-    unit: 'Bs. por €1',
-    note: 'Se actualiza sola varias veces al día.',
-  },
-  {
-    value: 'custom',
-    label: 'Personalizada',
-    unit: 'Bs. por $1',
-    note: 'La escribes tú. El bot nunca la cambia.',
-  },
-];
+/** What each topic is called when we have to name it in a message. */
+const TOPIC_NAMES: Record<KeywordTopic, string> = {
+  rate: 'Tasa del día',
+  address: 'Dirección',
+  shipping: 'Envíos',
+  payment: 'Métodos de pago',
+  offers: 'Ofertas y promociones',
+  hours: 'Horario',
+};
 
 /** Which keyword topics belong to which tab, and how each is introduced. */
 const SECTION_KEYWORDS: Record<SectionId, { topic: KeywordTopic; title: string }[]> = {
@@ -184,7 +156,11 @@ export class Tienda implements OnInit {
   /** Serialized last-saved payload; drives the "Cambios sin guardar" indicator. */
   private readonly savedJson = signal('');
 
-  protected readonly rateSources = RATE_SOURCES;
+  /**
+   * Served by the API rather than retyped here: the labels and the "Bs. por €1" unit
+   * derive from the same table the bot quotes from.
+   */
+  protected readonly rateSources = signal<RateSourceOption[]>([]);
 
   /**
    * A horizontal rail above the form, replacing the right-hand "Secciones" list — 320px
@@ -198,7 +174,13 @@ export class Tienda implements OnInit {
     { id: 'pagos', label: 'Métodos de pago' },
   ];
   protected readonly activeSection = signal<SectionId>('general');
-  protected readonly sectionKeywords = computed(() => SECTION_KEYWORDS[this.activeSection()]);
+  protected readonly sectionKeywords = computed(() => {
+    const keywords = this.form().keywords;
+    return SECTION_KEYWORDS[this.activeSection()].map((k) => ({
+      ...k,
+      words: keywords[k.topic] ?? [],
+    }));
+  });
 
   /** Payment methods (order + labels); the bot treats a non-empty value as enabled. */
   protected readonly paymentMethods: { key: PaymentKey; label: string; placeholder: string }[] = [
@@ -212,12 +194,18 @@ export class Tienda implements OnInit {
   protected readonly preview = signal<BotPreview | null>(null);
   protected readonly previewLoading = signal(false);
 
-  protected readonly rateChoice = computed(
-    () => RATE_SOURCES.find((s) => s.value === this.form().rate_source) ?? RATE_SOURCES[0],
-  );
+  protected readonly rateChoice = computed(() => {
+    const sources = this.rateSources();
+    return sources.find((s) => s.value === this.form().rate_source) ?? sources[0] ?? null;
+  });
   protected readonly rateIsManual = computed(() => this.form().rate_source === 'custom');
 
   ngOnInit(): void {
+    this.api.rateSources().subscribe({
+      next: (sources) => this.rateSources.set(sources),
+      error: () =>
+        this.messages.add({ severity: 'error', summary: 'No se pudieron cargar las tasas' }),
+    });
     this.api.get().subscribe({
       next: (store) => {
         this.setForm(store);
@@ -243,9 +231,6 @@ export class Tienda implements OnInit {
   protected patchKeywords(topic: KeywordTopic, words: string[]): void {
     this.form.update((f) => ({ ...f, keywords: { ...f.keywords, [topic]: words } }));
   }
-  protected wordsFor(topic: KeywordTopic): string[] {
-    return this.form().keywords[topic] ?? [];
-  }
 
   private setForm(store: Store): void {
     this.form.set(normalizeStore(store));
@@ -266,7 +251,11 @@ export class Tienda implements OnInit {
       returns_policy: f.returns_policy,
       address: f.address,
       maps_url: f.maps_url,
-      usd_rate: f.usd_rate,
+      // Only a custom rate is ours to send. For a fetched source the number in the form
+      // is whatever was on screen at page load, and PUT treats a present value as an
+      // edit — so saving an address would roll back a rate the refresh had just fetched
+      // and stamp it as current.
+      ...(f.rate_source === 'custom' ? { usd_rate: f.usd_rate } : {}),
       rate_source: f.rate_source,
       // Only a custom rate carries a label; the server drops it for the other sources.
       rate_label: f.rate_source === 'custom' ? f.rate_label : '',
@@ -284,11 +273,34 @@ export class Tienda implements OnInit {
   );
 
   /** Any topic left with no words would silently stop the bot answering it. */
-  protected readonly emptyTopics = computed(() =>
-    (Object.keys(EMPTY_KEYWORDS) as KeywordTopic[]).filter(
-      (topic) => this.wordsFor(topic).length === 0,
-    ),
-  );
+  protected readonly emptyTopics = computed(() => {
+    const keywords = this.form().keywords;
+    return (Object.keys(EMPTY_KEYWORDS) as KeywordTopic[]).filter(
+      (topic) => (keywords[topic] ?? []).length === 0,
+    );
+  });
+
+  /** Built once per preview rather than as a literal rebuilt on every CD pass. */
+  protected readonly previewBlocks = computed(() => {
+    const p = this.preview();
+    if (!p) return [];
+    return [
+      { title: 'Tasa del día', body: p.rate },
+      { title: 'Dirección', body: p.address },
+      { title: 'Envíos', body: p.shipping },
+      { title: 'Métodos de pago', body: p.payment },
+      { title: 'Horario', body: p.hours },
+    ];
+  });
+
+  /** Arrow keys move between tabs, as the tablist pattern requires. */
+  protected focusTab(delta: number, event: Event): void {
+    event.preventDefault();
+    const ids = this.sections.map((s) => s.id);
+    const next = ids[(ids.indexOf(this.activeSection()) + delta + ids.length) % ids.length];
+    this.activeSection.set(next);
+    queueMicrotask(() => document.getElementById(`tab-${next}`)?.focus());
+  }
 
   protected openPreview(): void {
     this.previewOpen.set(true);
@@ -324,7 +336,14 @@ export class Tienda implements OnInit {
         }
         if (r.usd_rate !== null) {
           this.form.update((f) => ({ ...f, usd_rate: r.usd_rate }));
-          this.savedJson.set(JSON.stringify(this.payload()));
+          // Only the rate was persisted. Re-baselining the whole payload would mark the
+          // owner's unsaved address or hours as saved, and they would be lost on the
+          // next navigation.
+          this.savedJson.update((json) => {
+            if (!json) return json;
+            const base = JSON.parse(json) as StoreUpdate;
+            return JSON.stringify({ ...base, usd_rate: r.usd_rate });
+          });
         }
         this.messages.add({
           severity: 'success',
@@ -339,11 +358,21 @@ export class Tienda implements OnInit {
   }
 
   protected save(): void {
-    if (this.emptyTopics().length > 0) {
+    const empty = this.emptyTopics();
+    if (empty.length > 0) {
+      // The offending chips are almost always on a tab the owner is not looking at, so
+      // naming the topic and switching to it beats a generic warning.
+      const first = empty[0];
+      const section = (Object.keys(SECTION_KEYWORDS) as SectionId[]).find((id) =>
+        SECTION_KEYWORDS[id].some((k) => k.topic === first),
+      );
+      if (section) this.activeSection.set(section);
       this.messages.add({
         severity: 'warn',
         summary: 'Faltan palabras clave',
-        detail: 'Cada tema necesita al menos una palabra para que el bot pueda responder.',
+        detail: `Sin palabras, el bot no puede responder sobre: ${empty
+          .map((t) => TOPIC_NAMES[t])
+          .join(', ')}.`,
       });
       return;
     }

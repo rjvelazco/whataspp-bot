@@ -1,21 +1,21 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import type { RateSource, Store, StoreKeywords } from './api-types';
+import type {
+  BotPreview,
+  RateRefreshOutcome,
+  RateSource,
+  RateSourceOption,
+  Store,
+  StoreKeywords,
+} from './api-types';
 
-export type { RateSource, Store, StoreKeywords };
-
-/** What the bot would actually reply, built by the engine's own reply builders. */
-export interface BotPreview {
-  rate: string;
-  address: string;
-  shipping: string;
-  payment: string;
-  hours: string;
-}
+// Re-exported, never re-declared: both of these had been retyped by hand here, which is
+// the shape of every duplication CLAUDE.md already lists.
+export type { BotPreview, RateRefreshOutcome, RateSource, RateSourceOption, Store, StoreKeywords };
 
 export interface RateRefreshResult {
-  outcome: 'updated' | 'unchanged' | 'manual_source' | 'failed' | 'no_store';
+  outcome: RateRefreshOutcome;
   usd_rate: number | null;
   usd_rate_updated_at: string | null;
   rate_failed_at: string | null;
@@ -44,6 +44,11 @@ export class StoreService {
    */
   preview(draft: StoreUpdate): Observable<BotPreview> {
     return this.http.post<BotPreview>('/api/store/preview', draft);
+  }
+
+  /** The dropdown's options, with their labels and units, from the domain model. */
+  rateSources(): Observable<RateSourceOption[]> {
+    return this.http.get<RateSourceOption[]>('/api/store/rate-sources');
   }
 
   refreshRate(): Observable<RateRefreshResult> {

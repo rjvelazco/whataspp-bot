@@ -12,19 +12,27 @@
   <app-card class="block">
     <app-toolbar>
       <!-- A rail above the form, not a list beside it: the old one spent 320px on five links. -->
-      <nav class="tabs" aria-label="Secciones de la tienda">
+      <!-- A tablist, not a nav: these switch mutually exclusive panels rather than
+           navigate, and a screen reader should say "tab 2 of 5". -->
+      <div class="tabs" role="tablist" aria-label="Secciones de la tienda">
         @for (s of sections; track s.id) {
           <button
             type="button"
             class="tab"
+            role="tab"
+            [id]="'tab-' + s.id"
+            [attr.aria-selected]="activeSection() === s.id"
+            [attr.aria-controls]="'panel-' + s.id"
+            [attr.tabindex]="activeSection() === s.id ? 0 : -1"
             [class.is-on]="activeSection() === s.id"
-            [attr.aria-current]="activeSection() === s.id ? 'true' : null"
+            (keydown.arrowright)="focusTab(1, $event)"
+            (keydown.arrowleft)="focusTab(-1, $event)"
             (click)="activeSection.set(s.id)"
           >
             {{ s.label }}
           </button>
         }
-      </nav>
+      </div>
       <span class="toolbar-end">
         @if (dirty()) {
           <span class="dirty">Cambios sin guardar</span>
@@ -46,7 +54,12 @@
       </span>
     </app-toolbar>
 
-    <div class="panel">
+    <div
+      class="panel"
+      role="tabpanel"
+      [id]="'panel-' + activeSection()"
+      [attr.aria-labelledby]="'tab-' + activeSection()"
+    >
       <!-- ── General ──────────────────────────────────────────────────── -->
       @if (activeSection() === 'general') {
         <div class="grid">
@@ -147,13 +160,13 @@
           <label class="field">
             <span class="field-label">De dónde sale la tasa</span>
             <p-select
-              [options]="rateSources"
+              [options]="rateSources()"
               optionLabel="label"
               optionValue="value"
               [ngModel]="form().rate_source"
               (ngModelChange)="patch('rate_source', $event)"
             />
-            <span class="field-note">{{ rateChoice().note }}</span>
+            <span class="field-note">{{ rateChoice()?.note }}</span>
           </label>
 
           @if (rateIsManual()) {
@@ -170,7 +183,7 @@
           }
 
           <label class="field field-sm">
-            <span class="field-label">{{ rateChoice().unit }}</span>
+            <span class="field-label">{{ rateChoice()?.unit }}</span>
             <p-inputnumber
               [ngModel]="form().usd_rate"
               (ngModelChange)="patch('usd_rate', $event)"
@@ -246,11 +259,11 @@
             <span class="field-label">{{ k.title }}</span>
             <p class="field-note">Los clientes la piden escribiendo:</p>
             <app-keyword-chips
-              [words]="wordsFor(k.topic)"
+              [words]="k.words"
               (wordsChange)="patchKeywords(k.topic, $event)"
               [label]="'Palabras para ' + k.title"
             />
-            @if (wordsFor(k.topic).length === 0) {
+            @if (k.words.length === 0) {
               <p class="field-note stale">Sin palabras, el bot no puede responder sobre esto.</p>
             }
           </div>
@@ -272,16 +285,7 @@
     <p class="m-0 text-sm text-muted-color">Cargando…</p>
   } @else if (preview(); as p) {
     <div class="chat">
-      @for (
-        b of [
-          { title: 'Tasa del día', body: p.rate },
-          { title: 'Dirección', body: p.address },
-          { title: 'Envíos', body: p.shipping },
-          { title: 'Métodos de pago', body: p.payment },
-          { title: 'Horario', body: p.hours },
-        ];
-        track b.title
-      ) {
+      @for (b of previewBlocks(); track b.title) {
         <div class="bubble-group">
           <span class="bubble-title">{{ b.title }}</span>
           <p class="bubble">{{ b.body }}</p>

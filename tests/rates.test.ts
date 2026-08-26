@@ -134,6 +134,65 @@ describe("RateService.refresh", () => {
     expect(h.read().usd_rate).toBe(1000);
   });
 
+  it("never lands on a rate the owner switched to custom mid-fetch", async () => {
+    let current = store({ rate_source: "usd_oficial", usd_rate: 800 });
+    const service = new RateService({
+      getStore: () => current,
+      saveStore: (s) => {
+        current = s;
+      },
+      // The owner switches to their own rate while the request is in the air. Ten
+      // seconds of timeout is ample room for exactly that.
+      fetchJson: async () => {
+        current = { ...current, rate_source: "custom", usd_rate: 1234 };
+        return DOLARES;
+      },
+    });
+
+    expect(await service.refresh()).toBe("manual_source");
+    expect(current.usd_rate).toBe(1234);
+  });
+
+  it("does not flag a hand-typed rate as stale when a fetch fails mid-switch", async () => {
+    let current = store({ rate_source: "usd_oficial", usd_rate: 800 });
+    const service = new RateService({
+      getStore: () => current,
+      saveStore: (s) => {
+        current = s;
+      },
+      fetchJson: async () => {
+        current = { ...current, rate_source: "custom", usd_rate: 1234 };
+        throw new Error("ENOTFOUND");
+      },
+    });
+
+    expect(await service.refresh()).toBe("failed");
+    expect(current.rate_failed_at).toBeUndefined();
+  });
+
+  it("shares one request between concurrent callers", async () => {
+    let calls = 0;
+    let current = store({ rate_source: "usd_oficial" });
+    const service = new RateService({
+      getStore: () => current,
+      saveStore: (s) => {
+        current = s;
+      },
+      fetchJson: async () => {
+        calls += 1;
+        return DOLARES;
+      },
+    });
+
+    // The button is reachable by anyone with the admin token; a held key must not fan
+    // out unbounded fetches whose writes interleave with the timer.
+    await Promise.all([service.refresh(), service.refresh(), service.refresh()]);
+    expect(calls).toBe(1);
+
+    await service.refresh();
+    expect(calls).toBe(2); // and the guard clears once it settles
+  });
+
   it("keeps the last good rate when the fetch fails, and records that it did", async () => {
     const h = harness(
       store({

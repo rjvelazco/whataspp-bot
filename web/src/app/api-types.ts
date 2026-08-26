@@ -28,5 +28,8 @@ export type {
   StoreKeywords,
   KeywordTopic,
   RateSource,
+  RateSourceOption,
+  RateRefreshOutcome,
+  BotPreview,
   StorePayments,
 } from '../../../src/domain/types';

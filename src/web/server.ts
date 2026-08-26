@@ -58,6 +58,7 @@ import type { RefreshOutcome } from "../services/rates.js";
 import { deleteStoryAndMedia, discardDroppedMedia } from "../services/stories.js";
 import { localDateKey, parseTimeMinutes } from "../domain/storySchedule.js";
 import { DEFAULT_KEYWORDS, normalize } from "../engine/intents.js";
+import { RATE_SOURCE_OPTIONS } from "../domain/rates.js";
 import {
   exchangeRate,
   paymentMethods,
@@ -115,6 +116,25 @@ const IMAGE_EXT: Record<string, string> = {
   "image/png": ".png",
   "image/webp": ".webp",
 };
+
+/**
+ * Per topic. Each word is normalized against every inbound message, and a one-letter
+ * word matches nearly everything — which, given topic order, would shadow every topic
+ * below it. Hence the two-character floor in parseKeywordsInput.
+ */
+const MAX_KEYWORDS_PER_TOPIC = 30;
+
+const RATE_SOURCES: RateSource[] = ["usd_oficial", "usd_paralelo", "eur_oficial", "custom"];
+
+/** Keep only the string-valued entries of a client-supplied object. */
+function stringsOnly(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!value || typeof value !== "object") return out;
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === "string") out[k] = v;
+  }
+  return out;
+}
 
 /** WhatsApp truncates a Status caption around here. */
 const MAX_CAPTION = 700;
@@ -299,7 +319,10 @@ export class WebServer {
    * Normalized on the way in — the matcher compares against normalized text, so a chip
    * saved as "Envíos" would otherwise never match anything a customer typed.
    */
-  private parseKeywordsInput(value: unknown): { value: StoreKeywords } | { error: string } {
+  private parseKeywordsInput(
+    value: unknown,
+    existing?: StoreKeywords,
+  ): { value: StoreKeywords } | { error: string } {
     const topics: KeywordTopic[] = ["rate", "address", "shipping", "payment", "offers", "hours"];
     const raw = (value ?? {}) as Record<string, unknown>;
     const out = {} as StoreKeywords;
@@ -309,9 +332,13 @@ export class WebServer {
       if (list !== undefined && !Array.isArray(list)) {
         return { error: "Las palabras clave no tienen el formato esperado." };
       }
-      const words = ((list as unknown[]) ?? DEFAULT_KEYWORDS[topic])
+      // Absent means "keep what is stored", matching the rest of this route. Falling
+      // back to the defaults would quietly discard words the owner had added to a topic
+      // they simply were not editing.
+      const fallback = existing?.[topic] ?? DEFAULT_KEYWORDS[topic];
+      const words = ((list as unknown[]) ?? fallback)
         .map((w) => normalize(String(w)))
-        .filter((w) => w.length > 0);
+        .filter((w) => w.length > 1);
       // An empty topic would silently stop the bot answering that question at all.
       if (words.length === 0) {
         return { error: "Cada tema necesita al menos una palabra." };
@@ -319,7 +346,13 @@ export class WebServer {
       if (words.some((w) => w.length > 40)) {
         return { error: "Una palabra clave no puede pasar de 40 caracteres." };
       }
-      out[topic] = [...new Set(words)];
+      const unique = [...new Set(words)];
+      // Every word is normalized against every inbound message, so the list is a cost
+      // the bot pays per message, not just storage.
+      if (unique.length > MAX_KEYWORDS_PER_TOPIC) {
+        return { error: `Cada tema admite hasta ${MAX_KEYWORDS_PER_TOPIC} palabras.` };
+      }
+      out[topic] = unique;
     }
     return { value: out };
   }
@@ -778,7 +811,11 @@ export class WebServer {
         res.status(404).json({ error: "store not found" });
         return;
       }
-      res.json(store);
+      // The seed has never written `keywords`, so an existing store returns undefined and
+      // the panel would render six empty topics — telling the owner the bot cannot answer
+      // questions it is in fact answering, and refusing to save until they retype all of
+      // them. Resolved here rather than in the panel so every client sees the real list.
+      res.json({ ...store, keywords: store.keywords ?? DEFAULT_KEYWORDS });
     });
 
     app.put("/api/store", (req, res) => {
@@ -811,7 +848,6 @@ export class WebServer {
       }
 
       // --- rate source ---
-      const RATE_SOURCES: RateSource[] = ["usd_oficial", "usd_paralelo", "eur_oficial", "custom"];
       let rate_source = existing.rate_source;
       if (b.rate_source !== undefined) {
         if (!RATE_SOURCES.includes(b.rate_source as RateSource)) {
@@ -823,11 +859,16 @@ export class WebServer {
       // Only a custom rate carries a label; keeping one on a fetched source would leave
       // the bot quoting "Tasa de la tienda" for a number it pulled from the internet.
       const rate_label = rate_source === "custom" ? opt(b.rate_label, existing.rate_label) : undefined;
+      // A failure belongs to the source that failed. Switching away from it — to another
+      // feed, or to a rate the owner types — must not leave the panel saying "no se pudo
+      // actualizar" forever.
+      const rate_failed_at =
+        rate_source === existing.rate_source ? existing.rate_failed_at : undefined;
 
       // --- keywords ---
       let keywords = existing.keywords;
       if (b.keywords !== undefined) {
-        const parsed = this.parseKeywordsInput(b.keywords);
+        const parsed = this.parseKeywordsInput(b.keywords, existing.keywords);
         if ("error" in parsed) {
           res.status(400).json({ error: parsed.error });
           return;
@@ -855,6 +896,7 @@ export class WebServer {
         usd_rate_updated_at,
         rate_source,
         rate_label,
+        rate_failed_at,
         keywords,
       };
       upsertStore(updated);
@@ -897,10 +939,21 @@ export class WebServer {
           typeof b.returns_policy === "string" ? b.returns_policy : existing.returns_policy,
         address: typeof b.address === "string" ? b.address : existing.address,
         maps_url: typeof b.maps_url === "string" ? b.maps_url : existing.maps_url,
-        usd_rate: typeof b.usd_rate === "number" ? b.usd_rate : existing.usd_rate,
-        rate_source: b.rate_source ?? existing.rate_source,
+        // null means "clear the rate", the same as it does on PUT — otherwise the
+        // preview shows a number the save is about to delete.
+        usd_rate:
+          b.usd_rate === null
+            ? undefined
+            : typeof b.usd_rate === "number"
+              ? b.usd_rate
+              : existing.usd_rate,
+        rate_source: RATE_SOURCES.includes(b.rate_source as RateSource)
+          ? b.rate_source
+          : existing.rate_source,
         rate_label: typeof b.rate_label === "string" ? b.rate_label : existing.rate_label,
-        payments: { ...existing.payments, ...(b.payments ?? {}) },
+        // Only string values: an object would interpolate into the reply as
+        // "[object Object]".
+        payments: { ...existing.payments, ...stringsOnly(b.payments) },
       };
       res.json({
         rate: exchangeRate(draft),
@@ -909,6 +962,17 @@ export class WebServer {
         payment: paymentMethods(draft),
         hours: storeHours(draft),
       });
+    });
+
+    /**
+     * The rate sources, with their labels, units and notes.
+     *
+     * Served rather than retyped in the panel: the labels and the "Bs. por €1" unit are
+     * derived from the same table the bot quotes from, and a second copy in the UI is
+     * exactly the shape of the duplications CLAUDE.md already lists.
+     */
+    app.get("/api/store/rate-sources", (_req, res) => {
+      res.json(RATE_SOURCE_OPTIONS);
     });
 
     // Refresh the exchange rate on demand, for the "Actualizar ahora" button.

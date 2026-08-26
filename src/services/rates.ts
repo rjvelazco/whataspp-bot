@@ -1,6 +1,6 @@
 import { logger } from "../logger.js";
 import { DEFAULT_RATE_SOURCE, isFetchedSource } from "../domain/rates.js";
-import type { RateSource, Store } from "../domain/types.js";
+import type { RateRefreshOutcome as RefreshOutcome, RateSource, Store } from "../domain/types.js";
 
 /**
  * Keeping the store's exchange rate current from ve.dolarapi.com.
@@ -64,11 +64,14 @@ async function defaultFetchJson(url: string): Promise<unknown> {
   return response.json();
 }
 
-export type RefreshOutcome = "updated" | "unchanged" | "manual_source" | "failed" | "no_store";
+// Declared in the domain model so the admin panel can share it verbatim.
+export type { RateRefreshOutcome as RefreshOutcome } from "../domain/types.js";
 
 export class RateService {
   private timer?: ReturnType<typeof setInterval>;
   private readonly fetchJson: (url: string) => Promise<unknown>;
+  /** The refresh currently running, so concurrent callers share one outbound request. */
+  private inFlight?: Promise<RefreshOutcome>;
 
   constructor(private readonly deps: RateServiceDeps) {
     this.fetchJson = deps.fetchJson ?? defaultFetchJson;
@@ -80,8 +83,14 @@ export class RateService {
 
   start(): void {
     if (this.timer) return;
-    this.timer = setInterval(() => void this.refresh(), REFRESH_MS);
-    void this.refresh();
+    // Every call site catches: refresh() guards the fetch, but a throw from getStore or
+    // saveStore would reject with no handler, and Node exits on an unhandled rejection —
+    // taking the WhatsApp connection with it.
+    const tick = () => {
+      this.refresh().catch((err) => logger.error({ err }, "rate refresh crashed"));
+    };
+    this.timer = setInterval(tick, REFRESH_MS);
+    tick();
     logger.info("rate service started");
   }
 
@@ -90,8 +99,22 @@ export class RateService {
     this.timer = undefined;
   }
 
-  /** Fetch and store the current rate. Safe to call by hand from the admin panel. */
-  async refresh(): Promise<RefreshOutcome> {
+  /**
+   * Fetch and store the current rate. Safe to call by hand from the admin panel.
+   *
+   * Concurrent callers share one request: the button is reachable by anyone with the
+   * admin token, and without this a held key fans out unbounded fetches whose writes
+   * interleave with the six-hourly timer.
+   */
+  refresh(): Promise<RefreshOutcome> {
+    if (this.inFlight) return this.inFlight;
+    this.inFlight = this.run().finally(() => {
+      this.inFlight = undefined;
+    });
+    return this.inFlight;
+  }
+
+  private async run(): Promise<RefreshOutcome> {
     const store = this.deps.getStore();
     if (!store) return "no_store";
 
@@ -109,6 +132,10 @@ export class RateService {
       // rate at all, and beats a zero the bot would happily quote.
       const current = this.deps.getStore();
       if (!current) return "no_store";
+      // Re-checked after the await, not just before it. The fetch has a ten-second
+      // timeout, which is ample for the owner to switch to "Personalizada" and type
+      // their own number — and that number is theirs, so we must not land on top of it.
+      if (!isFetchedSource(current.rate_source ?? DEFAULT_RATE_SOURCE)) return "manual_source";
       this.deps.saveStore({
         ...current,
         usd_rate: found.rate,
@@ -120,7 +147,8 @@ export class RateService {
     } catch (err) {
       logger.warn({ err, source }, "could not refresh the exchange rate");
       const current = this.deps.getStore();
-      if (current) {
+      // Same re-check: flagging a hand-typed rate as stale would be a lie.
+      if (current && isFetchedSource(current.rate_source ?? DEFAULT_RATE_SOURCE)) {
         this.deps.saveStore({ ...current, rate_failed_at: this.now().toISOString() });
       }
       return "failed";

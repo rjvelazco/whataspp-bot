@@ -13,13 +13,14 @@ import { FormsModule } from '@angular/forms';
   imports: [FormsModule],
   template: `
     <div class="chips" role="group" [attr.aria-label]="label()">
-      @for (word of words(); track word) {
+      @for (word of words(); track $index) {
         <span class="chip">
           {{ word }}
           <button
             type="button"
             class="chip-x"
             [attr.aria-label]="'Quitar ' + word"
+            (mousedown)="$event.preventDefault()"
             (click)="remove(word)"
           >
             <i class="pi pi-times" aria-hidden="true"></i>
@@ -34,7 +35,7 @@ import { FormsModule } from '@angular/forms';
           type="text"
           [attr.aria-label]="addLabel()"
           [(ngModel)]="draft"
-          (keydown.enter)="commit()"
+          (keydown.enter)="commit(true)"
           (keydown.escape)="cancel()"
           (blur)="commit()"
         />
@@ -68,16 +69,24 @@ export class KeywordChips {
     this.adding.set(false);
   }
 
-  protected commit(): void {
+  /**
+   * @param keepOpen after Enter, so several words can be added in a row without
+   * re-clicking the button.
+   *
+   * The ✕ on a chip cancels its own mousedown, or this blur handler would tear the
+   * input out from under the click and the removal would never fire.
+   */
+  protected commit(keepOpen = false): void {
     const word = this.draft.trim();
     this.draft = '';
-    this.adding.set(false);
+    if (!keepOpen) this.adding.set(false);
     if (!word) return;
     // Compared case-insensitively: the server normalizes anyway, so "Envíos" and
     // "envios" would arrive as one word and the second chip would vanish on reload.
     const exists = this.words().some((w) => w.toLowerCase() === word.toLowerCase());
     if (exists) return;
     this.words.update((list) => [...list, word]);
+    if (keepOpen) requestAnimationFrame(() => this.entry()?.nativeElement.focus());
   }
 
   protected remove(word: string): void {

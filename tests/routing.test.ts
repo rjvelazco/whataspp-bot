@@ -178,3 +178,27 @@ describe("store-owned keywords", () => {
     expect(parseIntent("donde queda").type).toBe("show_address");
   });
 });
+
+describe("a malformed keywords row cannot silence the bot", () => {
+  it("falls back per topic instead of throwing", () => {
+    // parseIntent runs on every inbound message. Before this it did `.some()` on
+    // whatever was stored, so a string or a number where an array belonged threw and
+    // took down every reply, not just that topic.
+    const broken = { ...DEFAULT_KEYWORDS, rate: "tasa" as unknown as string[] };
+    expect(() => parseIntent("hola", broken)).not.toThrow();
+    expect(parseIntent("tasa", broken).type).toBe("show_rate");
+    expect(parseIntent("horario", broken).type).toBe("hours");
+  });
+
+  it("ignores a blank word instead of matching every message with it", () => {
+    // text.includes("") is always true, so one blank chip would answer everything.
+    const blank = { ...DEFAULT_KEYWORDS, rate: ["   "] };
+    expect(parseIntent("quiero una blusa", blank).type).toBe("text");
+  });
+
+  it("ignores a non-string entry", () => {
+    const junk = { ...DEFAULT_KEYWORDS, rate: [null as unknown as string, "tasa"] };
+    expect(parseIntent("cual es la tasa", junk).type).toBe("show_rate");
+    expect(parseIntent("hola", junk).type).toBe("greeting");
+  });
+});

@@ -102,8 +102,19 @@ export function parseIntent(rawText: string, keywords: StoreKeywords = DEFAULT_K
   // resolves to shipping. An owner's own words are normalized here too, so a chip typed
   // as "Envíos" still matches.
   for (const [topic, type] of KEYWORD_INTENTS) {
-    const words = keywords[topic] ?? [];
-    if (words.some((w) => w && text.includes(normalize(w)))) return { type } as Intent;
+    // Defensive about shape, not just about absence: this runs on every inbound message,
+    // so one malformed stored row would otherwise throw and silence the whole bot rather
+    // than degrade one topic.
+    const stored = keywords?.[topic];
+    const words = Array.isArray(stored) ? stored : DEFAULT_KEYWORDS[topic];
+    const hit = words.some((w) => {
+      if (typeof w !== "string") return false;
+      const needle = normalize(w);
+      // A whitespace-only word normalizes to "", and text.includes("") is always true —
+      // one blank chip would answer every message with the same canned reply.
+      return needle.length > 0 && text.includes(needle);
+    });
+    if (hit) return { type } as Intent;
   }
 
   if (CONFIRM_WORDS.includes(text)) return { type: "confirm" };

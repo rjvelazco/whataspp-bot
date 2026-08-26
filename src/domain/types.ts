@@ -135,6 +135,26 @@ export type KeywordTopic = keyof StoreKeywords;
  */
 export type RateSource = "usd_oficial" | "usd_paralelo" | "eur_oficial" | "custom";
 
+/** Outcome of a rate refresh, shared with the admin panel. */
+export type RateRefreshOutcome = "updated" | "unchanged" | "manual_source" | "failed" | "no_store";
+
+/** What the bot would reply to each informational question, for the Tienda preview. */
+export interface BotPreview {
+  rate: string;
+  address: string;
+  shipping: string;
+  payment: string;
+  hours: string;
+}
+
+/** One entry of the rate-source dropdown, served so the panel does not retype it. */
+export interface RateSourceOption {
+  value: RateSource;
+  label: string;
+  unit: string;
+  note: string;
+}
+
 /** Per-store config — the "build once" payoff (§3.1). */
 export interface Store {
   store_id: string;
