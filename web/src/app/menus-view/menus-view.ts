@@ -11,6 +11,9 @@ import { SelectModule } from 'primeng/select';
 import { MessageModule } from 'primeng/message';
 import { PopoverModule } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
+import type { MessageToken } from '../api-types';
+import { Card, KeywordChips, PageHead, Toolbar } from '../ui';
+import { TokenEditor, type TokenChoice } from './token-editor';
 import {
   MenusService,
   type FlowAction,
@@ -33,17 +36,17 @@ const CATEGORY_LABEL: Record<AssetCategory, string> = {
  * action is a compile error here until it's labelled.
  */
 const ACTIONS: Record<FlowAction, { label: string; selectable: boolean }> = {
-  go_menu: { label: 'Ir a menú', selectable: false },
-  start_order: { label: 'Iniciar pedido', selectable: true },
-  show_category: { label: 'Mostrar productos', selectable: true },
-  show_offers: { label: 'Mostrar ofertas', selectable: true },
-  show_payment: { label: 'Datos de pago', selectable: true },
-  show_shipping: { label: 'Datos de envío', selectable: true },
-  show_address: { label: 'Dirección', selectable: true },
-  show_rate: { label: 'Tasa del día', selectable: true },
-  size_guide: { label: 'Guía de tallas', selectable: true },
-  shipping_payments: { label: 'Envíos y pagos', selectable: false },
-  talk_human: { label: 'Hablar con humano', selectable: true },
+  go_menu: { label: 'Abre otro menú', selectable: false },
+  start_order: { label: 'Empieza un pedido', selectable: true },
+  show_category: { label: 'Muestra los productos de una categoría', selectable: true },
+  show_offers: { label: 'Muestra las ofertas', selectable: true },
+  show_payment: { label: 'Responde con los métodos de pago', selectable: true },
+  show_shipping: { label: 'Responde cómo son los envíos', selectable: true },
+  show_address: { label: 'Responde con la dirección', selectable: true },
+  show_rate: { label: 'Responde con la tasa del día', selectable: true },
+  size_guide: { label: 'Responde con la guía de tallas', selectable: true },
+  shipping_payments: { label: 'Responde envíos y pagos juntos', selectable: false },
+  talk_human: { label: 'Te pasa la conversación', selectable: true },
 };
 
 const ACTION_ITEMS: { value: FlowAction; label: string }[] = (
@@ -60,8 +63,38 @@ function splitTriggers(raw: string | undefined, lower = false): string[] {
     .filter(Boolean);
 }
 
-const VARIABLES = ['{store_name}', '{owner_name}'];
-const ENTRY_TRIGGERS = ['hola', 'menu', 'inicio'];
+/**
+ * The human name of every message variable.
+ *
+ * Keyed by MessageToken, which comes from the bot's own domain model — so adding a
+ * token there is a compile error here until it has a name a shop owner can read. That
+ * is the mechanism behind "never show a database identifier".
+ */
+const TOKEN_LABELS: Record<MessageToken, string> = {
+  store_name: 'Nombre de la tienda',
+  owner_name: 'Tu nombre',
+  horario: 'Horario',
+  direccion: 'Dirección',
+  tasa: 'Tasa del día',
+};
+
+const TOKEN_CHOICES: TokenChoice[] = (Object.keys(TOKEN_LABELS) as MessageToken[]).map((name) => ({
+  name,
+  label: TOKEN_LABELS[name],
+}));
+
+/** `Menú de envíos` -> `menu_de_envios`. Owners never see or type a key. */
+function slugify(name: string): string {
+  return (
+    name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 40) || 'menu'
+  );
+}
 
 function deepCopy(menu: FlowMenu): FlowMenu {
   return {
@@ -72,7 +105,7 @@ function deepCopy(menu: FlowMenu): FlowMenu {
 }
 
 @Component({
-  selector: 'app-configuracion',
+  selector: 'app-menus',
   imports: [
     FormsModule,
     DragDropModule,
@@ -85,11 +118,16 @@ function deepCopy(menu: FlowMenu): FlowMenu {
     MessageModule,
     PopoverModule,
     TooltipModule,
+    KeywordChips,
+    TokenEditor,
+    PageHead,
+    Card,
+    Toolbar,
   ],
-  templateUrl: './configuracion.html',
-  styleUrl: './configuracion.css',
+  templateUrl: './menus-view.html',
+  styleUrl: './menus-view.css',
 })
-export class Configuracion implements OnInit {
+export class MenusView implements OnInit {
   private readonly api = inject(MenusService);
   private readonly assetsApi = inject(AssetsService);
   private readonly messages = inject(MessageService);
@@ -101,7 +139,13 @@ export class Configuracion implements OnInit {
   protected readonly saving = signal(false);
   /** Flow-wide warnings from the last save (shown as a dismissible page panel). */
   protected readonly issues = signal<FlowIssue[]>([]);
-  protected readonly variables = VARIABLES;
+  protected readonly tokenChoices = TOKEN_CHOICES;
+  /** The bot's first message, as the engine itself decides it. */
+  protected readonly entryKey = signal<string | null>(null);
+  /** Every menu's text with tokens resolved, keyed by menu key. */
+  protected readonly previews = signal<Record<string, string>>({});
+  /** The draft's rendered text, refreshed as the editor is used. */
+  protected readonly draftPreview = signal('');
 
   // ---- modal editor state ----
   protected readonly modalOpen = signal(false);
@@ -111,16 +155,13 @@ export class Configuracion implements OnInit {
   /** Errors that blocked the current modal save (shown inside the modal). */
   protected readonly modalIssues = signal<FlowIssue[]>([]);
 
-  // ---- Conectar picker (nested over the modal) ----
-  protected readonly connecting = signal<number | null>(null);
-  protected readonly pickerSearch = signal('');
-
   ngOnInit(): void {
     this.api.get().subscribe({
       next: (menus) => this.menus.set(menus),
       error: () =>
         this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los menús' }),
     });
+    this.loadDerived();
     this.assetsApi.list().subscribe({
       next: (assets) => this.assets.set(assets),
       error: () =>
@@ -129,16 +170,26 @@ export class Configuracion implements OnInit {
   }
 
   // ---- list card helpers ----
-  private entryKey(): string | undefined {
-    const menus = this.menus();
-    const found = menus.find((m) => this.triggerWordsOf(m).some((t) => ENTRY_TRIGGERS.includes(t)));
-    return (found ?? menus[0])?.key;
-  }
   protected isEntry(menu: FlowMenu): boolean {
     return !!menu.key && menu.key === this.entryKey();
   }
   protected isEntryDraft(): boolean {
-    return this.triggerWords().some((t) => ENTRY_TRIGGERS.includes(t.toLowerCase()));
+    return !!this.draft.key && this.draft.key === this.entryKey();
+  }
+  /** The card's message, with its variables already resolved. */
+  protected previewOf(menu: FlowMenu): string {
+    return this.previews()[menu.key] ?? menu.message;
+  }
+  /**
+   * Options that go nowhere, said in words.
+   *
+   * Replaces a bare "5/5" counter, which counted something real — validateFlow warns on
+   * the same condition — while explaining nothing.
+   */
+  protected unwiredLabel(menu: FlowMenu): string {
+    const missing = menu.options.length - this.connectedCount(menu);
+    if (missing === 0) return '';
+    return missing === 1 ? '1 opción sin conectar' : `${missing} opciones sin conectar`;
   }
 
   protected optionConnected(opt: FlowOption): boolean {
@@ -164,6 +215,22 @@ export class Configuracion implements OnInit {
     return splitTriggers(menu.trigger);
   }
 
+  /** The entry key and the resolved previews both come from the engine, not from here. */
+  private loadDerived(): void {
+    this.api
+      .entryKey()
+      .subscribe({ next: (r) => this.entryKey.set(r.key), error: () => undefined });
+    this.api.previews().subscribe({ next: (p) => this.previews.set(p), error: () => undefined });
+  }
+
+  /** Re-render the draft through the bot's own builder, for the live preview. */
+  protected refreshDraftPreview(): void {
+    this.api.preview(this.draft).subscribe({
+      next: (r) => this.draftPreview.set(r.text),
+      error: () => this.draftPreview.set(''),
+    });
+  }
+
   // ---- open / close modal ----
   protected openEdit(i: number): void {
     this.editIndex = i;
@@ -171,12 +238,13 @@ export class Configuracion implements OnInit {
     this.draft = deepCopy(this.menus()[i]);
     this.modalIssues.set([]);
     this.modalOpen.set(true);
+    this.refreshDraftPreview();
   }
   protected openNew(): void {
     this.editIndex = null;
     this.isNew.set(true);
     this.draft = {
-      key: this.uniqueKey('menu'),
+      key: '',
       name: 'Nuevo menú',
       message: '',
       trigger: '',
@@ -184,10 +252,10 @@ export class Configuracion implements OnInit {
     };
     this.modalIssues.set([]);
     this.modalOpen.set(true);
+    this.refreshDraftPreview();
   }
   protected cancelModal(): void {
     this.modalOpen.set(false);
-    this.connecting.set(null);
   }
 
   // ---- triggers (chip input over the comma-string) ----
@@ -197,31 +265,19 @@ export class Configuracion implements OnInit {
   protected triggerWords(): string[] {
     return splitTriggers(this.draft.trigger);
   }
-  protected addTrigger(raw: string, input?: HTMLInputElement): void {
-    const word = raw.trim().toLowerCase();
-    if (input) input.value = '';
-    if (!word) return;
-    const words = this.triggerWords();
-    if (words.includes(word)) return;
-    this.draft.trigger = [...words, word].join(', ');
-  }
-  protected removeTrigger(word: string): void {
-    this.draft.trigger = this.triggerWords()
-      .filter((w) => w !== word)
+  /** Written back as the comma string the flow format stores. */
+  protected setTriggers(words: string[]): void {
+    this.draft.trigger = words
+      .map((w) => w.trim().toLowerCase())
+      .filter(Boolean)
       .join(', ');
   }
 
-  // ---- message variables ----
-  protected insertVariable(ta: HTMLTextAreaElement, variable: string): void {
-    const msg = this.draft.message ?? '';
-    const start = ta.selectionStart ?? msg.length;
-    const end = ta.selectionEnd ?? start;
-    this.draft.message = msg.slice(0, start) + variable + msg.slice(end);
-    queueMicrotask(() => {
-      ta.focus();
-      const pos = start + variable.length;
-      ta.setSelectionRange(pos, pos);
-    });
+  // ---- message ----
+  /** The pill editor owns the text; every change re-renders the preview. */
+  protected setMessage(message: string): void {
+    this.draft.message = message;
+    this.refreshDraftPreview();
   }
 
   // ---- attachments (Recursos) ----
@@ -260,57 +316,66 @@ export class Configuracion implements OnInit {
   // ---- options ----
   protected addOption(): void {
     this.draft.options = [...this.draft.options, { label: '', action: 'go_menu', target: '' }];
+    this.refreshDraftPreview();
   }
   protected removeOption(oi: number): void {
     this.draft.options = this.draft.options.filter((_, k) => k !== oi);
+    this.refreshDraftPreview();
   }
+  /**
+   * Keyboard reordering.
+   *
+   * Dragging is mouse-only, and reordering is not a decoration here — the number a
+   * customer replies with is the position in this list.
+   */
+  protected moveOption(oi: number, delta: number): void {
+    const to = oi + delta;
+    if (to < 0 || to >= this.draft.options.length) return;
+    const options = [...this.draft.options];
+    moveItemInArray(options, oi, to);
+    this.draft.options = options;
+    this.refreshDraftPreview();
+  }
+
   protected dropOption(event: CdkDragDrop<unknown>): void {
     const options = [...this.draft.options];
     moveItemInArray(options, event.previousIndex, event.currentIndex);
     this.draft.options = options;
   }
 
-  // ---- Conectar picker ----
-  protected openConnect(oi: number): void {
-    this.pickerSearch.set('');
-    this.connecting.set(oi);
+  // ---- what an option does ----
+  /**
+   * One dropdown per option instead of a nested "Conectar" dialog over the editor.
+   *
+   * Values are encoded so a single control can offer both kinds of destination:
+   * `action:show_rate` runs a bot action, `menu:menu_catalogo` opens another menu.
+   */
+  protected optionChoices(): { label: string; items: { label: string; value: string }[] }[] {
+    const others = this.menus()
+      .filter((m) => m.key !== this.draft.key)
+      .map((m) => ({ label: m.name || 'Menú sin nombre', value: `menu:${m.key}` }));
+    return [
+      {
+        label: 'El bot responde',
+        items: ACTION_ITEMS.map((a) => ({ label: a.label, value: `action:${a.value}` })),
+      },
+      { label: 'Abre otro menú', items: others },
+    ].filter((g) => g.items.length > 0);
   }
-  protected closeConnect(): void {
-    this.connecting.set(null);
+
+  protected optionValue(opt: FlowOption): string | null {
+    if (opt.action === 'go_menu') return opt.target ? `menu:${opt.target}` : null;
+    return `action:${opt.action}`;
   }
-  protected otherMenus(): FlowMenu[] {
-    const q = this.pickerSearch().trim().toLowerCase();
-    return this.menus().filter(
-      (m) =>
-        m.key !== this.draft.key &&
-        (!q || m.name.toLowerCase().includes(q) || m.key.toLowerCase().includes(q)),
-    );
-  }
-  protected filteredActions(): { value: FlowAction; label: string }[] {
-    const q = this.pickerSearch().trim().toLowerCase();
-    return ACTION_ITEMS.filter((a) => !q || a.label.toLowerCase().includes(q));
-  }
-  protected pickMenu(menuKey: string): void {
-    const oi = this.connecting();
-    if (oi === null) return;
-    this.draft.options[oi] = {
-      ...this.draft.options[oi],
-      action: 'go_menu',
-      target: menuKey,
-      value: undefined,
-    };
-    this.closeConnect();
-  }
-  protected pickAction(action: FlowAction): void {
-    const oi = this.connecting();
-    if (oi === null) return;
-    this.draft.options[oi] = {
-      ...this.draft.options[oi],
-      action,
-      target: undefined,
-      value: undefined,
-    };
-    this.closeConnect();
+
+  protected setOptionTarget(oi: number, encoded: string): void {
+    const [kind, value] = encoded.split(':');
+    const current = this.draft.options[oi];
+    this.draft.options[oi] =
+      kind === 'menu'
+        ? { ...current, action: 'go_menu', target: value, value: undefined }
+        : { ...current, action: value as FlowAction, target: undefined, value: undefined };
+    this.refreshDraftPreview();
   }
 
   // ---- persistence ----
@@ -320,6 +385,7 @@ export class Configuracion implements OnInit {
       next: (res) => {
         this.saving.set(false);
         this.menus.set(candidate);
+        this.loadDerived();
         const warnings = (res.issues ?? []).filter((i) => i.severity === 'warning');
         this.issues.set(warnings);
         if (opts.fromModal) {
@@ -357,22 +423,17 @@ export class Configuracion implements OnInit {
   }
 
   protected saveModal(): void {
-    const key = this.draft.key.trim();
-    if (!key) {
-      this.modalIssues.set([{ severity: 'error', message: 'El menú necesita un identificador.' }]);
+    const name = (this.draft.name ?? '').trim();
+    if (!name) {
+      this.modalIssues.set([{ severity: 'error', message: 'Ponle un nombre al menú.' }]);
       return;
     }
-    const clash = this.menus().some((m, i) => m.key === key && i !== this.editIndex);
-    if (clash) {
-      this.modalIssues.set([
-        { severity: 'error', message: `Ya existe un menú con el identificador "${key}".` },
-      ]);
-      return;
-    }
-    // Persist what was validated, not the raw input ("menu " passed the check
-    // above and was then stored with its trailing space).
+    // The key is a database identifier, so it is derived rather than typed — rule 4.
+    // An existing menu keeps the key it was saved with: changing it would orphan every
+    // option that points at it.
+    const key = this.draft.key?.trim() || this.uniqueKey(slugify(name));
     this.draft.key = key;
-    this.draft.name = (this.draft.name ?? '').trim();
+    this.draft.name = name;
     const candidate = [...this.menus()];
     if (this.isNew()) candidate.push(this.draft);
     else if (this.editIndex !== null) candidate[this.editIndex] = this.draft;
@@ -393,6 +454,16 @@ export class Configuracion implements OnInit {
     });
   }
 
+  protected moveMenu(i: number, delta: number, event: Event): void {
+    event.stopPropagation();
+    const to = i + delta;
+    const menus = [...this.menus()];
+    if (to < 0 || to >= menus.length) return;
+    moveItemInArray(menus, i, to);
+    this.menus.set(menus);
+    this.persist(menus);
+  }
+
   protected dropMenu(event: CdkDragDrop<FlowMenu[]>): void {
     const menus = [...this.menus()];
     moveItemInArray(menus, event.previousIndex, event.currentIndex);
@@ -406,7 +477,8 @@ export class Configuracion implements OnInit {
 
   private uniqueKey(base: string): string {
     const keys = new Set(this.menus().map((m) => m.key));
-    let i = 1;
+    if (!keys.has(base)) return base;
+    let i = 2;
     while (keys.has(`${base}_${i}`)) i++;
     return `${base}_${i}`;
   }

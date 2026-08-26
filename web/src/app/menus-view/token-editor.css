@@ -1,0 +1,65 @@
+:host {
+  display: block;
+}
+
+.editor {
+  min-height: 96px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.editor:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+/* The variable, wearing its human name. Emerald because it is the bot filling it in.
+   ::ng-deep because the pills are built in TypeScript: Angular scopes component styles
+   by an attribute it stamps on template elements, and a node created with
+   createElement never gets it — so a plain `.pill` rule matched nothing at all. */
+:host ::ng-deep .pill {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--color-signal-soft);
+  color: var(--color-signal-ink);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  user-select: all;
+}
+
+.insert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.insert-label {
+  font-size: var(--text-2xs);
+  color: var(--color-ink-3);
+}
+/* Dashed = creates something new. */
+.insert-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  height: 24px;
+  border: 1px dashed var(--color-signal);
+  border-radius: 999px;
+  background: var(--color-paper);
+  color: var(--color-signal-ink);
+  font: inherit;
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+.insert-chip:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}

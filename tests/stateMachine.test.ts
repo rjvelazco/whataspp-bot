@@ -1,3 +1,4 @@
+import { fillPlaceholders } from "../src/engine/handlers.js";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -428,5 +429,47 @@ describe("a second order does not orphan the first", () => {
     const r = run(["PEDIR TOPBASICO", { image: true }], awaiting);
     expect(r.effects.map((e) => e.type)).toEqual(["saveReceipt", "notifyOwner"]);
     expect(r.conversation.state).toBe("ordering_size"); // the new order continues
+  });
+});
+
+describe("fillPlaceholders", () => {
+  const store: Store = {
+    store_id: "novamoda",
+    store_name: "Nova Moda",
+    owner_name: "Ana",
+    owner_whatsapp: "58414",
+    hours: "Lun a Sáb, 9am a 6pm",
+    delivery_info: "",
+    returns_policy: "",
+    payments: {},
+    size_guide: [],
+    categories: [],
+    address: "Av. 5 de Julio, local 12",
+    usd_rate: 779.95,
+  };
+
+  it("resolves every token the editor offers", () => {
+    // Typing {tasa} into a menu used to ship the literal "{tasa}" to the customer:
+    // only store_name and owner_name were ever substituted.
+    expect(
+      fillPlaceholders("{store_name} · {owner_name} · {horario} · {direccion} · {tasa}", store),
+    ).toBe("Nova Moda · Ana · Lun a Sáb, 9am a 6pm · Av. 5 de Julio, local 12 · Bs. 779.95 por $1");
+  });
+
+  it("follows the rate source for {tasa}", () => {
+    expect(fillPlaceholders("{tasa}", { ...store, rate_source: "eur_oficial" })).toBe(
+      "Bs. 779.95 por €1",
+    );
+  });
+
+  it("leaves an unknown token visible rather than blanking it", () => {
+    // A customer seeing "{precio}" is a bug the owner can spot; deleting it hides it.
+    expect(fillPlaceholders("Cuesta {precio}", store)).toBe("Cuesta {precio}");
+  });
+
+  it("substitutes every occurrence, and copes with missing optional data", () => {
+    expect(fillPlaceholders("{store_name} y {store_name}", store)).toBe("Nova Moda y Nova Moda");
+    expect(fillPlaceholders("[{direccion}]", { ...store, address: undefined })).toBe("[]");
+    expect(fillPlaceholders("[{tasa}]", { ...store, usd_rate: undefined })).toBe("[]");
   });
 });

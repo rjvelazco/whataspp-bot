@@ -154,6 +154,15 @@ export interface RateSourceOption {
   unit: string;
   note: string;
 }
+/**
+ * The variables a menu message may contain.
+ *
+ * Stored raw (`"¡Hola! Bienvenid@ a {store_name}."`) and resolved before the customer
+ * ever sees them. The union is shared with the admin panel through api-types.ts, so
+ * adding one here is a compile error in the panel's label map until it is given a human
+ * name — which is the rule that keeps a database identifier off the screen.
+ */
+export type MessageToken = "store_name" | "owner_name" | "horario" | "direccion" | "tasa";
 
 /** Per-store config — the "build once" payoff (§3.1). */
 export interface Store {
