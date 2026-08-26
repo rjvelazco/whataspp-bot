@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ConvState, FlowMenu } from "../src/domain/types.js";
-import { parseIntent } from "../src/engine/intents.js";
+import { DEFAULT_KEYWORDS, parseIntent } from "../src/engine/intents.js";
 import { resolveIncoming } from "../src/engine/routing.js";
 import { validateFlow } from "../src/engine/validateFlow.js";
 
@@ -149,5 +149,32 @@ describe("validateFlow", () => {
     const w = warns(flow);
     expect(w.some((i) => i.message.includes("palabra reservada"))).toBe(true); // "oferta" -> show_offers
     expect(w.some((i) => i.message.includes("repetido"))).toBe(true); // "oferta" in a and b
+  });
+});
+
+describe("store-owned keywords", () => {
+  it("answers to the words the shop configured, not to the seeded ones", () => {
+    const keywords = { ...DEFAULT_KEYWORDS, rate: ["cuanto esta el cambio"] };
+
+    expect(parseIntent("cuanto esta el cambio", keywords).type).toBe("show_rate");
+    // "tasa" was removed by the owner, so it is no longer a rate question.
+    expect(parseIntent("tasa", keywords).type).toBe("text");
+    // Everything they did not touch keeps working.
+    expect(parseIntent("horario", keywords).type).toBe("hours");
+  });
+
+  it("normalizes the owner's own chips, so accents and case still match", () => {
+    const keywords = { ...DEFAULT_KEYWORDS, shipping: ["Envíos a Domicilio"] };
+    expect(parseIntent("hacen envios a domicilio?", keywords).type).toBe("show_shipping");
+  });
+
+  it("keeps topic precedence: shipping wins over payment", () => {
+    // "envíos y pagos" has to answer about envíos, whichever words the shop uses.
+    expect(parseIntent("envios y pagos", DEFAULT_KEYWORDS).type).toBe("show_shipping");
+  });
+
+  it("falls back to the defaults for a store that never edited them", () => {
+    expect(parseIntent("tasa").type).toBe("show_rate");
+    expect(parseIntent("donde queda").type).toBe("show_address");
   });
 });

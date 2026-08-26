@@ -1,6 +1,7 @@
 import type { FlowIssue, FlowMenu } from "../domain/types.js";
 import { FLOW_ACTIONS } from "../domain/types.js";
 import { normalize, parseIntent } from "./intents.js";
+import type { StoreKeywords } from "../domain/types.js";
 import { findEntryMenu, findMenuByKey } from "./handlers.js";
 
 export type { FlowIssue };
@@ -21,7 +22,11 @@ function triggerWords(menu: FlowMenu): string[] {
  * category, unreachable menus, and trigger collisions (with a global keyword or
  * another menu).
  */
-export function validateFlow(input: FlowMenu[]): FlowIssue[] {
+/**
+ * @param keywords the store's own informational keywords, so the reserved-word warning
+ * reflects what this bot actually answers to rather than the seeded defaults.
+ */
+export function validateFlow(input: FlowMenu[], keywords?: StoreKeywords): FlowIssue[] {
   const issues: FlowIssue[] = [];
 
   // --- shape: menus arrive as stored/posted JSON, so nothing is guaranteed ---
@@ -133,7 +138,7 @@ export function validateFlow(input: FlowMenu[]): FlowIssue[] {
       // A trigger reserved by a keyword never fires the trigger (the keyword wins).
       // greeting/menu words (hola, menu, inicio) are exempt: they route to the entry
       // menu by design, which is exactly where owners put them.
-      const t = parseIntent(word).type;
+      const t = parseIntent(word, keywords).type;
       if (t !== "text" && t !== "greeting" && t !== "menu") {
         issues.push({
           severity: "warning",

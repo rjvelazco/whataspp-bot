@@ -108,6 +108,33 @@ export interface Story {
   media: StoryMediaItem[];
 }
 
+/**
+ * The words a customer can type to reach each canned answer.
+ *
+ * Editable from Tienda. These used to be a hardcoded array in the UI *and* a separate
+ * hardcoded array in the engine, and the two had already drifted — the engine matched
+ * four rate words while the panel showed two. One place now, and the panel edits the
+ * same list the bot reads.
+ */
+export interface StoreKeywords {
+  rate: string[];
+  address: string[];
+  shipping: string[];
+  payment: string[];
+  offers: string[];
+  hours: string[];
+}
+
+export type KeywordTopic = keyof StoreKeywords;
+
+/**
+ * Where the rate the bot quotes comes from.
+ *
+ * The first three are fetched; "custom" is whatever the owner typed and is never
+ * overwritten by a refresh.
+ */
+export type RateSource = "usd_oficial" | "usd_paralelo" | "eur_oficial" | "custom";
+
 /** Per-store config — the "build once" payoff (§3.1). */
 export interface Store {
   store_id: string;
@@ -130,6 +157,17 @@ export interface Store {
   usd_rate?: number;
   /** ISO timestamp of the last usd_rate update, for display. */
   usd_rate_updated_at?: string;
+  /** Which rate the bot quotes. Defaults to the official dollar. */
+  rate_source?: RateSource;
+  /** The owner's own name for a "custom" rate, e.g. "Tasa de la tienda". */
+  rate_label?: string;
+  /**
+   * When the last automatic refresh failed. The stored rate is still the last good
+   * one, so the panel can say it is stale instead of pretending it is current.
+   */
+  rate_failed_at?: string;
+  /** The words customers can type to reach each canned answer. */
+  keywords?: StoreKeywords;
   /** Daily WhatsApp Status auto-post config (edited from the admin panel). */
   story_schedule?: StorySchedule;
 }

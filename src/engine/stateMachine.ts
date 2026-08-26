@@ -81,7 +81,9 @@ function applyOutput(input: EngineInput, out: HandlerOutput): EngineResult {
  */
 export function reduce(input: EngineInput): EngineResult {
   const now = input.now;
-  const intent = parseIntent(input.message.text ?? "");
+  // The store owns its informational keywords, so an edit in Tienda changes what the
+  // bot answers to without a deploy.
+  const intent = parseIntent(input.message.text ?? "", input.store.keywords);
 
   // --- handoff pause: stay quiet while a human is handling this chat ---
   const pausedUntil = input.conversation.bot_paused_until

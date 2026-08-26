@@ -1,0 +1,1713 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Store Bot · Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+/* ─────────────────────────────────────────────
+   TOKENS — 8-point spatial system, strict
+   ───────────────────────────────────────────── */
+:root{
+  --s1:8px;  --s2:16px; --s3:24px; --s4:32px; --s5:48px; --s6:64px;
+  --rail:256px;              /* 32 × 8 */
+  --gutter:var(--s4);
+
+  --ink:#101A21;
+  --ink-2:#41585F;
+  --ink-3:#7D9199;
+  --line:#DCE4E1;
+  --line-soft:#EAEFEC;
+  --paper:#FFFFFF;
+  --wash:#EEF2EE;
+
+  --signal:#0A6C48;          /* bot / verified / primary */
+  --signal-ink:#075437;
+  --signal-soft:#DCEEE3;
+  --amber:#8F5300;
+  --amber-soft:#FBEACC;
+  --rose:#9E241B;
+  --rose-soft:#FADFDC;
+
+  --r1:8px; --r2:12px; --r3:16px;
+  --shadow:0 1px 2px rgba(16,26,33,.05), 0 8px 24px -16px rgba(16,26,33,.28);
+  --ring:0 0 0 3px rgba(10,108,72,.22);
+
+  --display:"Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --body:"Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --data:"DM Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--wash); color:var(--ink);
+  font-family:var(--body); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:none;box-shadow:var(--ring);border-radius:var(--r1)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ─────────────────────────────────────────────
+   SHELL
+   ───────────────────────────────────────────── */
+.app{display:flex;min-height:100vh}
+
+.rail{
+  width:var(--rail);flex:0 0 var(--rail);
+  background:var(--paper);border-right:1px solid var(--line);
+  padding:var(--s3) var(--s2);
+  display:flex;flex-direction:column;gap:var(--s3);
+  position:sticky;top:0;height:100vh;
+}
+.brand{display:flex;align-items:center;gap:var(--s1);padding:0 var(--s1)}
+.brand-mark{
+  width:32px;height:32px;border-radius:10px;flex:0 0 32px;
+  background:var(--signal);color:#fff;display:grid;place-items:center;
+  font-family:var(--display);font-weight:800;font-size:15px;
+}
+.brand-name{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-.01em}
+.brand-sub{font-size:11px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-btn{
+  display:flex;align-items:center;gap:var(--s2);
+  padding:var(--s1) var(--s2);height:40px;
+  border:0;background:none;border-radius:var(--r1);
+  color:var(--ink-2);font-weight:500;cursor:pointer;text-align:left;width:100%;
+  transition:background .14s ease,color .14s ease;
+}
+.nav-btn:hover{background:var(--line-soft);color:var(--ink)}
+.nav-btn[aria-current="true"]{background:var(--signal-soft);color:var(--signal-ink);font-weight:600}
+.nav-btn .ico{width:16px;height:16px;flex:0 0 16px;stroke:currentColor;fill:none;stroke-width:1.6}
+.nav-count{margin-left:auto;font-family:var(--data);font-size:11px;color:var(--ink-3)}
+
+.rail-foot{margin-top:auto;display:flex;flex-direction:column;gap:var(--s1)}
+.status{
+  display:flex;align-items:center;gap:var(--s1);
+  padding:var(--s1) var(--s2);border-radius:var(--r1);
+  background:var(--signal-soft);color:var(--signal-ink);
+  font-size:13px;font-weight:500;
+}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--signal);flex:0 0 8px;
+  box-shadow:0 0 0 0 rgba(10,108,72,.5);animation:pulse 2.4s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 6px rgba(10,108,72,0)}100%{box-shadow:0 0 0 0 rgba(10,108,72,0)}}
+
+.main{flex:1;min-width:0;padding:var(--s4) var(--gutter) var(--s6)}
+.view{display:none;max-width:1200px;margin:0 auto}
+.view.is-active{display:block;animation:rise .28s cubic-bezier(.2,.7,.3,1)}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ─────────────────────────────────────────────
+   TYPE + HEADER
+   ───────────────────────────────────────────── */
+.page-head{display:flex;align-items:flex-end;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s4)}
+.page-head .grow{flex:1;min-width:240px}
+h1{
+  font-family:var(--display);font-weight:700;font-size:30px;line-height:1.13;
+  letter-spacing:-.02em;margin:0 0 var(--s1);
+}
+.eyebrow{
+  font-family:var(--data);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 var(--s1);
+}
+.lede{margin:0;color:var(--ink-2);max-width:62ch}
+h2{font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:-.01em;margin:0}
+h3{font-family:var(--display);font-weight:600;font-size:15px;margin:0}
+
+/* ─────────────────────────────────────────────
+   BUTTONS
+   ───────────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--s1);
+  height:40px;padding:0 var(--s2);border-radius:var(--r1);
+  border:1px solid var(--line);background:var(--paper);color:var(--ink);
+  font-weight:500;cursor:pointer;white-space:nowrap;
+  transition:background .14s ease,border-color .14s ease,transform .1s ease;
+}
+.btn:hover{background:var(--line-soft)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--signal);border-color:var(--signal);color:#fff}
+.btn-primary:hover{background:var(--signal-ink)}
+/* Ghost is still the lightest button, but never looks like plain text. */
+.btn-ghost{border-color:var(--line-soft);background:transparent;color:var(--ink-2)}
+.btn-ghost:hover{background:var(--line-soft);border-color:var(--line);color:var(--ink)}
+
+/* Dashed = "this adds something", the same language as the new-card tiles. */
+.btn-add{
+  border:1.5px dashed var(--line);background:transparent;color:var(--ink-2);
+  font-weight:500;
+}
+.btn-add:hover{border-color:var(--signal);background:var(--signal-soft);color:var(--signal-ink)}
+
+/* Insert-data buttons look like the pill they produce. */
+.chip-add{
+  display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;
+  border:1.5px dashed var(--signal);border-radius:999px;
+  background:transparent;color:var(--signal-ink);
+  font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;
+  transition:background .14s ease,transform .1s ease;
+}
+.chip-add::before{content:"+";font-size:14px;line-height:1;opacity:.7}
+.chip-add:hover{background:var(--signal-soft)}
+.chip-add:active{transform:translateY(1px)}
+
+.btn-sm{height:32px;padding:0 var(--s2);font-size:13px}
+.btn .ico{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+
+/* ─────────────────────────────────────────────
+   CARDS + STATS
+   ───────────────────────────────────────────── */
+.card{
+  background:var(--paper);border:1px solid var(--line);
+  border-radius:var(--r3);box-shadow:var(--shadow);
+}
+.card-pad{padding:var(--s3)}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-bottom:var(--s3)}
+.stat{
+  background:var(--paper);border:1px solid var(--line);border-radius:var(--r2);
+  padding:var(--s2) var(--s3);position:relative;overflow:hidden;
+}
+.stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line)}
+.stat.is-signal::before{background:var(--signal)}
+.stat.is-amber::before{background:var(--amber)}
+.stat-k{font-size:12px;color:var(--ink-3);letter-spacing:.02em}
+.stat-v{font-family:var(--display);font-weight:700;font-size:28px;line-height:1.2;letter-spacing:-.02em}
+.stat-n{font-size:12px;color:var(--ink-2)}
+
+/* ─────────────────────────────────────────────
+   TOOLBAR — aligned to the table's first cell
+   ───────────────────────────────────────────── */
+.toolbar{
+  display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;
+  padding:var(--s2) var(--s3);border-bottom:1px solid var(--line-soft);
+}
+.seg{display:inline-flex;background:var(--wash);border-radius:var(--r1);padding:4px;gap:2px}
+.seg button{
+  height:32px;padding:0 var(--s2);border:0;background:none;border-radius:6px;
+  font-size:13px;font-weight:500;color:var(--ink-2);cursor:pointer;
+}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 2px rgba(16,26,33,.10)}
+
+.field{position:relative;display:inline-flex;align-items:center}
+.field .ico{position:absolute;left:12px;width:16px;height:16px;stroke:var(--ink-3);fill:none;stroke-width:1.7;pointer-events:none}
+input[type=text],input[type=search],input[type=number],input[type=date],select,textarea{
+  height:40px;border:1px solid var(--line);border-radius:var(--r1);
+  background:var(--paper);padding:0 var(--s2);width:100%;
+  transition:border-color .14s ease,box-shadow .14s ease;
+}
+input:hover,select:hover,textarea:hover{border-color:#C6D2CC}
+input:focus,select:focus,textarea:focus{border-color:var(--signal);box-shadow:var(--ring);outline:none}
+.field input{padding-left:36px;min-width:224px}
+textarea{padding:var(--s1) var(--s2);height:auto;min-height:72px;resize:vertical;line-height:1.5}
+select{appearance:none;padding-right:var(--s4);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237D9199' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center}
+.spacer{margin-left:auto}
+label.lbl{display:block;font-size:13px;font-weight:500;color:var(--ink-2);margin-bottom:var(--s1)}
+.hint{font-size:12px;color:var(--ink-3);margin-top:var(--s1)}
+
+/* ─────────────────────────────────────────────
+   TABLE — first column shares the 24px card inset
+   ───────────────────────────────────────────── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{
+  text-align:left;font-size:11px;font-weight:600;letter-spacing:.10em;text-transform:uppercase;
+  color:var(--ink-3);padding:var(--s2) var(--s2);border-bottom:1px solid var(--line);
+  white-space:nowrap;
+}
+tbody td{padding:var(--s2);border-bottom:1px solid var(--line-soft);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+th:first-child,td:first-child{padding-left:var(--s3)}
+th:last-child,td:last-child{padding-right:var(--s3)}
+.num{text-align:right;font-family:var(--data);font-variant-numeric:tabular-nums}
+th.num{text-align:right}
+
+/* sortable column headers */
+th.sortable{padding:0;cursor:pointer}
+th.sortable > button{
+  display:inline-flex;align-items:center;gap:6px;width:100%;
+  padding:var(--s2);border:0;background:none;cursor:pointer;
+  font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;
+  transition:color .14s ease;
+}
+th.sortable:first-child > button{padding-left:var(--s3)}
+th.sortable.num > button{justify-content:flex-end;padding-right:var(--s2)}
+th.sortable.num:last-child > button{padding-right:var(--s3)}
+th.sortable > button:hover{color:var(--ink)}
+th.sortable[aria-sort]:not([aria-sort="none"]) > button{color:var(--signal-ink)}
+th.sortable .arrows{width:12px;height:12px;flex:0 0 12px;stroke:currentColor;fill:none;stroke-width:2;opacity:.5}
+th.sortable[aria-sort]:not([aria-sort="none"]) .arrows{opacity:1}
+th.sortable .arrows .up,th.sortable .arrows .dn{transition:opacity .14s ease}
+th.sortable[aria-sort="ascending"] .arrows .dn{opacity:.2}
+th.sortable[aria-sort="descending"] .arrows .up{opacity:.2}
+
+/* columns that only earn their space on small screens */
+.on-mobile{display:none}
+tbody tr{cursor:pointer;transition:background .12s ease}
+tbody tr:hover{background:var(--wash)}
+.code{font-family:var(--data);font-size:13px;letter-spacing:-.01em}
+
+.badge{
+  display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 var(--s1);
+  border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;
+}
+.badge .tick{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.4}
+.b-ok{background:var(--signal-soft);color:var(--signal-ink)}
+.b-wait{background:var(--amber-soft);color:var(--amber)}
+.b-off{background:var(--rose-soft);color:var(--rose)}
+.b-mute{background:var(--line-soft);color:var(--ink-2)}
+
+.who{display:flex;align-items:center;gap:var(--s2);min-width:0}
+.avatar{
+  width:32px;height:32px;flex:0 0 32px;border-radius:10px;
+  background:var(--wash);border:1px solid var(--line);
+  display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--ink-2);
+}
+.who-name{font-weight:500;line-height:1.3}
+.who-sub{font-family:var(--data);font-size:11px;color:var(--ink-3);line-height:1.3}
+
+.thumb{
+  width:40px;height:40px;border-radius:var(--r1);object-fit:cover;
+  border:1px solid var(--line);background:var(--wash);display:block;
+}
+.thumb-ph{display:grid;place-items:center;font-size:10px;color:var(--ink-3);font-family:var(--data)}
+
+.empty{padding:var(--s5) var(--s3);text-align:center;color:var(--ink-2)}
+.empty h3{margin-bottom:var(--s1)}
+
+/* ─────────────────────────────────────────────
+   SIGNATURE — the comprobante (receipt) drawer
+   ───────────────────────────────────────────── */
+.scrim{
+  position:fixed;inset:0;background:rgba(16,26,33,.42);backdrop-filter:blur(2px);
+  opacity:0;pointer-events:none;transition:opacity .22s ease;z-index:40;
+}
+.scrim.is-open{opacity:1;pointer-events:auto}
+
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);z-index:50;
+  background:var(--wash);border-left:1px solid var(--line);
+  transform:translateX(100%);transition:transform .28s cubic-bezier(.2,.7,.3,1);
+  display:flex;flex-direction:column;
+}
+.drawer.is-open{transform:none}
+.drawer-head{
+  display:flex;align-items:center;gap:var(--s2);
+  padding:var(--s3);border-bottom:1px solid var(--line);background:var(--paper);
+}
+.drawer-body{padding:var(--s3);overflow:auto;flex:1}
+
+.receipt{
+  background:var(--paper);padding:var(--s3);position:relative;
+  filter:drop-shadow(0 8px 24px rgba(16,26,33,.14));
+  --scallop:radial-gradient(circle at 6px 0, transparent 0 6px, var(--paper) 6.5px);
+}
+.receipt::before,.receipt::after{
+  content:"";position:absolute;left:0;right:0;height:8px;
+  background-image:var(--scallop);background-size:12px 8px;background-repeat:repeat-x;
+}
+.receipt::before{top:-8px;transform:scaleY(-1)}
+.receipt::after{bottom:-8px}
+.receipt-top{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s2)}
+.receipt-id{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:-.02em}
+.rule{border:0;border-top:1px dashed var(--line);margin:var(--s2) 0}
+.ledger{font-family:var(--data);font-size:13px;display:flex;flex-direction:column;gap:var(--s1)}
+.ledger .row{display:flex;justify-content:space-between;gap:var(--s2)}
+.ledger .row span:first-child{color:var(--ink-3)}
+.ledger .row.total{font-size:16px;font-weight:500;color:var(--ink)}
+.stamp{
+  display:inline-flex;align-items:center;gap:6px;padding:4px var(--s1);
+  border:1.5px solid var(--signal);color:var(--signal-ink);border-radius:6px;
+  font-family:var(--data);font-size:11px;letter-spacing:.10em;text-transform:uppercase;
+  transform:rotate(-3deg);
+}
+.stamp.is-off{border-color:var(--rose);color:var(--rose)}
+.proof{margin-top:var(--s2);border:1px solid var(--line);border-radius:var(--r1);
+  height:160px;background:var(--wash);display:grid;place-items:center;color:var(--ink-3);font-size:13px}
+
+/* ─────────────────────────────────────────────
+   TIENDA
+   ───────────────────────────────────────────── */
+.tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:var(--s1);margin-bottom:var(--s3);
+  border-bottom:1px solid var(--line)}
+.tabs button{
+  height:40px;padding:0 var(--s2);border:0;background:none;cursor:pointer;
+  font-weight:500;color:var(--ink-2);white-space:nowrap;position:relative;
+}
+.tabs button[aria-selected="true"]{color:var(--signal-ink);font-weight:600}
+.tabs button[aria-selected="true"]::after{
+  content:"";position:absolute;left:var(--s1);right:var(--s1);bottom:-1px;height:2px;background:var(--signal)}
+
+.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
+.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2)}
+.col-span{grid-column:1/-1}
+.w-sm{max-width:240px}
+.w-md{max-width:360px}
+.panel{display:flex;flex-direction:column;gap:var(--s2)}
+.panel + .panel{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--line-soft)}
+
+.keywords{display:flex;align-items:center;gap:var(--s1);flex-wrap:wrap;font-size:13px;color:var(--ink-3)}
+.kw{
+  display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 var(--s1);
+  border-radius:999px;background:var(--signal-soft);color:var(--signal-ink);
+  font-size:12px;font-weight:500;
+}
+.kw button{border:0;background:none;padding:0;cursor:pointer;color:inherit;opacity:.6;line-height:1}
+.kw button:hover{opacity:1}
+
+.pay-row{display:flex;align-items:center;gap:var(--s2)}
+.pay-row .name{width:104px;flex:0 0 104px;font-weight:500;font-size:14px}
+
+.switch{
+  width:40px;height:24px;flex:0 0 40px;border-radius:999px;border:0;cursor:pointer;
+  background:var(--line);position:relative;transition:background .18s ease;
+}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(16,26,33,.3);transition:transform .18s cubic-bezier(.2,.7,.3,1)}
+.switch[aria-checked="true"]{background:var(--signal)}
+.switch[aria-checked="true"]::after{transform:translateX(16px)}
+
+/* bot preview */
+.chat{display:flex;flex-direction:column;gap:var(--s1)}
+.bubble{max-width:80%;padding:var(--s1) var(--s2);border-radius:14px;font-size:14px;line-height:1.45}
+.bubble.me{align-self:flex-end;background:var(--signal-soft);color:var(--signal-ink);border-bottom-right-radius:4px}
+.bubble.bot{align-self:flex-start;background:var(--wash);border:1px solid var(--line);border-bottom-left-radius:4px}
+.bubble.empty-state{color:var(--ink-3);font-style:italic}
+
+/* ─────────────────────────────────────────────
+   RECURSOS
+   ───────────────────────────────────────────── */
+.file-list{display:flex;flex-direction:column}
+.file{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s3);border-bottom:1px solid var(--line-soft)}
+.file:last-child{border-bottom:0}
+.file-ico{width:40px;height:40px;flex:0 0 40px;border-radius:var(--r1);display:grid;place-items:center;
+  background:var(--wash);border:1px solid var(--line);font-family:var(--data);font-size:10px;color:var(--ink-2)}
+.file-meta{min-width:0;flex:1}
+.file-name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-sub{font-family:var(--data);font-size:12px;color:var(--ink-3)}
+
+.drop{
+  border:1.5px dashed var(--line);border-radius:var(--r2);background:var(--wash);
+  padding:var(--s4);text-align:center;color:var(--ink-2);cursor:pointer;
+  transition:border-color .16s ease,background .16s ease;
+}
+.drop:hover{border-color:var(--signal);background:var(--signal-soft)}
+
+.story-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--s2);padding:var(--s3)}
+.story{border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;background:var(--paper)}
+.story-img{aspect-ratio:9/16;background:linear-gradient(160deg,#D9E4DD,#EFF2EE);display:grid;place-items:center;
+  color:var(--ink-3);font-family:var(--data);font-size:12px}
+.story-foot{padding:var(--s1) var(--s2) var(--s2)}
+.story-when{font-family:var(--data);font-size:12px;color:var(--ink-2)}
+.story-new{
+  border:1.5px dashed var(--line);border-radius:var(--r2);background:none;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--s1);
+  color:var(--ink-2);min-height:200px;font-weight:500;
+}
+.story-new:hover{border-color:var(--signal);color:var(--signal-ink);background:var(--signal-soft)}
+
+/* ─────────────────────────────────────────────
+   MENÚS
+   ───────────────────────────────────────────── */
+.menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s2)}
+.menu-card{
+  background:var(--paper);border:1px solid var(--line);border-radius:var(--r3);
+  box-shadow:var(--shadow);padding:var(--s3);cursor:pointer;text-align:left;
+  display:flex;flex-direction:column;gap:var(--s2);position:relative;overflow:hidden;
+  transition:border-color .16s ease,transform .12s ease;
+}
+.menu-card:hover{border-color:var(--signal);transform:translateY(-2px)}
+.menu-card.is-start::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--signal)}
+.menu-top{display:flex;align-items:center;gap:var(--s1)}
+.menu-title{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-.01em}
+.menu-msg{
+  font-size:14px;color:var(--ink-2);line-height:1.5;
+  background:var(--wash);border:1px solid var(--line-soft);border-radius:14px;
+  border-bottom-left-radius:4px;padding:var(--s1) var(--s2);
+}
+.menu-foot{display:flex;align-items:center;gap:var(--s1);margin-top:auto;
+  padding-top:var(--s2);border-top:1px solid var(--line-soft);font-size:13px;color:var(--ink-3)}
+.menu-new{
+  border:1.5px dashed var(--line);border-radius:var(--r3);background:none;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--s1);
+  color:var(--ink-2);min-height:200px;font-weight:500;
+}
+.menu-new:hover{border-color:var(--signal);color:var(--signal-ink);background:var(--signal-soft)}
+
+/* message editor with data pills instead of raw variables */
+.composer{
+  min-height:88px;border:1px solid var(--line);border-radius:var(--r1);
+  background:var(--paper);padding:var(--s1) var(--s2);line-height:2;font-size:15px;
+}
+.composer:focus{border-color:var(--signal);box-shadow:var(--ring);outline:none}
+.pill{
+  display:inline-flex;align-items:center;gap:4px;padding:2px var(--s1);margin:0 2px;
+  border-radius:999px;background:var(--signal-soft);color:var(--signal-ink);
+  font-size:13px;font-weight:500;white-space:nowrap;user-select:all;
+}
+.insert-row{display:flex;align-items:center;gap:var(--s1);flex-wrap:wrap;margin-top:var(--s1)}
+
+.opt-list{display:flex;flex-direction:column;gap:var(--s1)}
+.opt-item{display:flex;align-items:center;gap:var(--s2);
+  border:1px solid var(--line);border-radius:var(--r2);padding:var(--s1) var(--s2);background:var(--paper)}
+.opt-n{width:24px;height:24px;flex:0 0 24px;border-radius:8px;background:var(--wash);
+  display:grid;place-items:center;font-family:var(--data);font-size:12px;color:var(--ink-2)}
+.opt-item input{height:32px;border:0;padding:0;background:none;flex:1;min-width:0}
+.opt-item input:focus{box-shadow:none}
+.opt-item select{height:32px;width:200px;flex:0 0 200px;font-size:13px}
+.opt-item .rm{border:0;background:none;color:var(--ink-3);cursor:pointer;padding:4px}
+.opt-item .rm:hover{color:var(--rose)}
+
+/* ─────────────────────────────────────────────
+   MODALS — story composer, menu editor, receipt
+   ───────────────────────────────────────────── */
+.modal{
+  position:fixed;z-index:60;left:50%;top:50%;transform:translate(-50%,-46%) scale(.98);
+  width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 64px);
+  background:var(--paper);border-radius:var(--r3);box-shadow:0 32px 80px -24px rgba(16,26,33,.5);
+  display:flex;flex-direction:column;overflow:hidden;
+  opacity:0;pointer-events:none;transition:opacity .2s ease,transform .24s cubic-bezier(.2,.7,.3,1);
+}
+.modal.is-open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+.modal-head{padding:var(--s3);border-bottom:1px solid var(--line-soft)}
+.modal-body{padding:var(--s3);overflow:auto;flex:1}
+.modal-foot{padding:var(--s2) var(--s3);border-top:1px solid var(--line-soft);
+  display:flex;align-items:center;gap:var(--s2);background:var(--wash)}
+
+.steps{display:flex;align-items:center;gap:var(--s1);margin-top:var(--s2)}
+.step{flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.step i{display:block;height:100%;width:0;background:var(--signal);transition:width .4s cubic-bezier(.2,.7,.3,1)}
+.step.is-done i,.step.is-now i{width:100%}
+.step-label{font-family:var(--data);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+
+.pane{display:none}
+.pane.is-active{display:block;animation:rise .26s cubic-bezier(.2,.7,.3,1)}
+
+.media-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:var(--s1);margin-top:var(--s2)}
+.media{aspect-ratio:9/16;border-radius:var(--r1);border:1px solid var(--line);position:relative;overflow:hidden;
+  background:linear-gradient(160deg,#D9E4DD,#EFF2EE);display:grid;place-items:center;
+  font-family:var(--data);font-size:11px;color:var(--ink-2)}
+.media button{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;
+  border:0;background:rgba(16,26,33,.65);color:#fff;cursor:pointer;font-size:12px;line-height:1;display:grid;place-items:center}
+
+.choice{display:flex;flex-direction:column;gap:var(--s1)}
+.opt{
+  display:flex;align-items:flex-start;gap:var(--s2);padding:var(--s2);
+  border:1px solid var(--line);border-radius:var(--r2);cursor:pointer;background:var(--paper);
+  transition:border-color .14s ease,background .14s ease;text-align:left;width:100%;
+}
+.opt:hover{border-color:#C6D2CC;background:var(--wash)}
+.opt[aria-checked="true"]{border-color:var(--signal);background:var(--signal-soft)}
+.opt .radio{width:18px;height:18px;flex:0 0 18px;border-radius:50%;border:1.5px solid var(--line);margin-top:2px;
+  display:grid;place-items:center;background:var(--paper)}
+.opt[aria-checked="true"] .radio{border-color:var(--signal)}
+.opt[aria-checked="true"] .radio::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--signal)}
+.opt-t{font-weight:600;font-size:14px}
+.opt-d{font-size:13px;color:var(--ink-2)}
+
+.days{display:flex;gap:var(--s1);flex-wrap:wrap;margin-top:var(--s2)}
+.day{width:40px;height:40px;border-radius:var(--r1);border:1px solid var(--line);background:var(--paper);
+  cursor:pointer;font-size:13px;font-weight:500;color:var(--ink-2)}
+.day[aria-pressed="true"]{background:var(--signal);border-color:var(--signal);color:#fff}
+
+/* clock-style time picker */
+.clock{display:flex;gap:var(--s1);align-items:stretch;margin-top:var(--s2)}
+.wheel{
+  flex:1;height:144px;overflow-y:auto;scroll-snap-type:y mandatory;
+  border:1px solid var(--line);border-radius:var(--r2);background:var(--paper);
+  scrollbar-width:none;position:relative;
+}
+.wheel::-webkit-scrollbar{display:none}
+.wheel-pad{height:48px}
+.wheel button{
+  display:block;width:100%;height:48px;border:0;background:none;cursor:pointer;
+  font-family:var(--data);font-size:17px;color:var(--ink-3);scroll-snap-align:center;
+  transition:color .14s ease,font-weight .14s ease;
+}
+.wheel button[aria-selected="true"]{color:var(--ink);font-weight:500}
+.clock-wrap{position:relative}
+.clock-wrap::after{
+  content:"";position:absolute;left:0;right:0;top:48px;height:48px;pointer-events:none;
+  border-top:1px solid var(--signal);border-bottom:1px solid var(--signal);opacity:.35;
+  margin-top:var(--s2);
+}
+.check{display:flex;align-items:flex-start;gap:var(--s2);padding:var(--s2);border-radius:var(--r2);
+  background:var(--wash);border:1px solid var(--line-soft);margin-top:var(--s2)}
+.check.is-disabled{opacity:.45}
+.check input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--signal);flex:0 0 18px}
+
+.summary{
+  margin-top:var(--s3);padding:var(--s2);border-radius:var(--r2);
+  background:var(--signal-soft);color:var(--signal-ink);font-size:14px;
+  display:flex;gap:var(--s1);align-items:flex-start;
+}
+
+.toast{
+  position:fixed;left:50%;bottom:var(--s4);transform:translate(-50%,16px);z-index:70;
+  background:var(--ink);color:#fff;padding:var(--s1) var(--s3);border-radius:999px;font-size:14px;
+  opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;
+}
+.toast.is-open{opacity:1;transform:translate(-50%,0)}
+
+/* ─────────────────────────────────────────────
+   RESPONSIVE — rail collapses, tables restack
+   ───────────────────────────────────────────── */
+@media (max-width:960px){
+  :root{--gutter:var(--s3)}
+  .app{flex-direction:column}
+  .rail{
+    width:100%;flex:none;height:auto;position:sticky;top:0;z-index:30;
+    flex-direction:row;align-items:center;gap:var(--s2);
+    padding:var(--s1) var(--s2);border-right:0;border-bottom:1px solid var(--line);
+  }
+  .brand-sub{display:none}
+  .nav{flex-direction:row;overflow-x:auto;gap:4px;flex:1}
+  .nav-btn{width:auto;padding:0 var(--s2);height:36px}
+  .nav-btn span.txt{display:none}
+  .nav-btn[aria-current="true"] span.txt{display:inline}
+  .nav-count{display:none}
+  .rail-foot{margin:0;flex-direction:row}
+  .rail-foot .btn{display:none}
+  .status{height:36px}
+  .stats{grid-template-columns:1fr}
+  .grid-3{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:720px){
+  .main{padding:var(--s3) var(--gutter) var(--s5)}
+  h1{font-size:24px}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  .w-sm,.w-md{max-width:none}
+  .toolbar{padding:var(--s2)}
+  .field input{min-width:0}
+  .field{flex:1}
+  table thead{display:none}
+  table,tbody,tr,td{display:block;width:100%}
+  tbody tr{padding:var(--s2);border-bottom:1px solid var(--line-soft)}
+  tbody td{border:0;padding:4px 0;display:flex;justify-content:space-between;gap:var(--s2);align-items:center}
+  th:first-child,td:first-child,th:last-child,td:last-child{padding-left:0;padding-right:0}
+  tbody td::before{content:attr(data-l);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);flex:0 0 auto}
+  td.on-mobile{display:flex}
+  .num{text-align:right}
+  .clock{flex-direction:row}
+}
+</style>
+
+<div class="app">
+  <!-- ── RAIL ───────────────────────────────── -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-mark">N</div>
+      <div>
+        <div class="brand-name">Nova Moda</div>
+        <div class="brand-sub">Panel del bot</div>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button class="nav-btn" data-view="pagos" aria-current="true">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
+        <span class="txt">Pagos</span><span class="nav-count">5</span>
+      </button>
+      <button class="nav-btn" data-view="pedidos">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M3 7h18l-1.5 12H4.5z"/><path d="M8.5 7a3.5 3.5 0 0 1 7 0"/></svg>
+        <span class="txt">Pedidos</span><span class="nav-count">3</span>
+      </button>
+      <button class="nav-btn" data-view="productos">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>
+        <span class="txt">Productos</span><span class="nav-count">4</span>
+      </button>
+      <button class="nav-btn" data-view="recursos">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <span class="txt">Recursos</span>
+      </button>
+      <button class="nav-btn" data-view="tienda">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M4 9h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 9 6 4h12l2 5"/></svg>
+        <span class="txt">Tienda</span>
+      </button>
+      <button class="nav-btn" data-view="menus">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M21 12a8 8 0 1 1-3.2-6.4"/><path d="M8 10h8M8 14h5"/></svg>
+        <span class="txt">Menús</span><span class="nav-count">2</span>
+      </button>
+    </nav>
+
+    <div class="rail-foot">
+      <div class="status"><span class="dot"></span> Bot conectado</div>
+      <button class="btn btn-ghost btn-sm">Desconectar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ══ PAGOS ══════════════════════════════ -->
+    <section class="view is-active" id="v-pagos">
+      <header class="page-head">
+        <div class="grow">
+          <p class="eyebrow">Cobros</p>
+          <h1>Pagos</h1>
+          <p class="lede">Revisa los comprobantes que envían tus clientes y confirma cada cobro. Toca una fila para ver el comprobante completo.</p>
+        </div>
+        <div style="display:flex;gap:var(--s1)">
+          <button class="btn" id="btnExport">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/></svg>
+            Exportar a Excel
+          </button>
+          <button class="btn btn-ghost" id="btnRefresh">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
+            Actualizar
+          </button>
+        </div>
+      </header>
+
+      <div class="stats">
+        <div class="stat"><div class="stat-k">Pedidos</div><div class="stat-v" id="s-total">5</div><div class="stat-n">Total recibidos</div></div>
+        <div class="stat is-amber"><div class="stat-k">Por verificar</div><div class="stat-v" id="s-wait">2</div><div class="stat-n">Esperan tu revisión</div></div>
+        <div class="stat is-signal"><div class="stat-k">Verificados</div><div class="stat-v" id="s-ok">3</div><div class="stat-n">Pago confirmado</div></div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <div class="seg" id="payFilter">
+            <button data-f="all" aria-pressed="true">Todos</button>
+            <button data-f="wait">Por verificar</button>
+            <button data-f="ok">Verificados</button>
+          </div>
+          <div class="field">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="search" id="paySearch" placeholder="Buscar por cliente o pedido">
+          </div>
+          <span class="spacer"></span>
+          <span class="hint" id="payCount" style="margin:0"></span>
+        </div>
+        <div class="table-wrap"
+             title="Toca una fila para ver el comprobante completo">
+          <table>
+            <thead id="payHead"><tr>
+              <th class="sortable" data-k="id"    aria-sort="none">Recibo</th>
+              <th class="sortable" data-k="date"  aria-sort="descending">Fecha</th>
+              <th class="sortable" data-k="name"  aria-sort="none">Cliente</th>
+              <th class="sortable num" data-k="total" aria-sort="none">Total</th>
+              <th class="sortable" data-k="pay"   aria-sort="none">Pago</th>
+              <th class="on-mobile">Artículos</th>
+              <th class="on-mobile">Entrega</th>
+            </tr></thead>
+            <tbody id="payRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ PEDIDOS ════════════════════════════ -->
+    <section class="view" id="v-pedidos">
+      <header class="page-head">
+        <div class="grow">
+          <p class="eyebrow">Despacho</p>
+          <h1>Pedidos</h1>
+          <p class="lede">El estado que marques aquí es el que ve el cliente cuando le escribe al bot.</p>
+        </div>
+      </header>
+      <div class="stats">
+        <div class="stat is-amber"><div class="stat-k">Por enviar</div><div class="stat-v">0</div><div class="stat-n">Pago verificado, listos</div></div>
+        <div class="stat"><div class="stat-k">En camino</div><div class="stat-v">0</div><div class="stat-n">Enviados, sin entregar</div></div>
+        <div class="stat is-signal"><div class="stat-k">Entregados</div><div class="stat-v">3</div><div class="stat-n">En manos del cliente</div></div>
+      </div>
+      <div class="grid-3" id="orderCards"></div>
+    </section>
+
+    <!-- ══ PRODUCTOS ══════════════════════════ -->
+    <section class="view" id="v-productos">
+      <header class="page-head">
+        <div class="grow">
+          <p class="eyebrow">Inventario</p>
+          <h1>Productos</h1>
+          <p class="lede">El bot lee esta lista en tiempo real: precios, tallas, colores y stock.</p>
+        </div>
+        <button class="btn btn-primary">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Nuevo producto
+        </button>
+      </header>
+
+      <div class="card">
+        <div class="toolbar">
+          <div class="field">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="search" id="prodSearch" placeholder="Buscar por nombre o código">
+          </div>
+          <span class="spacer"></span>
+          <span class="hint" id="prodSortLabel" style="margin:0"></span>
+          <span class="hint" id="prodCount" style="margin:0"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead id="prodHead"><tr>
+              <th class="sortable" data-k="name"  aria-sort="ascending">Producto</th>
+              <th class="sortable" data-k="code"  aria-sort="none">Código</th>
+              <th class="sortable" data-k="cat"   aria-sort="none">Categoría</th>
+              <th class="sortable num" data-k="price" aria-sort="none">Precio</th>
+              <th class="sortable num" data-k="stock" aria-sort="none">Stock</th>
+              <th>Visible en el bot</th><th></th>
+            </tr></thead>
+            <tbody id="prodRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ RECURSOS ═══════════════════════════ -->
+    <section class="view" id="v-recursos">
+      <header class="page-head">
+        <div class="grow">
+          <p class="eyebrow">Biblioteca</p>
+          <h1>Recursos</h1>
+          <p class="lede">Los archivos que el bot puede enviar, y los estados que publica por ti en WhatsApp.</p>
+        </div>
+      </header>
+
+      <div class="card" style="margin-bottom:var(--s3)">
+        <div class="toolbar">
+          <h2>Archivos</h2>
+          <span class="spacer"></span>
+          <button class="btn btn-sm">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 17V5"/><path d="m7 10 5-5 5 5"/><path d="M4 20h16"/></svg>
+            Subir archivo
+          </button>
+        </div>
+        <div class="file-list" id="fileList"></div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <h2>Estados</h2>
+          <span class="spacer"></span>
+          <button class="btn btn-primary btn-sm" id="btnNewStory">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Nueva historia
+          </button>
+        </div>
+        <p class="hint" style="padding:0 var(--s3);margin:var(--s2) 0 0">
+          Solo llegan a clientes que te escribieron y te tienen guardado en sus contactos — es una regla de WhatsApp, no del bot.
+        </p>
+        <div class="story-grid" id="storyGrid"></div>
+      </div>
+    </section>
+
+    <!-- ══ TIENDA ═════════════════════════════ -->
+    <section class="view" id="v-tienda">
+      <header class="page-head">
+        <div class="grow">
+          <p class="eyebrow">Datos del negocio</p>
+          <h1>Tienda</h1>
+          <p class="lede">Lo que el bot responde cuando un cliente pregunta por horario, dirección, envíos o pago.</p>
+        </div>
+        <div style="display:flex;gap:var(--s1)">
+          <button class="btn" id="btnPreview">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M21 12s-3.5 6-9 6-9-6-9-6 3.5-6 9-6 9 6 9 6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+            Ver respuesta del bot
+          </button>
+          <button class="btn btn-primary" id="btnSave">Guardar cambios</button>
+        </div>
+      </header>
+
+      <div class="tabs" id="storeTabs">
+        <button aria-selected="true" data-t="general">General</button>
+        <button data-t="ubicacion">Ubicación</button>
+        <button data-t="envios">Envíos y cambios</button>
+        <button data-t="tasa">Tasa del dólar</button>
+        <button data-t="pago">Métodos de pago</button>
+      </div>
+
+      <div class="card card-pad">
+        <div class="pane is-active" data-p="general">
+          <div class="panel">
+            <div class="grid-3">
+              <div><label class="lbl" for="f1">Nombre de la tienda</label><input id="f1" type="text" value="Nova Moda"></div>
+              <div><label class="lbl" for="f2">Nombre del dueño/a</label><input id="f2" type="text" value="Ana"></div>
+              <div><label class="lbl" for="f3">WhatsApp que recibe los pedidos</label><input id="f3" type="text" value="+58 412 000 0000"></div>
+            </div>
+            <div class="grid-3">
+              <div><label class="lbl" for="f4">Horario de atención</label><input id="f4" type="text" value="Lun–Sáb · 9am–6pm"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pane" data-p="ubicacion">
+          <div class="panel">
+            <div>
+              <label class="lbl" for="f5">Dirección</label>
+              <input id="f5" class="w-md" type="text" value="C.C. Costa Verde, local 12, Maracaibo">
+              <div class="keywords" style="margin-top:var(--s1)">
+                <span>Los clientes la piden escribiendo:</span>
+                <span class="kw">dirección <button aria-label="Quitar palabra">✕</button></span>
+                <span class="kw">ubicación <button aria-label="Quitar palabra">✕</button></span>
+                <button class="btn btn-add btn-sm">+ Agregar palabra</button>
+              </div>
+            </div>
+            <div><label class="lbl" for="f6">Enlace de Google Maps <span style="color:var(--ink-3);font-weight:400">· opcional</span></label>
+              <input id="f6" class="w-md" type="text" placeholder="https://maps.google.com/?q=…"></div>
+          </div>
+        </div>
+
+        <div class="pane" data-p="envios">
+          <div class="panel">
+            <div>
+              <label class="lbl" for="f7">Información de envíos</label>
+              <textarea id="f7" class="w-md">Envíos nacionales por MRW y Zoom. Delivery local en Maracaibo $2.</textarea>
+              <div class="keywords" style="margin-top:var(--s1)">
+                <span>Los clientes la piden escribiendo:</span>
+                <span class="kw">envío <button aria-label="Quitar palabra">✕</button></span>
+                <span class="kw">envíos <button aria-label="Quitar palabra">✕</button></span>
+                <span class="kw">delivery <button aria-label="Quitar palabra">✕</button></span>
+                <button class="btn btn-add btn-sm">+ Agregar palabra</button>
+              </div>
+            </div>
+            <div><label class="lbl" for="f8">Política de cambios</label>
+              <textarea id="f8" class="w-md">Cambios dentro de 7 días, con etiqueta y sin uso.</textarea></div>
+          </div>
+        </div>
+
+        <div class="pane" data-p="tasa">
+          <div class="panel">
+            <div style="display:flex;gap:var(--s2);align-items:flex-end;flex-wrap:wrap">
+              <div style="width:224px">
+                <label class="lbl" for="rateKind">Tasa que usa el bot</label>
+                <select id="rateKind">
+                  <option value="oficial">Dólar oficial</option>
+                  <option value="paralelo">Dólar paralelo</option>
+                  <option value="euro">Euro oficial</option>
+                  <option value="custom">Personalizada</option>
+                </select>
+              </div>
+              <div id="rateCustomWrap" hidden style="width:224px">
+                <label class="lbl" for="rateCustom">Nombre de la tasa</label>
+                <input id="rateCustom" type="text" placeholder="Ej.: Tasa de la tienda">
+              </div>
+              <div style="width:160px">
+                <label class="lbl" for="f9"><span id="rateUnit">Bs. por $1</span></label>
+                <input id="f9" type="number" value="40">
+              </div>
+              <div class="hint" style="margin:0 0 12px" id="rateStamp">Última actualización: nunca</div>
+            </div>
+            <p class="hint" id="rateNote" style="margin:0"></p>
+            <div class="keywords">
+              <span>Los clientes la piden escribiendo:</span>
+              <span class="kw">tasa <button aria-label="Quitar palabra">✕</button></span>
+              <span class="kw">dólar <button aria-label="Quitar palabra">✕</button></span>
+              <button class="btn btn-add btn-sm">+ Agregar palabra</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pane" data-p="pago">
+          <div class="panel">
+            <div class="pay-row"><button class="switch" aria-checked="true" role="switch" aria-label="Pago Móvil activo"></button>
+              <span class="name">Pago Móvil</span><input class="w-md" type="text" value="0102 / V-12345678 / 0412 000 0000"></div>
+            <div class="pay-row"><button class="switch" aria-checked="true" role="switch" aria-label="Zelle activo"></button>
+              <span class="name">Zelle</span><input class="w-md" type="text" value="ana@email.com"></div>
+            <div class="pay-row"><button class="switch" aria-checked="false" role="switch" aria-label="Binance activo"></button>
+              <span class="name">Binance</span><input class="w-md" type="text" value="ana_usdt"></div>
+            <p class="hint">Lo que esté apagado no aparece en la respuesta del bot.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ MENÚS (Configuración) ══════════════ -->
+    <section class="view" id="v-menus">
+      <header class="page-head">
+        <div class="grow">
+          <p class="eyebrow">Conversación</p>
+          <h1>Menús</h1>
+          <p class="lede">Cada menú es una respuesta del bot con sus opciones. Ábrelo para editar el mensaje, las palabras que lo activan y a dónde lleva cada opción.</p>
+        </div>
+        <button class="btn btn-primary" id="btnNewMenu">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Nuevo menú
+        </button>
+      </header>
+
+      <div class="menu-grid" id="menuGrid"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ── SCRIM + DRAWERS ─────────────────────── -->
+<div class="scrim" id="scrim"></div>
+
+<!-- Receipt popup (signature element) -->
+<div class="modal" id="receiptModal" role="dialog" aria-modal="true" aria-labelledby="rcTitle">
+  <div class="modal-head" style="display:flex;align-items:center;gap:var(--s2)">
+    <h2 id="rcTitle">Comprobante</h2>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost btn-sm" data-close aria-label="Cerrar">✕</button>
+  </div>
+  <div class="modal-body" id="rcBody" style="background:var(--wash)"></div>
+</div>
+
+<!-- Bot preview drawer -->
+<aside class="drawer" id="previewDrawer" aria-hidden="true">
+  <div class="drawer-head">
+    <h2>Respuesta del bot</h2>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost btn-sm" data-close>Cerrar</button>
+  </div>
+  <div class="drawer-body">
+    <p class="hint" style="margin-top:0">Así se ve la conversación con los datos actuales.</p>
+    <div class="card card-pad">
+      <div class="chat">
+        <div class="bubble me">tasa</div>
+        <div class="bubble bot">Hoy el cambio está en <strong>40 Bs</strong> por $1.</div>
+        <div class="bubble me">dirección</div>
+        <div class="bubble bot">Estamos en C.C. Costa Verde, local 12, Maracaibo. Horario: Lun–Sáb 9am–6pm.</div>
+        <div class="bubble me">envíos</div>
+        <div class="bubble bot">Envíos nacionales por MRW y Zoom. Delivery local en Maracaibo $2.</div>
+        <div class="bubble me">pago</div>
+        <div class="bubble bot">Pago Móvil: 0102 / V-12345678 / 0412 000 0000<br>Zelle: ana@email.com</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ── STORY COMPOSER MODAL ────────────────── -->
+<div class="modal" id="storyModal" role="dialog" aria-modal="true" aria-labelledby="smTitle">
+  <div class="modal-head">
+    <h2 id="smTitle">Nueva historia</h2>
+    <p class="hint" id="smSub" style="margin:4px 0 0">Paso 1 de 3 · Elige las imágenes o videos</p>
+    <div class="steps" id="smSteps">
+      <div class="step is-now"><i></i></div><div class="step"><i></i></div><div class="step"><i></i></div>
+    </div>
+  </div>
+
+  <div class="modal-body">
+    <!-- Step 1 -->
+    <div class="pane is-active" data-step="1">
+      <button class="drop" id="dropZone" style="width:100%">
+        <div style="font-weight:600;margin-bottom:4px">Arrastra tus archivos aquí</div>
+        <div class="hint" style="margin:0">JPG, PNG o MP4 · hasta 30 segundos</div>
+      </button>
+      <div class="media-strip" id="mediaStrip"></div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="pane" data-step="2">
+      <label class="lbl" for="smCaption">Texto de la historia</label>
+      <textarea id="smCaption" placeholder="Ej.: Nuevos vestidos disponibles 🌿 Escríbenos “catálogo”."></textarea>
+      <p class="hint">Aparece sobre la imagen. Déjalo vacío si prefieres publicar solo la foto.</p>
+      <div class="media-strip" id="mediaStrip2"></div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="pane" data-step="3">
+      <div class="choice" id="whenChoice">
+        <button class="opt" data-when="daily" aria-checked="true"><span class="radio"></span>
+          <span><span class="opt-t">Todos los días</span><br><span class="opt-d">Se publica cada día a la hora que elijas.</span></span></button>
+        <button class="opt" data-when="weekly" aria-checked="false"><span class="radio"></span>
+          <span><span class="opt-t">Días específicos</span><br><span class="opt-d">Solo los días de la semana que marques.</span></span></button>
+        <button class="opt" data-when="once" aria-checked="false"><span class="radio"></span>
+          <span><span class="opt-t">Una sola vez</span><br><span class="opt-d">En una fecha futura que tú indiques.</span></span></button>
+      </div>
+
+      <div class="days" id="dayPicker" hidden></div>
+
+      <div id="datePicker" hidden style="margin-top:var(--s2)">
+        <label class="lbl" for="smDate">Fecha</label>
+        <input id="smDate" type="date" class="w-sm">
+      </div>
+
+      <div class="clock-wrap">
+        <label class="lbl" style="margin-top:var(--s2)">Hora</label>
+        <div class="clock">
+          <div class="wheel" id="wHour"></div>
+          <div class="wheel" id="wMin"></div>
+          <div class="wheel" id="wAmpm"></div>
+        </div>
+      </div>
+
+      <label class="check is-disabled" id="delWrap">
+        <input type="checkbox" id="smDelete" disabled>
+        <span><span class="opt-t">Borrar el archivo después de publicar</span><br>
+        <span class="opt-d">Disponible solo cuando la historia se publica una sola vez.</span></span>
+      </label>
+
+      <div class="summary" id="smSummary"></div>
+    </div>
+  </div>
+
+  <div class="modal-foot">
+    <button class="btn btn-ghost" id="smBack">Atrás</button>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost" data-close>Cancelar</button>
+    <button class="btn btn-primary" id="smNext">Continuar</button>
+  </div>
+</div>
+
+<!-- ── MENU EDITOR MODAL ───────────────────── -->
+<div class="modal" id="menuModal" role="dialog" aria-modal="true" aria-labelledby="meTitle">
+  <div class="modal-head" style="display:flex;align-items:center;gap:var(--s2)">
+    <h2 id="meTitle">Editar menú</h2>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost btn-sm" data-close aria-label="Cerrar">✕</button>
+  </div>
+
+  <div class="modal-body">
+    <div class="panel">
+      <div>
+        <label class="lbl" for="meName">Nombre del menú</label>
+        <input id="meName" type="text" class="w-md">
+        <p class="hint">Solo lo ves tú. El cliente nunca lo lee.</p>
+      </div>
+
+      <div>
+        <label class="lbl" for="meMsg">Mensaje que envía el bot</label>
+        <div class="composer" id="meMsg" contenteditable="true" role="textbox" aria-multiline="true"></div>
+        <div class="insert-row">
+          <span class="hint" style="margin:0">Insertar dato:</span>
+          <button class="chip-add" data-token="tienda">Nombre de la tienda</button>
+          <button class="chip-add" data-token="dueno">Nombre del dueño/a</button>
+          <button class="chip-add" data-token="horario">Horario</button>
+          <button class="chip-add" data-token="tasa">Tasa del día</button>
+        </div>
+      </div>
+
+      <div>
+        <label class="lbl">Palabras que activan este menú</label>
+        <div class="keywords" id="meWords"></div>
+      </div>
+
+      <div>
+        <label class="lbl">Opciones</label>
+        <div class="opt-list" id="meOpts"></div>
+        <button class="btn btn-add btn-sm" id="meAddOpt" style="margin-top:var(--s2)">+ Agregar opción</button>
+      </div>
+
+      <div>
+        <label class="lbl">Vista previa</label>
+        <div class="card card-pad"><div class="chat" id="mePreview"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-foot">
+    <button class="btn btn-ghost" id="meDelete">Eliminar menú</button>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost" data-close>Cancelar</button>
+    <button class="btn btn-primary" id="meSave">Guardar menú</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════ DATA ═══════════ */
+const payments = [
+  {id:"#1009", date:"10 jul 2026, 1:06 PM", name:"Adrian",  phone:"+58 414 968 2817",  items:"Top Básico · M · blanco ×1",   total:12,  pay:"ok",   ship:"Entregado", method:"Pago Móvil", ref:"0102-88431", proof:true},
+  {id:"#1007", date:"1 jul 2026, 7:41 PM",  name:"Ana",     phone:"+58 424 693 4745",  items:"Vestido Bohemio · S · negro ×1",total:25, pay:"ok",   ship:"Entregado", method:"Zelle",      ref:"ZL-77120",  proof:true},
+  {id:"#1006", date:"1 jul 2026, 6:02 PM",  name:"Keyla",   phone:"+58 412 551 0093",  items:"Jean Slim · M · azul ×1",      total:28,  pay:"wait", ship:"Por enviar", method:"Pago Móvil", ref:"0102-88602", proof:true},
+  {id:"#1003", date:"1 jul 2026, 5:34 PM",  name:"Alba",    phone:"+58 261 344 5299",  items:"Top Básico · S · blanco ×1",   total:12,  pay:"wait", ship:"Cancelado",  method:"—",          ref:"—",         proof:false},
+  {id:"#1002", date:"1 jul 2026, 3:30 PM",  name:"Yasury",  phone:"+58 414 529 9283",  items:"Vestido Floral · S · azul ×4", total:120, pay:"ok",   ship:"Entregado", method:"Binance",    ref:"BN-40915",  proof:true},
+  {id:"#1001", date:"29 jun 2026, 1:14 PM", name:"Rafael",  phone:"+58 412 529 9283",  items:"Jean Slim · M · azul ×3",      total:84,  pay:"off",  ship:"Cancelado",  method:"—",          ref:"—",         proof:false}
+];
+
+const products = [
+  {code:"JEANSLIM",    name:"Jean Slim",      cat:"Pantalones", price:28, stock:10, on:true},
+  {code:"TOPBASICO",   name:"Top Básico",     cat:"Tops",       price:12, stock:24, on:true},
+  {code:"VESTBOHEMIO", name:"Vestido Bohemio",cat:"Vestidos",   price:25, stock:10, on:true},
+  {code:"VESTFLORES",  name:"Vestido Floral", cat:"Vestidos",   price:30, stock:3,  on:true},
+  {code:"FALDAMIDI",   name:"Falda Midi",     cat:"Faldas",     price:22, stock:0,  on:false}
+];
+
+const files = [
+  {name:"Catálogo de productos.pdf", size:"6.2 MB", kind:"PDF"},
+  {name:"Lista de precios julio.pdf", size:"340 KB", kind:"PDF"}
+];
+
+let stories = [
+  {label:"Vestidos nuevos", when:"Todos los días · 10:00 AM", tag:"daily"},
+  {label:"Promo fin de mes", when:"Vie · 6:00 PM", tag:"weekly"}
+];
+
+/* Sort keys the table needs but the label strings can't provide. */
+const PAY_ORDER = {wait:0, off:1, ok:2};
+[[2026,6,10,13,6],[2026,6,1,19,41],[2026,6,1,18,2],
+ [2026,6,1,17,34],[2026,6,1,15,30],[2026,5,29,13,14]]
+  .forEach((d,i)=>{ payments[i].ts = new Date(...d).getTime();
+                    payments[i].payRank = PAY_ORDER[payments[i].pay]; });
+
+const money = n => "$" + n.toFixed(2);
+const initials = n => n.trim().slice(0,2).toUpperCase();
+
+/* ═══════════ NAV ═══════════ */
+document.getElementById("nav").addEventListener("click", e => {
+  const b = e.target.closest(".nav-btn"); if(!b) return;
+  document.querySelectorAll(".nav-btn").forEach(x => x.setAttribute("aria-current", x===b));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("is-active", v.id === "v"+"-"+b.dataset.view));
+  window.scrollTo({top:0, behavior:"instant"});
+});
+
+/* ═══════════ SORTABLE HEADERS (shared) ═══════════ */
+const ARROWS = `<svg class="arrows" viewBox="0 0 24 24">
+  <g class="up"><path d="M8 20V5"/><path d="m4 9 4-4 4 4"/></g>
+  <g class="dn"><path d="M16 4v15"/><path d="m12 15 4 4 4-4"/></g></svg>`;
+
+/* Wraps each th's label in a button and wires click-to-sort. */
+function makeSortable(headId, state, onChange){
+  const head = document.getElementById(headId);
+  head.querySelectorAll("th.sortable").forEach(th=>{
+    th.innerHTML = `<button type="button">${th.textContent.trim()}${ARROWS}</button>`;
+    th.addEventListener("click", ()=>{
+      const same = state.key === th.dataset.k;
+      state.dir = same ? (state.dir === "asc" ? "desc" : "asc") : th.dataset.defaultDir || "asc";
+      state.key = th.dataset.k;
+      head.querySelectorAll("th.sortable").forEach(o=>
+        o.setAttribute("aria-sort", o === th ? (state.dir==="asc"?"ascending":"descending") : "none"));
+      onChange();
+    });
+  });
+}
+
+/* Sorts by key; text uses locale order, everything else numeric. */
+function sortBy(rows, key, dir){
+  const mult = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a,b)=>{
+    const x = a[key], y = b[key];
+    if(typeof x === "string" && typeof y === "string") return x.localeCompare(y,"es") * mult;
+    return (x - y) * mult;
+  });
+}
+
+/* ═══════════ PAGOS ═══════════ */
+let payF = "all", payQ = "";
+const paySort = {key:"date", dir:"desc"};
+const payBadge = p => p==="ok"
+  ? '<span class="badge b-ok"><svg class="tick" viewBox="0 0 24 24"><path d="m5 13 4 4 10-10"/></svg>Verificado</span>'
+  : p==="wait" ? '<span class="badge b-wait">Por verificar</span>'
+  : '<span class="badge b-mute">Sin pago</span>';
+const shipBadge = s => s==="Entregado" ? '<span class="badge b-ok">Entregado</span>'
+  : s==="Cancelado" ? '<span class="badge b-off">Cancelado</span>'
+  : '<span class="badge b-wait">'+s+'</span>';
+
+function renderPay(){
+  let rows = payments.filter(p =>
+    (payF==="all" || p.pay===payF) &&
+    (p.name+p.id+p.items).toLowerCase().includes(payQ.toLowerCase()));
+  rows = sortBy(rows, {date:"ts", pay:"payRank"}[paySort.key] || paySort.key, paySort.dir);
+
+  const tb = document.getElementById("payRows");
+  tb.innerHTML = rows.length ? rows.map(p => `
+    <tr data-i="${payments.indexOf(p)}">
+      <td data-l="Recibo"><span class="code">${p.id}</span></td>
+      <td data-l="Fecha" style="color:var(--ink-2);font-size:14px">${p.date}</td>
+      <td data-l="Cliente"><div class="who-name">${p.name}</div>
+        <div class="who-sub">${p.phone}</div></td>
+      <td data-l="Total" class="num">${money(p.total)}</td>
+      <td data-l="Pago">${payBadge(p.pay)}</td>
+      <td data-l="Artículos" class="on-mobile" style="color:var(--ink-2);font-size:14px">${p.items}</td>
+      <td data-l="Entrega" class="on-mobile">${shipBadge(p.ship)}</td>
+    </tr>`).join("")
+    : `<tr><td colspan="7"><div class="empty"><h3>Nada por aquí</h3>
+        <p class="hint">Prueba con otro filtro o borra la búsqueda.</p></div></td></tr>`;
+  document.getElementById("payCount").textContent = rows.length + " de " + payments.length;
+  document.getElementById("s-total").textContent = payments.length;
+  document.getElementById("s-wait").textContent = payments.filter(p=>p.pay==="wait").length;
+  document.getElementById("s-ok").textContent = payments.filter(p=>p.pay==="ok").length;
+}
+document.getElementById("payFilter").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  payF = b.dataset.f;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute("aria-pressed", x===b));
+  renderPay();
+});
+document.getElementById("paySearch").addEventListener("input", e=>{ payQ = e.target.value; renderPay(); });
+
+document.getElementById("payRows").addEventListener("click", e=>{
+  const tr = e.target.closest("tr[data-i]"); if(!tr) return;
+  openReceipt(payments[+tr.dataset.i]);
+});
+
+/* Excel export — real .xlsx via SheetJS */
+document.getElementById("btnExport").addEventListener("click", ()=>{
+  const rows = payments.map(p=>({
+    Pedido:p.id, Fecha:p.date, Cliente:p.name, Teléfono:p.phone, Artículos:p.items,
+    Total:p.total, Pago:{ok:"Verificado",wait:"Por verificar",off:"Sin pago"}[p.pay],
+    Método:p.method, Referencia:p.ref, Entrega:p.ship
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = [{wch:9},{wch:22},{wch:14},{wch:18},{wch:30},{wch:9},{wch:14},{wch:12},{wch:14},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Pagos");
+  XLSX.writeFile(wb, "pagos-nova-moda.xlsx");
+  toast("Archivo descargado: pagos-nova-moda.xlsx");
+});
+document.getElementById("btnRefresh").addEventListener("click", ()=>toast("Lista actualizada"));
+
+function openReceipt(p){
+  document.getElementById("rcTitle").textContent = "Comprobante " + p.id;
+  document.getElementById("rcBody").innerHTML = `
+    <div class="receipt">
+      <div class="receipt-top">
+        <div><div class="receipt-id">${p.id}</div>
+          <div class="hint" style="margin:0">${p.date}</div></div>
+        <span class="stamp ${p.pay==="ok"?"":"is-off"}">${p.pay==="ok"?"Verificado":"Pendiente"}</span>
+      </div>
+      <hr class="rule">
+      <div class="ledger">
+        <div class="row"><span>Cliente</span><span>${p.name}</span></div>
+        <div class="row"><span>Teléfono</span><span>${p.phone}</span></div>
+        <div class="row"><span>Método</span><span>${p.method}</span></div>
+        <div class="row"><span>Referencia</span><span>${p.ref}</span></div>
+      </div>
+      <hr class="rule">
+      <div class="ledger">
+        <div class="row"><span>${p.items}</span><span>${money(p.total)}</span></div>
+        <div class="row"><span>Envío</span><span>a coordinar</span></div>
+        <div class="row total"><span>Total</span><span>${money(p.total)}</span></div>
+      </div>
+      <hr class="rule">
+      <div class="proof">${p.proof ? "Captura enviada por el cliente" : "El cliente no envió comprobante"}</div>
+    </div>
+    <div style="display:flex;gap:var(--s1);margin-top:var(--s4)">
+      <button class="btn btn-primary" style="flex:1" onclick="toast('Pago marcado como verificado')">Verificar pago</button>
+      <button class="btn" style="flex:1" onclick="toast('Abriendo WhatsApp…')">Escribir al cliente</button>
+    </div>`;
+  document.getElementById("receiptModal").classList.add("is-open");
+  scrim.classList.add("is-open");
+}
+
+/* ═══════════ PEDIDOS ═══════════ */
+document.getElementById("orderCards").innerHTML = payments.filter(p=>p.pay==="ok").map(p=>`
+  <div class="card card-pad" style="display:flex;flex-direction:column;gap:var(--s2)">
+    <div style="display:flex;align-items:flex-start;gap:var(--s2)">
+      <div><div class="code" style="font-size:15px">${p.id}</div>
+        <div class="hint" style="margin:0">${p.date}</div></div>
+      <span class="spacer"></span>${shipBadge(p.ship)}
+    </div>
+    <div class="who"><div class="avatar">${initials(p.name)}</div>
+      <div><div class="who-name">${p.name}</div><div class="who-sub">${p.phone}</div></div></div>
+    <div style="font-size:14px;color:var(--ink-2)">${p.items}</div>
+    <div class="ledger" style="border-top:1px dashed var(--line);padding-top:var(--s2)">
+      <div class="row total"><span>Total</span><span>${money(p.total)}</span></div></div>
+    <div style="display:flex;gap:var(--s1)">
+      <button class="btn btn-sm" style="flex:1" onclick="toast('Abriendo WhatsApp…')">Mensaje</button>
+      <button class="btn btn-sm" style="flex:1" onclick="toast('Estado actualizado')">Marcar entregado</button>
+    </div>
+  </div>`).join("");
+
+/* ═══════════ PRODUCTOS ═══════════ */
+let prodQ = "";
+const prodSort = {key:"name", dir:"asc"};
+const PROD_LABEL = {name:"Producto", code:"Código", cat:"Categoría", price:"Precio", stock:"Stock"};
+
+function renderProd(){
+  let rows = products.filter(p => (p.name+p.code+p.cat).toLowerCase().includes(prodQ.toLowerCase()));
+  rows = sortBy(rows, prodSort.key, prodSort.dir);
+  document.getElementById("prodSortLabel").textContent =
+    PROD_LABEL[prodSort.key] + (prodSort.dir === "asc" ? " ↑" : " ↓");
+  document.getElementById("prodRows").innerHTML = rows.length ? rows.map(p=>`
+    <tr>
+      <td data-l="Producto"><div class="who"><div class="thumb thumb-ph">${p.name.slice(0,1)}</div>
+        <div class="who-name">${p.name}</div></div></td>
+      <td data-l="Código"><span class="code">${p.code}</span></td>
+      <td data-l="Categoría" style="color:var(--ink-2);font-size:14px">${p.cat}</td>
+      <td data-l="Precio" class="num">${money(p.price)}</td>
+      <td data-l="Stock" class="num">${p.stock===0
+        ? '<span class="badge b-off">Agotado</span>'
+        : p.stock<=5 ? '<span class="badge b-wait">'+p.stock+' quedan</span>'
+        : p.stock}</td>
+      <td data-l="Visible"><button class="switch" role="switch" aria-checked="${p.on}" aria-label="Mostrar ${p.name}"></button></td>
+      <td data-l="" class="num"><button class="btn btn-sm">Editar</button></td>
+    </tr>`).join("")
+    : `<tr><td colspan="7"><div class="empty"><h3>Sin resultados</h3>
+        <p class="hint">Ningún producto coincide con “${prodQ}”.</p></div></td></tr>`;
+  document.getElementById("prodCount").textContent = rows.length + " de " + products.length;
+}
+document.getElementById("prodSearch").addEventListener("input", e=>{prodQ=e.target.value;renderProd();});
+
+/* Numeric and date columns open on "highest first" — that's what people look for. */
+document.querySelectorAll('th[data-k="price"],th[data-k="stock"],th[data-k="total"],th[data-k="date"]')
+  .forEach(th=>th.dataset.defaultDir="desc");
+makeSortable("prodHead", prodSort, renderProd);
+makeSortable("payHead",  paySort,  renderPay);
+
+/* switches (delegated) */
+document.addEventListener("click", e=>{
+  const s = e.target.closest(".switch"); if(!s) return;
+  s.setAttribute("aria-checked", s.getAttribute("aria-checked")!=="true");
+});
+
+/* ═══════════ RECURSOS ═══════════ */
+document.getElementById("fileList").innerHTML = files.map(f=>`
+  <div class="file">
+    <div class="file-ico">${f.kind}</div>
+    <div class="file-meta"><div class="file-name">${f.name}</div><div class="file-sub">${f.size}</div></div>
+    <button class="btn btn-ghost btn-sm">Descargar</button>
+    <button class="btn btn-ghost btn-sm">Quitar</button>
+  </div>`).join("");
+
+function renderStories(){
+  document.getElementById("storyGrid").innerHTML =
+    stories.map(s=>`
+      <div class="story">
+        <div class="story-img">${s.label}</div>
+        <div class="story-foot"><div class="who-name" style="font-size:14px">${s.label}</div>
+          <div class="story-when">${s.when}</div></div>
+      </div>`).join("") +
+    `<button class="story-new" id="storyNew2">
+       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12h14"/></svg>
+       Nueva historia</button>`;
+  document.getElementById("storyNew2").addEventListener("click", openStory);
+}
+renderStories();
+
+/* ═══════════ DRAWERS / SCRIM ═══════════ */
+const scrim = document.getElementById("scrim");
+function openDrawer(id){
+  document.getElementById(id).classList.add("is-open");
+  document.getElementById(id).setAttribute("aria-hidden","false");
+  scrim.classList.add("is-open");
+}
+function closeAll(){
+  document.querySelectorAll(".drawer").forEach(d=>{d.classList.remove("is-open");d.setAttribute("aria-hidden","true")});
+  document.querySelectorAll(".modal").forEach(m=>m.classList.remove("is-open"));
+  scrim.classList.remove("is-open");
+}
+scrim.addEventListener("click", closeAll);
+document.addEventListener("click", e=>{ if(e.target.closest("[data-close]")) closeAll(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeAll(); });
+document.getElementById("btnPreview").addEventListener("click", ()=>openDrawer("previewDrawer"));
+document.getElementById("btnSave").addEventListener("click", ()=>toast("Cambios guardados"));
+
+/* ═══════════ TIENDA TABS ═══════════ */
+document.getElementById("storeTabs").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute("aria-selected", x===b));
+  document.querySelectorAll("[data-p]").forEach(p=>p.classList.toggle("is-active", p.dataset.p===b.dataset.t));
+});
+
+/* ═══════════ TASA ═══════════ */
+const RATES = {
+  oficial:  {unit:"Bs. por $1",  note:"Se toma del BCV. El bot responde “tasa oficial de hoy”."},
+  paralelo: {unit:"Bs. por $1",  note:"Tasa de mercado. Actualízala tú cada mañana."},
+  euro:     {unit:"Bs. por €1",  note:"Se toma del BCV. El bot responde en euros."},
+  custom:   {unit:"Bs. por 1",   note:"Tú defines el nombre y el valor. Nada se actualiza solo."}
+};
+const rateKind = document.getElementById("rateKind");
+function syncRate(){
+  const r = RATES[rateKind.value];
+  document.getElementById("rateUnit").textContent = r.unit;
+  document.getElementById("rateNote").textContent = r.note;
+  document.getElementById("rateCustomWrap").hidden = rateKind.value !== "custom";
+  document.getElementById("rateStamp").textContent =
+    rateKind.value === "custom" ? "La actualizas tú" : "Última actualización: nunca";
+}
+rateKind.addEventListener("change", syncRate);
+
+/* ═══════════ STORY COMPOSER ═══════════ */
+const modal = document.getElementById("storyModal");
+let step = 1, media = [], when = "daily", days = new Set([5]);
+const time = {h:10, m:0, ap:"AM"};
+const stepCopy = {
+  1:"Paso 1 de 3 · Elige las imágenes o videos",
+  2:"Paso 2 de 3 · Escribe el texto",
+  3:"Paso 3 de 3 · Decide cuándo se publica"
+};
+
+function openStory(){
+  step=1; media=[{n:1},{n:2}]; when="daily"; days=new Set([5]);
+  document.getElementById("smCaption").value="";
+  document.getElementById("smDelete").checked=false;
+  syncWhen(); paintStep(); paintMedia();
+  modal.classList.add("is-open"); scrim.classList.add("is-open");
+}
+document.getElementById("btnNewStory").addEventListener("click", openStory);
+
+function paintStep(){
+  document.querySelectorAll("[data-step]").forEach(p=>p.classList.toggle("is-active", +p.dataset.step===step));
+  document.getElementById("smSub").textContent = stepCopy[step];
+  [...document.getElementById("smSteps").children].forEach((el,i)=>{
+    el.classList.toggle("is-done", i+1 < step);
+    el.classList.toggle("is-now",  i+1 === step);
+  });
+  document.getElementById("smBack").style.visibility = step===1 ? "hidden" : "visible";
+  document.getElementById("smNext").textContent = step===3 ? "Programar historia" : "Continuar";
+  document.getElementById("smNext").disabled = (step===1 && media.length===0);
+  if(step===3) paintSummary();
+}
+function paintMedia(){
+  const html = media.map((m,i)=>`<div class="media">${m.n}<button data-rm="${i}" aria-label="Quitar">✕</button></div>`).join("");
+  document.getElementById("mediaStrip").innerHTML = html;
+  document.getElementById("mediaStrip2").innerHTML = media.map(m=>`<div class="media">${m.n}</div>`).join("");
+  document.getElementById("smNext").disabled = (step===1 && media.length===0);
+}
+document.getElementById("dropZone").addEventListener("click", ()=>{
+  media.push({n:media.length+1}); paintMedia();
+});
+document.getElementById("mediaStrip").addEventListener("click", e=>{
+  const b = e.target.closest("[data-rm]"); if(!b) return;
+  e.stopPropagation(); media.splice(+b.dataset.rm,1); paintMedia();
+});
+
+document.getElementById("smBack").addEventListener("click", ()=>{ if(step>1){step--;paintStep();} });
+document.getElementById("smNext").addEventListener("click", ()=>{
+  if(step<3){ step++; paintStep(); return; }
+  stories.push({label: document.getElementById("smCaption").value.slice(0,22) || "Historia sin texto", when: summaryText(), tag:when});
+  renderStories(); closeAll(); toast("Historia programada");
+});
+
+/* schedule choice */
+document.getElementById("whenChoice").addEventListener("click", e=>{
+  const b = e.target.closest(".opt"); if(!b) return;
+  when = b.dataset.when;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute("aria-checked", x===b));
+  syncWhen(); paintSummary();
+});
+const DAYS = ["L","M","M","J","V","S","D"];
+const DAYS_FULL = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+document.getElementById("dayPicker").innerHTML = DAYS.map((d,i)=>
+  `<button class="day" data-d="${i}" aria-pressed="${days.has(i)}">${d}</button>`).join("");
+document.getElementById("dayPicker").addEventListener("click", e=>{
+  const b = e.target.closest(".day"); if(!b) return;
+  const i = +b.dataset.d;
+  days.has(i) ? days.delete(i) : days.add(i);
+  b.setAttribute("aria-pressed", days.has(i)); paintSummary();
+});
+
+function syncWhen(){
+  document.getElementById("dayPicker").hidden  = when!=="weekly";
+  document.getElementById("datePicker").hidden = when!=="once";
+  const cb = document.getElementById("smDelete");
+  cb.disabled = when!=="once";
+  if(cb.disabled) cb.checked = false;
+  document.getElementById("delWrap").classList.toggle("is-disabled", cb.disabled);
+  document.querySelectorAll("#dayPicker .day").forEach(b=>
+    b.setAttribute("aria-pressed", days.has(+b.dataset.d)));
+}
+document.getElementById("smDelete").addEventListener("change", paintSummary);
+document.getElementById("smDate").addEventListener("change", paintSummary);
+
+/* clock-style wheels */
+function wheel(el, values, initial, key){
+  el.innerHTML = '<div class="wheel-pad"></div>' +
+    values.map(v=>`<button data-v="${v}">${v}</button>`).join("") +
+    '<div class="wheel-pad"></div>';
+  const mark = v => el.querySelectorAll("button").forEach(b=>
+    b.setAttribute("aria-selected", b.dataset.v === String(v)));
+  mark(initial);
+  el.addEventListener("click", e=>{
+    const b = e.target.closest("button"); if(!b) return;
+    time[key] = key==="ap" ? b.dataset.v : +b.dataset.v;
+    mark(b.dataset.v);
+    b.scrollIntoView({block:"center", behavior:"smooth"});
+    paintSummary();
+  });
+  const sel = [...el.querySelectorAll("button")].find(b=>b.dataset.v===String(initial));
+  if(sel) el.scrollTop = sel.offsetTop - 48;
+}
+wheel(document.getElementById("wHour"), Array.from({length:12},(_,i)=>i+1), 10, "h");
+wheel(document.getElementById("wMin"),  ["00","15","30","45"], "00", "m");
+wheel(document.getElementById("wAmpm"), ["AM","PM"], "AM", "ap");
+
+function timeText(){ return `${time.h}:${String(time.m).padStart(2,"0")} ${time.ap}`; }
+function summaryText(){
+  if(when==="daily")  return "Todos los días · " + timeText();
+  if(when==="weekly"){
+    const list = [...days].sort().map(i=>DAYS_FULL[i]).join(", ") || "ningún día";
+    return list + " · " + timeText();
+  }
+  const d = document.getElementById("smDate").value;
+  return (d ? new Date(d+"T00:00").toLocaleDateString("es",{day:"numeric",month:"long"}) : "fecha sin elegir") + " · " + timeText();
+}
+function paintSummary(){
+  const del = document.getElementById("smDelete").checked ? " · se borra al publicar" : "";
+  document.getElementById("smSummary").innerHTML =
+    `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:0 0 18px;margin-top:2px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+     <span>Se publica <strong>${summaryText()}</strong>${del}.</span>`;
+}
+
+/* ═══════════ MENÚS ═══════════ */
+/* Tokens are stored as {key} but NEVER shown that way — the editor
+   renders them as pills and every preview resolves them to real values. */
+const TOKENS = {
+  tienda:  {label:"Nombre de la tienda", value:()=>document.getElementById("f1").value},
+  dueno:   {label:"Nombre del dueño/a",  value:()=>document.getElementById("f2").value},
+  horario: {label:"Horario",             value:()=>document.getElementById("f4").value},
+  tasa:    {label:"Tasa del día",        value:()=>document.getElementById("f9").value + " Bs."}
+};
+const ACTIONS = ["Abre otro menú","Envía el catálogo","Envía la lista de precios",
+  "Responde con los métodos de pago","Responde con la info de envíos",
+  "Responde con la dirección","Avisa al dueño/a","Vuelve al inicio"];
+
+let menus = [
+  {id:"m1", name:"Menú principal", start:true,
+   msg:"¡Hola! 👋 Bienvenid@ a {tienda}. ¿En qué te puedo ayudar?",
+   words:["hola","menú","inicio"],
+   opts:[{t:"Ver catálogo",a:"Envía el catálogo"},{t:"Precios y tallas",a:"Envía la lista de precios"},
+         {t:"Cómo pagar",a:"Responde con los métodos de pago"},{t:"Envíos",a:"Responde con la info de envíos"},
+         {t:"Hablar con una persona",a:"Avisa al dueño/a"}]},
+  {id:"m2", name:"Catálogo", start:false,
+   msg:"¿Qué te interesa? 🎁 Escribe el número de la categoría.",
+   words:["catálogo","ropa"],
+   opts:[{t:"Vestidos",a:"Envía el catálogo"},{t:"Tops",a:"Envía el catálogo"},
+         {t:"Pantalones",a:"Envía el catálogo"},{t:"Volver al inicio",a:"Vuelve al inicio"}]}
+];
+
+/* {tienda} → "Nova Moda" for anything the customer would see */
+const resolve = s => s.replace(/\{(\w+)\}/g, (m,k)=> TOKENS[k] ? TOKENS[k].value() : m);
+/* {tienda} → a pill, for the editor */
+const toPills = s => s.replace(/\{(\w+)\}/g, (m,k)=>
+  TOKENS[k] ? `<span class="pill" contenteditable="false" data-token="${k}">${TOKENS[k].label}</span>` : m);
+/* pills → {tienda}, on save */
+function fromPills(el){
+  let out = "";
+  el.childNodes.forEach(n=>{
+    if(n.nodeType === 3) out += n.textContent;
+    else if(n.dataset && n.dataset.token) out += "{"+n.dataset.token+"}";
+    else out += n.textContent;
+  });
+  return out.replace(/\u00a0/g," ").trim();
+}
+
+function renderMenus(){
+  document.getElementById("menuGrid").innerHTML =
+    menus.map(m=>`
+      <button class="menu-card ${m.start?"is-start":""}" data-id="${m.id}">
+        <div class="menu-top">
+          ${m.start?'<svg width="14" height="14" viewBox="0 0 24 24" fill="var(--signal)" stroke="none"><path d="m12 3 2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.8 6.7 19.6l1.1-6L3.4 9.4l6-.8z"/></svg>':""}
+          <span class="menu-title">${m.name}</span>
+          ${m.start?'<span class="badge b-ok" style="margin-left:auto">Primer mensaje</span>':""}
+        </div>
+        <div class="menu-msg">${resolve(m.msg)}</div>
+        <div class="keywords">${m.words.map(w=>`<span class="kw">${w}</span>`).join("")}</div>
+        <div class="menu-foot">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          ${m.opts.length} opciones
+          <span class="spacer"></span>
+          <span style="color:var(--signal-ink);font-weight:500">Editar</span>
+        </div>
+      </button>`).join("") +
+    `<button class="menu-new" id="menuNew2">
+       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12h14"/></svg>
+       Nuevo menú</button>`;
+  document.getElementById("menuNew2").addEventListener("click", ()=>openMenu(null));
+  document.querySelector('.nav-btn[data-view="menus"] .nav-count').textContent = menus.length;
+}
+
+/* ── editor ── */
+const menuModal = document.getElementById("menuModal");
+let editing = null, draftWords = [], draftOpts = [];
+
+function openMenu(id){
+  const m = menus.find(x=>x.id===id);
+  editing = m || {id:"m"+Date.now(), name:"", start:false, msg:"", words:[], opts:[], isNew:true};
+  document.getElementById("meTitle").textContent = m ? "Editar menú" : "Nuevo menú";
+  document.getElementById("meName").value = editing.name;
+  document.getElementById("meMsg").innerHTML = toPills(editing.msg);
+  document.getElementById("meDelete").style.visibility = (m && !m.start) ? "visible" : "hidden";
+  draftWords = [...editing.words];
+  draftOpts  = editing.opts.map(o=>({...o}));
+  paintWords(); paintOpts(); paintMenuPreview();
+  menuModal.classList.add("is-open"); scrim.classList.add("is-open");
+}
+document.getElementById("menuGrid").addEventListener("click", e=>{
+  const c = e.target.closest(".menu-card"); if(c) openMenu(c.dataset.id);
+});
+document.getElementById("btnNewMenu").addEventListener("click", ()=>openMenu(null));
+
+function paintWords(){
+  document.getElementById("meWords").innerHTML =
+    draftWords.map((w,i)=>`<span class="kw">${w}<button data-rmw="${i}" aria-label="Quitar ${w}">✕</button></span>`).join("") +
+    `<button class="btn btn-add btn-sm" id="meAddWord">+ Agregar palabra</button>`;
+  document.getElementById("meAddWord").addEventListener("click", ()=>{
+    const w = prompt("¿Qué palabra activa este menú?");
+    if(w && w.trim()){ draftWords.push(w.trim().toLowerCase()); paintWords(); paintMenuPreview(); }
+  });
+}
+document.getElementById("meWords").addEventListener("click", e=>{
+  const b = e.target.closest("[data-rmw]"); if(!b) return;
+  draftWords.splice(+b.dataset.rmw,1); paintWords(); paintMenuPreview();
+});
+
+function paintOpts(){
+  document.getElementById("meOpts").innerHTML = draftOpts.map((o,i)=>`
+    <div class="opt-item">
+      <span class="opt-n">${i+1}</span>
+      <input type="text" value="${o.t}" data-t="${i}" placeholder="Texto de la opción">
+      <select data-a="${i}">${ACTIONS.map(a=>`<option ${a===o.a?"selected":""}>${a}</option>`).join("")}</select>
+      <button class="rm" data-rmo="${i}" aria-label="Quitar opción">✕</button>
+    </div>`).join("") ||
+    `<p class="hint" style="margin:0">Sin opciones. El bot enviará solo el mensaje.</p>`;
+}
+document.getElementById("meOpts").addEventListener("click", e=>{
+  const b = e.target.closest("[data-rmo]"); if(!b) return;
+  draftOpts.splice(+b.dataset.rmo,1); paintOpts(); paintMenuPreview();
+});
+document.getElementById("meOpts").addEventListener("input", e=>{
+  if(e.target.dataset.t !== undefined){ draftOpts[+e.target.dataset.t].t = e.target.value; paintMenuPreview(); }
+});
+document.getElementById("meOpts").addEventListener("change", e=>{
+  if(e.target.dataset.a !== undefined) draftOpts[+e.target.dataset.a].a = e.target.value;
+});
+document.getElementById("meAddOpt").addEventListener("click", ()=>{
+  draftOpts.push({t:"", a:ACTIONS[0]}); paintOpts(); paintMenuPreview();
+});
+
+/* insert a data pill at the caret */
+document.querySelectorAll("#menuModal [data-token]").forEach(b=>{
+  if(b.tagName !== "BUTTON") return;
+  b.addEventListener("mousedown", e=>e.preventDefault());
+  b.addEventListener("click", ()=>{
+    const k = b.dataset.token, box = document.getElementById("meMsg");
+    const pill = document.createElement("span");
+    pill.className = "pill"; pill.contentEditable = "false";
+    pill.dataset.token = k; pill.textContent = TOKENS[k].label;
+    const sel = window.getSelection();
+    if(sel.rangeCount && box.contains(sel.anchorNode)){
+      const r = sel.getRangeAt(0); r.deleteContents(); r.insertNode(pill);
+      r.setStartAfter(pill); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+    } else box.appendChild(pill);
+    box.focus(); paintMenuPreview();
+  });
+});
+document.getElementById("meMsg").addEventListener("input", paintMenuPreview);
+document.getElementById("meName").addEventListener("input", paintMenuPreview);
+
+function paintMenuPreview(){
+  const raw = fromPills(document.getElementById("meMsg"));
+  const trigger = draftWords[0] || "hola";
+  const list = draftOpts.filter(o=>o.t.trim()).map((o,i)=>`${i+1}. ${o.t}`).join("<br>");
+  document.getElementById("mePreview").innerHTML = `
+    <div class="bubble me">${trigger}</div>
+    <div class="bubble bot ${raw?"":"empty-state"}">${resolve(raw) || "Escribe el mensaje arriba…"}
+      ${list?"<br><br>"+list:""}</div>`;
+}
+
+document.getElementById("meSave").addEventListener("click", ()=>{
+  const name = document.getElementById("meName").value.trim();
+  if(!name){ toast("Ponle un nombre al menú"); document.getElementById("meName").focus(); return; }
+  editing.name = name;
+  editing.msg = fromPills(document.getElementById("meMsg"));
+  editing.words = draftWords;
+  editing.opts = draftOpts.filter(o=>o.t.trim());
+  if(editing.isNew){ delete editing.isNew; menus.push(editing); }
+  renderMenus(); closeAll(); toast("Menú guardado");
+});
+document.getElementById("meDelete").addEventListener("click", ()=>{
+  menus = menus.filter(m=>m.id !== editing.id);
+  renderMenus(); closeAll(); toast("Menú eliminado");
+});
+
+/* ═══════════ TOAST ═══════════ */
+let toastT;
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("is-open");
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove("is-open"), 2200);
+}
+window.toast = toast;
+
+/* boot */
+renderPay(); renderProd(); renderMenus(); syncWhen(); paintSummary(); syncRate();
+</script>

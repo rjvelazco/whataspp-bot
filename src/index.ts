@@ -41,6 +41,7 @@ import {
 import { reduce, type EngineResult } from "./engine/stateMachine.js";
 import { canTransition } from "./domain/orderStatus.js";
 import { StoryScheduler } from "./services/storyScheduler.js";
+import { RateService } from "./services/rates.js";
 import {
   deleteStoryAndMedia,
   resolveStoryMedia,
@@ -286,12 +287,19 @@ async function main() {
     discardStory: (story) => deleteStoryAndMedia(story.id, config.assetsDir),
   });
 
+  // Three of the four rate sources fetch themselves; a custom rate is never touched.
+  const rateService = new RateService({
+    getStore: () => getStoreById(store.store_id),
+    saveStore: upsertStore,
+  });
+
   const web = new WebServer({
     // Read-through, so admin edits to the store take effect without a restart.
     getStore: () => getStoreById(store.store_id) ?? store,
     sendMessage: (to, body) => transport.sendText(to, body),
     disconnect: () => transport.logout(),
     postStoryNow: (storyId) => storyScheduler.postNow(storyId),
+    refreshRate: () => rateService.refresh(),
   });
   web.listen(config.webPort, config.webHost);
 
@@ -311,6 +319,7 @@ async function main() {
 
   await transport.start();
   storyScheduler.start();
+  rateService.start();
 
   // Bind this bot's account to the store so resolveStore() can route by account later.
   const accountId = transport.getAccountId();

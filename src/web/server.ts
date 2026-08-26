@@ -15,7 +15,10 @@ import type {
   Order,
   OrderStatus,
   Store,
+  KeywordTopic,
+  RateSource,
   Story,
+  StoreKeywords,
   Variant,
 } from "../domain/types.js";
 import {
@@ -51,8 +54,10 @@ import {
 import { validateFlow } from "../engine/validateFlow.js";
 import { canTransition, nextStatuses } from "../domain/orderStatus.js";
 import type { StoryPostResult } from "../services/storyScheduler.js";
+import type { RefreshOutcome } from "../services/rates.js";
 import { deleteStoryAndMedia, discardDroppedMedia } from "../services/stories.js";
 import { localDateKey, parseTimeMinutes } from "../domain/storySchedule.js";
+import { DEFAULT_KEYWORDS, normalize } from "../engine/intents.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -73,6 +78,8 @@ export interface WebDeps {
   disconnect: () => Promise<void>;
   /** Publish one scheduled story to WhatsApp Status right now. */
   postStoryNow: (storyId: string) => Promise<StoryPostResult>;
+  /** Fetch the exchange rate now, for the "Actualizar ahora" button. */
+  refreshRate: () => Promise<RefreshOutcome>;
 }
 
 
@@ -279,6 +286,37 @@ export class WebServer {
    * legal, persist, notify the customer. Routing all of verify/cancel/ship/deliver
    * through here is what stops a finished order being moved again.
    */
+  /**
+   * Validate the editable keyword chips.
+   *
+   * Normalized on the way in — the matcher compares against normalized text, so a chip
+   * saved as "Envíos" would otherwise never match anything a customer typed.
+   */
+  private parseKeywordsInput(value: unknown): { value: StoreKeywords } | { error: string } {
+    const topics: KeywordTopic[] = ["rate", "address", "shipping", "payment", "offers", "hours"];
+    const raw = (value ?? {}) as Record<string, unknown>;
+    const out = {} as StoreKeywords;
+
+    for (const topic of topics) {
+      const list = raw[topic];
+      if (list !== undefined && !Array.isArray(list)) {
+        return { error: "Las palabras clave no tienen el formato esperado." };
+      }
+      const words = ((list as unknown[]) ?? DEFAULT_KEYWORDS[topic])
+        .map((w) => normalize(String(w)))
+        .filter((w) => w.length > 0);
+      // An empty topic would silently stop the bot answering that question at all.
+      if (words.length === 0) {
+        return { error: "Cada tema necesita al menos una palabra." };
+      }
+      if (words.some((w) => w.length > 40)) {
+        return { error: "Una palabra clave no puede pasar de 40 caracteres." };
+      }
+      out[topic] = [...new Set(words)];
+    }
+    return { value: out };
+  }
+
   /**
    * Validate a story payload from the composer.
    *
@@ -765,6 +803,31 @@ export class WebServer {
         }
       }
 
+      // --- rate source ---
+      const RATE_SOURCES: RateSource[] = ["usd_oficial", "usd_paralelo", "eur_oficial", "custom"];
+      let rate_source = existing.rate_source;
+      if (b.rate_source !== undefined) {
+        if (!RATE_SOURCES.includes(b.rate_source as RateSource)) {
+          res.status(400).json({ error: "Fuente de tasa no válida" });
+          return;
+        }
+        rate_source = b.rate_source as RateSource;
+      }
+      // Only a custom rate carries a label; keeping one on a fetched source would leave
+      // the bot quoting "Tasa de la tienda" for a number it pulled from the internet.
+      const rate_label = rate_source === "custom" ? opt(b.rate_label, existing.rate_label) : undefined;
+
+      // --- keywords ---
+      let keywords = existing.keywords;
+      if (b.keywords !== undefined) {
+        const parsed = this.parseKeywordsInput(b.keywords);
+        if ("error" in parsed) {
+          res.status(400).json({ error: parsed.error });
+          return;
+        }
+        keywords = parsed.value;
+      }
+
       const payments = (b.payments ?? {}) as Record<string, unknown>;
       const updated: Store = {
         ...existing, // preserves store_id, account_id, story_schedule, size_guide, categories
@@ -783,6 +846,9 @@ export class WebServer {
         },
         usd_rate,
         usd_rate_updated_at,
+        rate_source,
+        rate_label,
+        keywords,
       };
       upsertStore(updated);
       logger.info("store config saved");
@@ -797,6 +863,18 @@ export class WebServer {
       } catch (err) {
         logger.error({ err }, "disconnect failed");
       }
+    });
+
+    // Refresh the exchange rate on demand, for the "Actualizar ahora" button.
+    app.post("/api/store/rate/refresh", async (_req, res) => {
+      const outcome = await this.deps.refreshRate();
+      const store = getStoreById(this.storeId);
+      res.json({
+        outcome,
+        usd_rate: store?.usd_rate ?? null,
+        usd_rate_updated_at: store?.usd_rate_updated_at ?? null,
+        rate_failed_at: store?.rate_failed_at ?? null,
+      });
     });
 
     // --- Contacts (numbers that have messaged the bot = Status audience) ---
@@ -893,7 +971,7 @@ export class WebServer {
         return;
       }
       // Validate the flow: block the save on errors, allow it with warnings.
-      const issues = validateFlow(menus);
+      const issues = validateFlow(menus, getStoreById(this.storeId)?.keywords);
       const errors = issues.filter((i) => i.severity === "error");
       if (errors.length) {
         res.status(400).json({ error: "El flujo tiene errores", issues });

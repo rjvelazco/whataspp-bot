@@ -1,4 +1,5 @@
 import type { Store } from "../domain/types.js";
+import { DEFAULT_RATE_SOURCE, RATE_CURRENCY } from "../domain/rates.js";
 
 /** Map 1..10 to a keycap emoji for numbered menus (Baileys can't render buttons). */
 const KEYCAPS = ["0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
@@ -27,7 +28,9 @@ export function exchangeRate(store: Store): string {
   const when = store.usd_rate_updated_at
     ? ` (actualizada ${store.usd_rate_updated_at.slice(0, 10)})`
     : "";
-  return `💵 *Tasa del día:* Bs. ${store.usd_rate} por $1${when}.\n\nEscribe *menu* para volver.`;
+  // The currency follows the chosen source: a euro rate quoted "por $1" is simply wrong.
+  const currency = RATE_CURRENCY[store.rate_source ?? DEFAULT_RATE_SOURCE] ?? "$";
+  return `💵 *Tasa del día:* Bs. ${store.usd_rate} por ${currency}1${when}.\n\nEscribe *menu* para volver.`;
 }
 
 export function storeAddress(store: Store): string {
