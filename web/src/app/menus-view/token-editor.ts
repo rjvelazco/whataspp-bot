@@ -38,6 +38,7 @@ export interface TokenChoice {
       contenteditable="true"
       (input)="onInput()"
       (blur)="onInput()"
+      (paste)="onPaste($event)"
     ></div>
 
     <div class="insert">
@@ -91,8 +92,7 @@ export class TokenEditor {
 
   /** Stored text -> pills and text nodes. */
   private render(): void {
-    const host = this.editor()?.nativeElement;
-    if (!host) return;
+    const host = this.editor().nativeElement;
     host.replaceChildren();
     for (const part of (this.value() ?? '').split(/(\{[a-z_]+\})/)) {
       if (!part) continue;
@@ -111,26 +111,97 @@ export class TokenEditor {
     }
   }
 
-  /** Pills and text nodes -> stored text. */
-  private serialize(node: Node): string {
+  private isBlock(node: Node): node is HTMLElement {
+    return node instanceof HTMLElement && (node.tagName === 'DIV' || node.tagName === 'P');
+  }
+
+  /** Anything that is not a block wrapper: text, a pill, a <br>, an inline element. */
+  private inline(node: Node): string {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
     if (!(node instanceof HTMLElement)) return '';
     const token = node.dataset['token'];
     if (token) return `{${token}}`;
     if (node.tagName === 'BR') return '\n';
+    return this.blockText(node);
+  }
 
-    let inner = '';
-    for (const child of Array.from(node.childNodes)) inner += this.serialize(child);
-    // contenteditable wraps every line after the first in its own div; that wrapper is
-    // the line break, and reading it as plain text would join the lines together.
-    return node.tagName === 'DIV' || node.tagName === 'P' ? `\n${inner}` : inner;
+  /**
+   * A block's own text.
+   *
+   * The trailing `<br>` is dropped: browsers put one inside an otherwise-empty block to
+   * keep the line open, and counting it as a line break added a newline that was never
+   * typed. One press of Enter after "a" produces `a<div><br></div>` — which used to
+   * serialize as "a\n\n" and reach the customer with a blank line in it.
+   */
+  private blockText(el: HTMLElement): string {
+    const children = Array.from(el.childNodes);
+    if (children.length > 0 && children[children.length - 1].nodeName === 'BR') children.pop();
+    return children.map((child) => this.inline(child)).join('');
+  }
+
+  /**
+   * The whole editor as stored text.
+   *
+   * Blocks are line *joins*, not prefixes. Treating each as a leading "\n" also put a
+   * blank first line on Safari and Firefox, which wrap the entire content in blocks.
+   */
+  private read(host: HTMLElement): string {
+    const lines: string[] = [];
+    let leading = '';
+    let seenBlock = false;
+
+    for (const child of Array.from(host.childNodes)) {
+      if (this.isBlock(child)) {
+        seenBlock = true;
+        lines.push(this.blockText(child));
+      } else if (!seenBlock) {
+        leading += this.inline(child);
+      } else {
+        // A stray inline node after a block belongs to that block's line.
+        lines[lines.length - 1] += this.inline(child);
+      }
+    }
+
+    if (!seenBlock) return leading;
+    // No leading text means the content starts with a wrapper, so there is no first line
+    // to keep — emitting one would prepend a blank line that nobody typed.
+    return leading === '' ? lines.join('\n') : [leading, ...lines].join('\n');
+  }
+
+  /**
+   * Paste as plain text.
+   *
+   * Rich HTML brings nodes this editor has no representation for — a pasted image
+   * serialized to nothing at all, so it showed in the editor and vanished on save.
+   */
+  protected onPaste(event: ClipboardEvent): void {
+    event.preventDefault();
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    if (!text) return;
+    const selection = document.getSelection();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    if (!range) return;
+    range.deleteContents();
+    // insertNode reverses multi-node inserts, so build the fragment and insert once.
+    const fragment = document.createDocumentFragment();
+    text.split('\n').forEach((line, i) => {
+      if (i > 0) fragment.append(document.createElement('br'));
+      if (line) fragment.append(document.createTextNode(line));
+    });
+    const last = fragment.lastChild;
+    range.insertNode(fragment);
+    if (last) {
+      range.setStartAfter(last);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    this.onInput();
   }
 
   protected onInput(): void {
-    const host = this.editor()?.nativeElement;
-    if (!host) return;
-    let out = '';
-    for (const child of Array.from(host.childNodes)) out += this.serialize(child);
+    const host = this.editor().nativeElement;
+    const out = this.read(host);
     if (out === this.value()) return;
     this.typing = true;
     this.value.set(out);
@@ -138,8 +209,7 @@ export class TokenEditor {
 
   /** Drop a pill in at the caret, or at the end when the caret is elsewhere. */
   protected insert(token: TokenChoice): void {
-    const host = this.editor()?.nativeElement;
-    if (!host) return;
+    const host = this.editor().nativeElement;
     const pill = this.pill(token.name, token.label);
     const selection = document.getSelection();
     const range = selection?.rangeCount ? selection.getRangeAt(0) : null;

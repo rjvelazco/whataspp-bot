@@ -82,9 +82,10 @@
   width: 24px;
   height: 24px;
   padding: 0;
-  border: 0;
+  /* Every tappable control keeps a boundary at rest — there is no hover on mobile. */
+  border: 1px solid var(--color-line-soft);
   border-radius: var(--radius-sm);
-  background: none;
+  background: var(--color-paper);
   color: var(--color-ink-3);
   cursor: grab;
 }
@@ -110,6 +111,7 @@
   color: var(--color-ink-2);
   white-space: pre-wrap;
   display: -webkit-box;
+  line-clamp: 3;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;

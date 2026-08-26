@@ -1,5 +1,5 @@
 import type { CatalogItem, FlowMenu, FlowOption, MessageToken, Store } from "../domain/types.js";
-import { DEFAULT_RATE_SOURCE, RATE_CURRENCY } from "../domain/rates.js";
+import { rateLine } from "../domain/rates.js";
 import type { Intent } from "./intents.js";
 import { normalize } from "./intents.js";
 import type { EngineInput, HandlerOutput, Outgoing } from "./stateMachine.js";
@@ -158,10 +158,10 @@ const TOKEN_VALUES: Record<MessageToken, (store: Store) => string> = {
   owner_name: (store) => store.owner_name,
   horario: (store) => store.hours,
   direccion: (store) => store.address ?? "",
-  tasa: (store) =>
-    store.usd_rate === undefined || store.usd_rate === null
-      ? ""
-      : `Bs. ${store.usd_rate} por ${RATE_CURRENCY[store.rate_source ?? DEFAULT_RATE_SOURCE]}1`,
+  // Shared with the `tasa` reply rather than rebuilt: this copy had already lost the
+  // currency fallback (a bad rate_source rendered "undefined1") and the "actualizada"
+  // suffix, which is exactly how the duplications already in CLAUDE.md started.
+  tasa: (store) => rateLine(store) ?? "",
 };
 
 export function fillPlaceholders(message: string, store: Store): string {

@@ -473,3 +473,17 @@ describe("fillPlaceholders", () => {
     expect(fillPlaceholders("[{tasa}]", { ...store, usd_rate: undefined })).toBe("[]");
   });
 });
+
+describe("an empty flow is rejected", () => {
+  it("refuses to save a bot with no menus at all", async () => {
+    const { validateFlow } = await import("../src/engine/validateFlow.js");
+    const errors = validateFlow([]).filter((i) => i.severity === "error");
+    // The panel hides Delete on the entry menu, but that guard depends on a fetch that
+    // can fail. Deleting the last menu would leave the bot with nothing to answer with.
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("al menos un menú");
+    expect(validateFlow([{ key: "m", name: "M", message: "hola", options: [] }])).toEqual(
+      expect.not.arrayContaining([expect.objectContaining({ severity: "error" })]),
+    );
+  });
+});

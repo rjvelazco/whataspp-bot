@@ -14,6 +14,7 @@ import type {
   AssetCategory,
   CatalogItem,
   FlowMenu,
+  FlowOption,
   Order,
   OrderStatus,
   Store,
@@ -1190,7 +1191,12 @@ export class WebServer {
         key: typeof b.key === "string" ? b.key : "preview",
         name: typeof b.name === "string" ? b.name : "",
         message: typeof b.message === "string" ? b.message : "",
-        options: Array.isArray(b.options) ? b.options : [],
+        // Element-wise, not just Array.isArray: a `[null]` reached menuText and 500'd.
+        options: Array.isArray(b.options)
+          ? b.options
+              .filter((o): o is FlowOption => !!o && typeof o === "object")
+              .map((o) => ({ ...o, label: String(o.label ?? "") }))
+          : [],
       };
       res.json({ text: menuText(menu, store) });
     });

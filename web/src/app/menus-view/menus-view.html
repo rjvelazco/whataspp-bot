@@ -35,14 +35,14 @@
   cdkDropListOrientation="mixed"
   (cdkDropListDropped)="dropMenu($event)"
 >
-  @for (menu of menus(); track menu.key; let i = $index) {
-    <article class="menu" [class.is-entry]="isEntry(menu)" cdkDrag>
+  @for (card of cards(); track card.menu.key) {
+    <article class="menu" [class.is-entry]="card.isEntry" cdkDrag>
       <header class="menu-head">
         <!-- A real button, not a div with role="button": the card also holds a delete
              button and a drag handle, and interactive elements cannot nest. -->
         <h2 class="menu-name">
-          <button type="button" class="menu-open" (click)="openEdit(i)">
-            {{ menu.name || 'Sin nombre' }}
+          <button type="button" class="menu-open" (click)="openEdit(card.index)">
+            {{ card.name }}
           </button>
         </h2>
         <span class="menu-actions">
@@ -50,19 +50,18 @@
             type="button"
             class="menu-drag"
             cdkDragHandle
+            [id]="'drag-' + card.menu.key"
             pTooltip="Arrastra, o usa las flechas"
-            [attr.aria-label]="
-              'Reordenar ' + (menu.name || 'menú sin nombre') + '. Usa las flechas.'
-            "
+            [attr.aria-label]="'Reordenar ' + card.name + '. Usa las flechas.'"
             (click)="$event.stopPropagation()"
-            (keydown.arrowup)="moveMenu(i, -1, $event); $event.preventDefault()"
-            (keydown.arrowleft)="moveMenu(i, -1, $event); $event.preventDefault()"
-            (keydown.arrowdown)="moveMenu(i, 1, $event); $event.preventDefault()"
-            (keydown.arrowright)="moveMenu(i, 1, $event); $event.preventDefault()"
+            (keydown.arrowup)="moveMenu(card.index, -1, $event); $event.preventDefault()"
+            (keydown.arrowleft)="moveMenu(card.index, -1, $event); $event.preventDefault()"
+            (keydown.arrowdown)="moveMenu(card.index, 1, $event); $event.preventDefault()"
+            (keydown.arrowright)="moveMenu(card.index, 1, $event); $event.preventDefault()"
           >
             <i class="pi pi-bars" aria-hidden="true"></i>
           </button>
-          @if (!isEntry(menu)) {
+          @if (!card.isEntry) {
             <p-button
               icon="pi pi-trash"
               [text]="true"
@@ -70,32 +69,32 @@
               severity="danger"
               size="small"
               pTooltip="Eliminar"
-              [ariaLabel]="'Eliminar ' + (menu.name || 'menú sin nombre')"
-              (onClick)="deleteMenu(i, $event)"
+              [ariaLabel]="'Eliminar ' + card.name"
+              (onClick)="deleteMenu(card.index, $event)"
             />
           }
         </span>
       </header>
 
-      @if (isEntry(menu)) {
+      @if (card.isEntry) {
         <!-- Replaces a star icon and a bare "5/5": this says what the menu IS. -->
         <span class="badge">Primer mensaje</span>
       }
 
-      <p class="menu-preview">{{ previewOf(menu) || 'Sin mensaje' }}</p>
+      <p class="menu-preview">{{ card.preview }}</p>
 
-      @if (menuTriggers(menu).length) {
+      @if (card.triggers.length) {
         <ul class="menu-triggers">
-          @for (w of menuTriggers(menu); track w) {
+          @for (w of card.triggers; track w) {
             <li>{{ w }}</li>
           }
         </ul>
       }
 
       <footer class="menu-foot">
-        <span>{{ menu.options.length }} opciones</span>
-        @if (unwiredLabel(menu)) {
-          <span class="unwired">{{ unwiredLabel(menu) }}</span>
+        <span>{{ card.optionCount }} opciones</span>
+        @if (card.unwired) {
+          <span class="unwired">{{ card.unwired }}</span>
         }
       </footer>
     </article>
@@ -224,7 +223,7 @@
               />
               <p-select
                 class="option-action"
-                [options]="optionChoices()"
+                [options]="optionChoicesFor()"
                 [group]="true"
                 optionLabel="label"
                 optionValue="value"

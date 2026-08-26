@@ -1,15 +1,14 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, catchError, debounceTime, of, switchMap } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
-import { TextareaModule } from 'primeng/textarea';
 import { ChipModule } from 'primeng/chip';
 import { SelectModule } from 'primeng/select';
-import { MessageModule } from 'primeng/message';
-import { PopoverModule } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
 import type { MessageToken } from '../api-types';
 import { Card, KeywordChips, PageHead, Toolbar } from '../ui';
@@ -112,11 +111,8 @@ function deepCopy(menu: FlowMenu): FlowMenu {
     ButtonModule,
     DialogModule,
     InputTextModule,
-    TextareaModule,
     ChipModule,
     SelectModule,
-    MessageModule,
-    PopoverModule,
     TooltipModule,
     KeywordChips,
     TokenEditor,
@@ -155,6 +151,16 @@ export class MenusView implements OnInit {
   /** Errors that blocked the current modal save (shown inside the modal). */
   protected readonly modalIssues = signal<FlowIssue[]>([]);
 
+  constructor() {
+    this.previewRequests
+      .pipe(
+        debounceTime(250),
+        switchMap((menu) => this.api.preview(menu).pipe(catchError(() => of({ text: '' })))),
+        takeUntilDestroyed(),
+      )
+      .subscribe((r) => this.draftPreview.set(r.text));
+  }
+
   ngOnInit(): void {
     this.api.get().subscribe({
       next: (menus) => this.menus.set(menus),
@@ -170,15 +176,45 @@ export class MenusView implements OnInit {
   }
 
   // ---- list card helpers ----
+  /**
+   * The card list, resolved once per change instead of six method calls per card per
+   * change-detection pass.
+   */
+  /** The option dropdown's choices, resolved once per change rather than per pass. */
+  protected readonly optionChoicesFor = computed(() => this.optionChoices());
+  /** Announced politely after a keyboard reorder, which is otherwise silent. */
+  protected readonly reorderAnnouncement = signal('');
+
+  protected readonly cards = computed(() =>
+    this.menus().map((menu, index) => ({
+      menu,
+      index,
+      name: menu.name || 'Sin nombre',
+      isEntry: this.isEntry(menu),
+      preview: this.previewOf(menu),
+      triggers: this.menuTriggers(menu),
+      optionCount: menu.options.length,
+      unwired: this.unwiredLabel(menu),
+    })),
+  );
+
   protected isEntry(menu: FlowMenu): boolean {
     return !!menu.key && menu.key === this.entryKey();
   }
   protected isEntryDraft(): boolean {
     return !!this.draft.key && this.draft.key === this.entryKey();
   }
-  /** The card's message, with its variables already resolved. */
-  protected previewOf(menu: FlowMenu): string {
-    return this.previews()[menu.key] ?? menu.message;
+  /**
+   * The card's message with its variables already resolved.
+   *
+   * Never falls back to the raw stored message: that is `{store_name}` on screen, the
+   * one thing rule 3 forbids. A menu saved since the last previews fetch, or a failed
+   * fetch, shows a neutral line instead.
+   */
+  private previewOf(menu: FlowMenu): string {
+    const resolved = this.previews()[menu.key];
+    if (resolved !== undefined) return resolved || 'Sin mensaje';
+    return menu.message ? 'Mensaje sin vista previa — guarda para verlo.' : 'Sin mensaje';
   }
   /**
    * Options that go nowhere, said in words.
@@ -200,13 +236,6 @@ export class MenusView implements OnInit {
   protected connectedCount(menu: FlowMenu): number {
     return menu.options.filter((o) => this.optionConnected(o)).length;
   }
-  protected allWired(menu: FlowMenu): boolean {
-    return menu.options.every((o) => this.optionConnected(o));
-  }
-  protected connectLabel(opt: FlowOption): string {
-    if (opt.action === 'go_menu') return opt.target ?? '';
-    return ACTIONS[opt.action].label;
-  }
   protected isCategory(opt: FlowOption): boolean {
     return opt.action === 'show_category';
   }
@@ -217,18 +246,30 @@ export class MenusView implements OnInit {
 
   /** The entry key and the resolved previews both come from the engine, not from here. */
   private loadDerived(): void {
-    this.api
-      .entryKey()
-      .subscribe({ next: (r) => this.entryKey.set(r.key), error: () => undefined });
+    this.api.entryKey().subscribe({
+      next: (r) => this.entryKey.set(r.key),
+      // Swallowing this used to leave entryKey null, which showed a delete button on
+      // every card — including the one whose removal leaves the bot mute.
+      error: () =>
+        this.messages.add({
+          severity: 'warn',
+          summary: 'No se pudo comprobar el primer mensaje',
+          detail: 'Recarga la página antes de eliminar un menú.',
+        }),
+    });
     this.api.previews().subscribe({ next: (p) => this.previews.set(p), error: () => undefined });
   }
 
-  /** Re-render the draft through the bot's own builder, for the live preview. */
+  /**
+   * Re-render the draft through the bot's own builder, for the live preview.
+   *
+   * Debounced and switched: it was one POST per keystroke, and a slower earlier
+   * response could land after a newer one and show stale text.
+   */
+  private readonly previewRequests = new Subject<FlowMenu>();
+
   protected refreshDraftPreview(): void {
-    this.api.preview(this.draft).subscribe({
-      next: (r) => this.draftPreview.set(r.text),
-      error: () => this.draftPreview.set(''),
-    });
+    this.previewRequests.next(deepCopy(this.draft));
   }
 
   // ---- open / close modal ----
@@ -299,10 +340,6 @@ export class MenusView implements OnInit {
   protected assetIsImage(a: Asset): boolean {
     return a.mimetype.startsWith('image/');
   }
-  /** The chip draws a ~24px image, so it gets the thumbnail, not the original. */
-  protected assetUrl(id: string): string {
-    return this.assetsApi.thumbUrl(id);
-  }
   protected addAttachment(assetId: string): void {
     if (!assetId) return;
     const current = this.draft.attachments ?? [];
@@ -341,6 +378,7 @@ export class MenusView implements OnInit {
     const options = [...this.draft.options];
     moveItemInArray(options, event.previousIndex, event.currentIndex);
     this.draft.options = options;
+    this.refreshDraftPreview();
   }
 
   // ---- what an option does ----
@@ -369,7 +407,11 @@ export class MenusView implements OnInit {
   }
 
   protected setOptionTarget(oi: number, encoded: string): void {
-    const [kind, value] = encoded.split(':');
+    // indexOf, not split: a key containing a colon would lose everything after it, and
+    // the old editor let owners type keys freely.
+    const sep = encoded.indexOf(':');
+    const kind = encoded.slice(0, sep);
+    const value = encoded.slice(sep + 1);
     const current = this.draft.options[oi];
     this.draft.options[oi] =
       kind === 'menu'
@@ -379,12 +421,17 @@ export class MenusView implements OnInit {
   }
 
   // ---- persistence ----
-  private persist(candidate: FlowMenu[], opts: { fromModal?: boolean } = {}): void {
+  private persist(
+    candidate: FlowMenu[],
+    opts: { fromModal?: boolean; quiet?: boolean } = {},
+  ): void {
     this.saving.set(true);
     this.api.save(candidate).subscribe({
       next: (res) => {
         this.saving.set(false);
-        this.menus.set(candidate);
+        // Not for a reorder: the list is already optimistic, and writing this snapshot
+        // back would revert a newer move that landed while the request was in flight.
+        if (!opts.quiet) this.menus.set(candidate);
         this.loadDerived();
         const warnings = (res.issues ?? []).filter((i) => i.severity === 'warning');
         this.issues.set(warnings);
@@ -392,6 +439,7 @@ export class MenusView implements OnInit {
           this.modalIssues.set([]);
           this.modalOpen.set(false);
         }
+        if (opts.quiet && !warnings.length) return;
         this.messages.add(
           warnings.length
             ? {
@@ -454,6 +502,14 @@ export class MenusView implements OnInit {
     });
   }
 
+  private reorderTimer?: ReturnType<typeof setTimeout>;
+
+  /**
+   * Reordering is optimistic and the save is debounced.
+   *
+   * A held arrow key used to fire one PUT plus two GETs plus a toast per repeat, and
+   * out-of-order responses each wrote their own stale snapshot back over the list.
+   */
   protected moveMenu(i: number, delta: number, event: Event): void {
     event.stopPropagation();
     const to = i + delta;
@@ -461,7 +517,13 @@ export class MenusView implements OnInit {
     if (to < 0 || to >= menus.length) return;
     moveItemInArray(menus, i, to);
     this.menus.set(menus);
-    this.persist(menus);
+
+    this.reorderAnnouncement.set(
+      `${menus[to].name || 'Menú'}: posición ${to + 1} de ${menus.length}`,
+    );
+    clearTimeout(this.reorderTimer);
+    this.reorderTimer = setTimeout(() => this.persist(this.menus(), { quiet: true }), 400);
+    queueMicrotask(() => document.getElementById(`drag-${menus[to].key}`)?.focus());
   }
 
   protected dropMenu(event: CdkDragDrop<FlowMenu[]>): void {
