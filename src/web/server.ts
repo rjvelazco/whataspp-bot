@@ -58,6 +58,13 @@ import type { RefreshOutcome } from "../services/rates.js";
 import { deleteStoryAndMedia, discardDroppedMedia } from "../services/stories.js";
 import { localDateKey, parseTimeMinutes } from "../domain/storySchedule.js";
 import { DEFAULT_KEYWORDS, normalize } from "../engine/intents.js";
+import {
+  exchangeRate,
+  paymentMethods,
+  shippingInfo,
+  storeAddress,
+  storeHours,
+} from "../engine/menus.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -863,6 +870,45 @@ export class WebServer {
       } catch (err) {
         logger.error({ err }, "disconnect failed");
       }
+    });
+
+    /**
+     * What the bot would actually reply, for the Tienda preview drawer.
+     *
+     * Built by the real reply builders in engine/menus.ts against the *draft* the owner
+     * is editing, rather than re-typed in the UI. The panel used to keep its own copies
+     * of these strings and they had drifted from the bot — CLAUDE.md lists it as one of
+     * this repo's shipped duplications.
+     */
+    app.post("/api/store/preview", (req, res) => {
+      const existing = getStoreById(this.storeId);
+      if (!existing) {
+        res.status(404).json({ error: "store not found" });
+        return;
+      }
+      const b = (req.body ?? {}) as Partial<Store>;
+      // Only the fields the form can edit; everything else stays as stored.
+      const draft: Store = {
+        ...existing,
+        store_name: typeof b.store_name === "string" ? b.store_name : existing.store_name,
+        hours: typeof b.hours === "string" ? b.hours : existing.hours,
+        delivery_info: typeof b.delivery_info === "string" ? b.delivery_info : existing.delivery_info,
+        returns_policy:
+          typeof b.returns_policy === "string" ? b.returns_policy : existing.returns_policy,
+        address: typeof b.address === "string" ? b.address : existing.address,
+        maps_url: typeof b.maps_url === "string" ? b.maps_url : existing.maps_url,
+        usd_rate: typeof b.usd_rate === "number" ? b.usd_rate : existing.usd_rate,
+        rate_source: b.rate_source ?? existing.rate_source,
+        rate_label: typeof b.rate_label === "string" ? b.rate_label : existing.rate_label,
+        payments: { ...existing.payments, ...(b.payments ?? {}) },
+      };
+      res.json({
+        rate: exchangeRate(draft),
+        address: storeAddress(draft),
+        shipping: shippingInfo(draft),
+        payment: paymentMethods(draft),
+        hours: storeHours(draft),
+      });
     });
 
     // Refresh the exchange rate on demand, for the "Actualizar ahora" button.

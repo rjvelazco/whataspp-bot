@@ -1,306 +1,293 @@
-<div class="flex flex-col gap-4">
-  <!-- Header -->
-  <div class="flex items-start justify-between gap-4">
-    <div>
-      <h1 class="text-2xl font-semibold m-0">Tienda</h1>
-      <p class="mt-1 mb-0 text-sm text-muted-color">
-        Datos que el bot usa para responder por palabra clave y para tus menús.
-      </p>
-    </div>
-    <div class="flex items-center gap-4 shrink-0">
-      @if (dirty()) {
-        <span class="flex items-center gap-2 text-sm text-warn whitespace-nowrap">
-          <span class="w-2 h-2 rounded-full bg-warn"></span> Cambios sin guardar
-        </span>
-      }
-      <p-button
-        [label]="saving() ? 'Guardando…' : 'Guardar'"
-        icon="pi pi-save"
-        [disabled]="saving() || loading() || !dirty()"
-        (onClick)="save()"
-      />
-    </div>
-  </div>
+<app-page-head
+  eyebrow="Configuración"
+  title="Tienda"
+  lede="Los datos que el bot le da a tus clientes cuando preguntan."
+/>
 
-  @if (loading()) {
-    <div class="p-8 text-center text-muted-color">Cargando…</div>
-  } @else {
-    <div class="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_320px]">
-      <!-- LEFT: form sections -->
-      <div class="flex flex-col gap-4">
-        <!-- General -->
-        <section
-          #section
-          data-section="general"
-          class="scroll-mt-4 rounded-xl border border-surface-200 bg-surface-0 p-4 flex flex-col gap-3"
-        >
-          <h3 class="m-0 text-base font-semibold">General</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <label class="flex flex-col gap-1.5 text-sm text-muted-color">
-              Nombre de la tienda
-              <input
-                pInputText
-                class="w-full"
-                [ngModel]="form().store_name"
-                (ngModelChange)="patch('store_name', $event)"
-                placeholder="Nova Moda"
-              />
-            </label>
-            <label class="flex flex-col gap-1.5 text-sm text-muted-color">
-              Nombre del dueño/a
-              <input
-                pInputText
-                class="w-full"
-                [ngModel]="form().owner_name"
-                (ngModelChange)="patch('owner_name', $event)"
-                placeholder="Ana"
-              />
-            </label>
-          </div>
-          <label class="flex flex-col gap-1.5 text-sm text-muted-color">
-            WhatsApp del dueño/a (recibe pedidos y avisos)
+@if (loading()) {
+  <app-card class="block">
+    <p class="m-0 p-8 text-center text-sm text-muted-color">Cargando…</p>
+  </app-card>
+} @else {
+  <app-card class="block">
+    <app-toolbar>
+      <!-- A rail above the form, not a list beside it: the old one spent 320px on five links. -->
+      <nav class="tabs" aria-label="Secciones de la tienda">
+        @for (s of sections; track s.id) {
+          <button
+            type="button"
+            class="tab"
+            [class.is-on]="activeSection() === s.id"
+            [attr.aria-current]="activeSection() === s.id ? 'true' : null"
+            (click)="activeSection.set(s.id)"
+          >
+            {{ s.label }}
+          </button>
+        }
+      </nav>
+      <span class="toolbar-end">
+        @if (dirty()) {
+          <span class="dirty">Cambios sin guardar</span>
+        }
+        <p-button
+          label="Ver respuesta del bot"
+          icon="pi pi-comment"
+          size="small"
+          [outlined]="true"
+          severity="secondary"
+          (onClick)="openPreview()"
+        />
+        <p-button
+          [label]="saving() ? 'Guardando…' : 'Guardar'"
+          size="small"
+          [disabled]="saving() || !dirty()"
+          (onClick)="save()"
+        />
+      </span>
+    </app-toolbar>
+
+    <div class="panel">
+      <!-- ── General ──────────────────────────────────────────────────── -->
+      @if (activeSection() === 'general') {
+        <div class="grid">
+          <label class="field">
+            <span class="field-label">Nombre de la tienda</span>
             <input
               pInputText
-              class="w-full"
+              type="text"
+              [ngModel]="form().store_name"
+              (ngModelChange)="patch('store_name', $event)"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Tu nombre</span>
+            <input
+              pInputText
+              type="text"
+              [ngModel]="form().owner_name"
+              (ngModelChange)="patch('owner_name', $event)"
+            />
+          </label>
+          <label class="field field-sm">
+            <span class="field-label">Tu WhatsApp</span>
+            <input
+              pInputText
+              type="tel"
+              inputmode="tel"
+              placeholder="0412 000 0000"
               [ngModel]="form().owner_whatsapp"
               (ngModelChange)="patch('owner_whatsapp', $event)"
-              placeholder="+58412XXXXXXX"
             />
           </label>
-          <label class="flex flex-col gap-1.5 text-sm text-muted-color">
-            Horario
-            <input
-              pInputText
-              class="w-full"
-              [ngModel]="form().hours"
-              (ngModelChange)="patch('hours', $event)"
-              placeholder="Lun-Sab 9am-6pm"
-            />
-          </label>
-        </section>
-
-        <!-- Ubicación -->
-        <section
-          #section
-          data-section="ubicacion"
-          class="scroll-mt-4 rounded-xl border border-surface-200 bg-surface-0 p-4 flex flex-col gap-3"
-        >
-          <h3 class="m-0 text-base font-semibold">Ubicación</h3>
-          <label class="flex flex-col gap-1.5 text-sm text-muted-color">
-            Dirección
-            <input
-              pInputText
-              class="w-full"
-              [ngModel]="form().address"
-              (ngModelChange)="patch('address', $event)"
-              placeholder="C.C. …, local …, Maracaibo"
-            />
-          </label>
-          <div class="flex items-center justify-between gap-2 flex-wrap">
-            <div class="flex items-center gap-2 text-sm text-muted-color">
-              El bot responde a:
-              @for (k of keywords.address; track k) {
-                <span
-                  class="inline-flex items-center rounded-full border border-surface-200 bg-surface-50 text-xs text-color px-2.5 py-0.5"
-                  >{{ k }}</span
-                >
-              }
-            </div>
-            <span class="font-mono text-xs text-primary bg-highlight rounded px-2 py-1">{{
-              '{direccion}'
-            }}</span>
-          </div>
-          <label class="flex flex-col gap-1.5 text-sm text-muted-color">
-            Enlace de Google Maps (opcional)
-            <input
-              pInputText
-              class="w-full"
-              [ngModel]="form().maps_url"
-              (ngModelChange)="patch('maps_url', $event)"
-              placeholder="https://maps.google.com/?q=…"
-            />
-          </label>
-        </section>
-
-        <!-- Envíos y cambios -->
-        <section
-          #section
-          data-section="envios"
-          class="scroll-mt-4 rounded-xl border border-surface-200 bg-surface-0 p-4 flex flex-col gap-3"
-        >
-          <h3 class="m-0 text-base font-semibold">Envíos y cambios</h3>
-          <label class="flex flex-col gap-1.5 text-sm text-muted-color">
-            Información de envíos
+          <label class="field field-wide">
+            <span class="field-label">Horario de atención</span>
             <textarea
               pTextarea
-              class="w-full"
-              rows="2"
+              rows="3"
+              [ngModel]="form().hours"
+              (ngModelChange)="patch('hours', $event)"
+            ></textarea>
+          </label>
+        </div>
+      }
+
+      <!-- ── Ubicación ────────────────────────────────────────────────── -->
+      @if (activeSection() === 'ubicacion') {
+        <div class="grid">
+          <label class="field field-wide">
+            <span class="field-label">Dirección</span>
+            <textarea
+              pTextarea
+              rows="3"
+              placeholder="Av. 5 de Julio, C.C. Costa Verde, local 12"
+              [ngModel]="form().address"
+              (ngModelChange)="patch('address', $event)"
+            ></textarea>
+          </label>
+          <label class="field">
+            <span class="field-label">Enlace de Google Maps</span>
+            <input
+              pInputText
+              type="url"
+              placeholder="https://maps.app.goo.gl/…"
+              [ngModel]="form().maps_url"
+              (ngModelChange)="patch('maps_url', $event)"
+            />
+          </label>
+        </div>
+      }
+
+      <!-- ── Envíos y cambios ─────────────────────────────────────────── -->
+      @if (activeSection() === 'envios') {
+        <div class="grid">
+          <label class="field field-wide">
+            <span class="field-label">Cómo son los envíos</span>
+            <textarea
+              pTextarea
+              rows="4"
               [ngModel]="form().delivery_info"
               (ngModelChange)="patch('delivery_info', $event)"
             ></textarea>
           </label>
-          <div class="flex items-center justify-between gap-2 flex-wrap">
-            <div class="flex items-center gap-2 text-sm text-muted-color">
-              El bot responde a:
-              @for (k of keywords.shipping; track k) {
-                <span
-                  class="inline-flex items-center rounded-full border border-surface-200 bg-surface-50 text-xs text-color px-2.5 py-0.5"
-                  >{{ k }}</span
-                >
-              }
-            </div>
-            <span class="font-mono text-xs text-primary bg-highlight rounded px-2 py-1">{{
-              '{envios}'
-            }}</span>
-          </div>
-          <label class="flex flex-col gap-1.5 text-sm text-muted-color">
-            Política de cambios
+          <label class="field field-wide">
+            <span class="field-label">Cambios y devoluciones</span>
             <textarea
               pTextarea
-              class="w-full"
-              rows="2"
+              rows="4"
               [ngModel]="form().returns_policy"
               (ngModelChange)="patch('returns_policy', $event)"
             ></textarea>
           </label>
-        </section>
+        </div>
+      }
 
-        <!-- Tasa del dólar -->
-        <section
-          #section
-          data-section="tasa"
-          class="scroll-mt-4 rounded-xl border border-surface-200 bg-surface-0 p-4 flex flex-col gap-3"
-        >
-          <h3 class="m-0 text-base font-semibold">Tasa del dólar</h3>
-          <div class="flex items-end gap-4">
-            <label class="flex flex-col gap-1.5 text-sm text-muted-color">
-              Bs. por $1
-              <p-inputnumber
-                [ngModel]="form().usd_rate"
-                (ngModelChange)="patch('usd_rate', $event)"
-                [min]="0"
-                mode="decimal"
-                [minFractionDigits]="0"
-                [maxFractionDigits]="2"
-                prefix="Bs. "
-                placeholder="40"
-                styleClass="w-40"
-                inputStyleClass="w-full"
-              />
-            </label>
-            <div class="text-sm text-muted-color pb-1.5">
-              <div>Última actualización</div>
-              <div class="text-color">
-                {{ rateUpdatedAt() ? (rateUpdatedAt() | date: 'short') : 'nunca' }}
-              </div>
-            </div>
-          </div>
-          <div class="flex items-center justify-between gap-2 flex-wrap">
-            <div class="flex items-center gap-2 text-sm text-muted-color">
-              El bot responde a:
-              @for (k of keywords.rate; track k) {
-                <span
-                  class="inline-flex items-center rounded-full border border-surface-200 bg-surface-50 text-xs text-color px-2.5 py-0.5"
-                  >{{ k }}</span
-                >
-              }
-            </div>
-            <span class="font-mono text-xs text-primary bg-highlight rounded px-2 py-1">{{
-              '{tasa}'
-            }}</span>
-          </div>
-        </section>
+      <!-- ── Tasa del dólar ───────────────────────────────────────────── -->
+      @if (activeSection() === 'tasa') {
+        <div class="grid">
+          <label class="field">
+            <span class="field-label">De dónde sale la tasa</span>
+            <p-select
+              [options]="rateSources"
+              optionLabel="label"
+              optionValue="value"
+              [ngModel]="form().rate_source"
+              (ngModelChange)="patch('rate_source', $event)"
+            />
+            <span class="field-note">{{ rateChoice().note }}</span>
+          </label>
 
-        <!-- Métodos de pago -->
-        <section
-          #section
-          data-section="pagos"
-          class="scroll-mt-4 rounded-xl border border-surface-200 bg-surface-0 p-4 flex flex-col gap-3"
-        >
-          <h3 class="m-0 text-base font-semibold">Métodos de pago</h3>
-          @for (m of paymentMethods; track m.key) {
-            <div class="flex items-center gap-3" [class.opacity-60]="!form().enabled[m.key]">
-              <p-toggleswitch
-                [ngModel]="form().enabled[m.key]"
-                (ngModelChange)="patchEnabled(m.key, $event)"
-              />
+          @if (rateIsManual()) {
+            <label class="field">
+              <span class="field-label">Cómo la llama tu tienda</span>
               <input
                 pInputText
-                class="flex-1 w-full"
-                [ngModel]="form().payments[m.key]"
-                (ngModelChange)="patchPayment(m.key, $event)"
-                [placeholder]="m.placeholder"
-                [disabled]="!form().enabled[m.key]"
+                type="text"
+                placeholder="Tasa de la tienda"
+                [ngModel]="form().rate_label"
+                (ngModelChange)="patch('rate_label', $event)"
               />
-              <span class="text-sm text-muted-color whitespace-nowrap w-28">
-                {{ m.label }}{{ !form().enabled[m.key] ? ' (off)' : '' }}
-              </span>
+            </label>
+          }
+
+          <label class="field field-sm">
+            <span class="field-label">{{ rateChoice().unit }}</span>
+            <p-inputnumber
+              [ngModel]="form().usd_rate"
+              (ngModelChange)="patch('usd_rate', $event)"
+              [minFractionDigits]="2"
+              [maxFractionDigits]="4"
+              [useGrouping]="true"
+              [disabled]="!rateIsManual()"
+            />
+            <span class="field-note">
+              @if (rateUpdatedAt()) {
+                Actualizada el {{ rateUpdatedAt() | date: 'd MMM, h:mm a' }}.
+              } @else {
+                Aún no hay tasa guardada.
+              }
+              @if (rateFailedAt()) {
+                <strong class="stale">
+                  No se pudo actualizar — mostrando la última tasa que teníamos.
+                </strong>
+              }
+            </span>
+          </label>
+
+          @if (!rateIsManual()) {
+            <div class="field field-sm">
+              <span class="field-label">Actualizar</span>
+              <p-button
+                [label]="refreshingRate() ? 'Actualizando…' : 'Actualizar ahora'"
+                icon="pi pi-refresh"
+                size="small"
+                [outlined]="true"
+                severity="secondary"
+                [disabled]="refreshingRate()"
+                (onClick)="refreshRate()"
+              />
+              <span class="field-note">También se actualiza sola.</span>
             </div>
           }
-        </section>
-      </div>
+        </div>
+      }
 
-      <!-- RIGHT: sticky sidebar -->
-      <div class="flex flex-col gap-4 self-start lg:sticky lg:top-0">
-        <!-- Section navigator -->
-        <div class="rounded-xl border border-surface-200 bg-surface-0 p-4">
-          <h3 class="m-0 mb-2 text-base font-semibold">Secciones</h3>
-          <nav class="flex flex-col gap-0.5">
-            @for (s of sections; track s.id) {
-              <button
-                type="button"
-                class="text-left px-3 py-2 rounded-md text-sm cursor-pointer transition-colors"
-                [class]="
-                  activeSection() === s.id
-                    ? 'bg-highlight text-primary font-medium'
-                    : 'text-color hover:bg-surface-50'
-                "
-                (click)="scrollTo(s.id)"
-              >
-                {{ s.label }}
-              </button>
+      <!-- ── Métodos de pago ──────────────────────────────────────────── -->
+      @if (activeSection() === 'pagos') {
+        <ul class="methods">
+          @for (m of paymentMethods; track m.key) {
+            <li class="method">
+              <label class="method-switch">
+                <p-toggleswitch
+                  [ngModel]="form().enabled[m.key]"
+                  (ngModelChange)="patchEnabled(m.key, $event)"
+                  [ariaLabel]="m.label + ': visible en el bot'"
+                />
+                <span class="field-label">{{ m.label }}</span>
+              </label>
+              <input
+                pInputText
+                type="text"
+                class="method-value"
+                [attr.aria-label]="'Datos de ' + m.label"
+                [placeholder]="m.placeholder"
+                [disabled]="!form().enabled[m.key]"
+                [ngModel]="form().payments[m.key]"
+                (ngModelChange)="patchPayment(m.key, $event)"
+              />
+            </li>
+          }
+        </ul>
+      }
+
+      <!-- ── Keywords for this section ────────────────────────────────── -->
+      <div class="keywords">
+        @for (k of sectionKeywords(); track k.topic) {
+          <div class="keyword-block">
+            <span class="field-label">{{ k.title }}</span>
+            <p class="field-note">Los clientes la piden escribiendo:</p>
+            <app-keyword-chips
+              [words]="wordsFor(k.topic)"
+              (wordsChange)="patchKeywords(k.topic, $event)"
+              [label]="'Palabras para ' + k.title"
+            />
+            @if (wordsFor(k.topic).length === 0) {
+              <p class="field-note stale">Sin palabras, el bot no puede responder sobre esto.</p>
             }
-          </nav>
-        </div>
-
-        <!-- Live bot preview -->
-        <div class="rounded-xl border border-surface-200 bg-surface-0 p-4">
-          <h3 class="m-0 text-base font-semibold">Vista previa</h3>
-          <p class="mt-0.5 mb-3 text-xs text-muted-color">Cómo responde el bot con estos datos</p>
-          <div class="flex flex-col gap-2">
-            <div
-              class="self-end max-w-[85%] rounded-2xl bg-success-subtle text-success text-sm px-3 py-2"
-            >
-              tasa
-            </div>
-            <div
-              class="self-start max-w-[92%] rounded-2xl bg-primary-50 text-primary-900 text-sm px-3 py-2"
-            >
-              {{ ratePreview() }}
-            </div>
-            <div
-              class="self-end max-w-[85%] rounded-2xl bg-success-subtle text-success text-sm px-3 py-2"
-            >
-              direccion
-            </div>
-            <div
-              class="self-start max-w-[92%] rounded-2xl bg-primary-50 text-primary-900 text-sm px-3 py-2"
-            >
-              {{ addressPreview() }}
-            </div>
-            <div
-              class="self-end max-w-[85%] rounded-2xl bg-success-subtle text-success text-sm px-3 py-2"
-            >
-              envios
-            </div>
-            <div
-              class="self-start max-w-[92%] rounded-2xl bg-primary-50 text-primary-900 text-sm px-3 py-2"
-            >
-              {{ shippingPreview() }}
-            </div>
           </div>
-        </div>
+        }
       </div>
     </div>
+  </app-card>
+}
+
+<!-- The preview is the only place you see what the customer actually receives. -->
+<p-drawer
+  [visible]="previewOpen()"
+  (visibleChange)="previewOpen.set($event)"
+  position="right"
+  header="Respuesta del bot"
+  [style]="{ width: '400px', maxWidth: '92vw' }"
+>
+  @if (previewLoading()) {
+    <p class="m-0 text-sm text-muted-color">Cargando…</p>
+  } @else if (preview(); as p) {
+    <div class="chat">
+      @for (
+        b of [
+          { title: 'Tasa del día', body: p.rate },
+          { title: 'Dirección', body: p.address },
+          { title: 'Envíos', body: p.shipping },
+          { title: 'Métodos de pago', body: p.payment },
+          { title: 'Horario', body: p.hours },
+        ];
+        track b.title
+      ) {
+        <div class="bubble-group">
+          <span class="bubble-title">{{ b.title }}</span>
+          <p class="bubble">{{ b.body }}</p>
+        </div>
+      }
+    </div>
+    <p class="field-note">Esto es exactamente lo que el bot envía, con tus cambios sin guardar.</p>
   }
-</div>
+</p-drawer>

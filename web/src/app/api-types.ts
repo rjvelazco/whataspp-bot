@@ -25,5 +25,8 @@ export type {
   StoryPostReason,
   StoryPostResult,
   Store,
+  StoreKeywords,
+  KeywordTopic,
+  RateSource,
   StorePayments,
 } from '../../../src/domain/types';
