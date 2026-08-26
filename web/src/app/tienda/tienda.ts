@@ -194,9 +194,18 @@ export class Tienda implements OnInit {
   protected readonly preview = signal<BotPreview | null>(null);
   protected readonly previewLoading = signal(false);
 
-  protected readonly rateChoice = computed(() => {
+  /**
+   * Null until the sources arrive from the API.
+   *
+   * The type is annotated rather than inferred: `sources[0]` is typed as present
+   * because `noUncheckedIndexedAccess` is off, so the inferred type claimed this can
+   * never be null — and the template's `?.`, which is what actually keeps the first
+   * render from throwing, read as redundant (NG8107).
+   */
+  protected readonly rateChoice = computed<RateSourceOption | null>(() => {
     const sources = this.rateSources();
-    return sources.find((s) => s.value === this.form().rate_source) ?? sources[0] ?? null;
+    if (sources.length === 0) return null;
+    return sources.find((s) => s.value === this.form().rate_source) ?? sources[0];
   });
   protected readonly rateIsManual = computed(() => this.form().rate_source === 'custom');
 
