@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { migrateUploadPaths } from "./migrateUploads.js";
+import { migratePromoAssets, migrateUploadPaths } from "./migrateUploads.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -25,7 +25,8 @@ if (!convCols.includes("menu_key")) {
 }
 
 /**
- * Rewrite legacy absolute file paths to bare filenames, and relocate the files.
+ * Boot migrations over stored uploads: fold retired asset categories, rewrite legacy
+ * absolute file paths to bare filenames, and relocate the files that moved.
  *
  * Called explicitly from startup rather than run on import: it mutates the filesystem,
  * and as a module-load side effect any stray import of the repositories — a script, a
@@ -34,6 +35,7 @@ if (!convCols.includes("menu_key")) {
  * every boot is fine.
  */
 export function migrateStoredUploads(): void {
+  migratePromoAssets(db);
   const migrated = migrateUploadPaths(db, {
     uploadsDir: config.uploadsDir,
     receiptsDir: config.receiptsDir,

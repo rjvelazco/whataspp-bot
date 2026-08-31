@@ -33,7 +33,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_store ON orders(store_id, status);
 CREATE TABLE IF NOT EXISTS assets (
   id            TEXT PRIMARY KEY,
   store_id      TEXT NOT NULL,
-  category      TEXT NOT NULL,   -- 'catalog' | 'promo'
+  category      TEXT NOT NULL,   -- 'catalog' | 'story'
   filename      TEXT NOT NULL,   -- stored filename under uploads/assets/
   original_name TEXT NOT NULL,
   mimetype      TEXT NOT NULL,

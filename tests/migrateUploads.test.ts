@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { migrateUploadPaths } from "../src/db/migrateUploads.js";
+import { migratePromoAssets, migrateUploadPaths } from "../src/db/migrateUploads.js";
 
 /** Just enough schema to exercise the migration. */
 function makeDb(): Database.Database {
@@ -207,5 +207,45 @@ describe("migrateUploadPaths", () => {
 
     expect(result.moved).toBe(0);
     expect(readOrder(db, "4").receipt_url).toBe("receipt-4.jpg");
+  });
+});
+
+describe("migratePromoAssets", () => {
+  /** Just the columns the migration touches. */
+  function assetsDb(): Database.Database {
+    const db = new Database(":memory:");
+    db.exec(`CREATE TABLE assets (id TEXT PRIMARY KEY, category TEXT NOT NULL)`);
+    return db;
+  }
+
+  const categories = (db: Database.Database) =>
+    (
+      db.prepare(`SELECT id, category FROM assets ORDER BY id`).all() as {
+        id: string;
+        category: string;
+      }[]
+    ).map((r) => `${r.id}:${r.category}`);
+
+  it("folds promo rows into the catalogue and leaves the rest alone", () => {
+    const db = assetsDb();
+    const insert = db.prepare(`INSERT INTO assets (id, category) VALUES (?, ?)`);
+    insert.run("a", "promo");
+    insert.run("b", "catalog");
+    insert.run("c", "story");
+    insert.run("d", "promo");
+
+    expect(migratePromoAssets(db)).toBe(2);
+    // The section was deleted, so without this a shop owner's files stop being shown
+    // anywhere while the rows quietly remain.
+    expect(categories(db)).toEqual(["a:catalog", "b:catalog", "c:story", "d:catalog"]);
+  });
+
+  it("is idempotent — a second boot changes nothing", () => {
+    const db = assetsDb();
+    db.prepare(`INSERT INTO assets (id, category) VALUES (?, ?)`).run("a", "promo");
+
+    expect(migratePromoAssets(db)).toBe(1);
+    expect(migratePromoAssets(db)).toBe(0);
+    expect(categories(db)).toEqual(["a:catalog"]);
   });
 });

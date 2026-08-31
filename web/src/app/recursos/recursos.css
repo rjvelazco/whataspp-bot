@@ -1,3 +1,167 @@
 :host {
   display: block;
 }
+
+/* ── Archivos: rows, not tiles. A catalogue PDF has nothing to show as a picture. ── */
+.file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.file {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px var(--card-inset);
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.file:last-child {
+  border-bottom: 0;
+}
+.file-thumb,
+.file-kind {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+  background: var(--color-wash);
+}
+.file-thumb {
+  object-fit: cover;
+}
+.file-kind {
+  display: grid;
+  place-items: center;
+  font-family: var(--font-data);
+  font-size: var(--text-2xs);
+  color: var(--color-ink-2);
+  text-transform: uppercase;
+}
+.file-meta {
+  min-width: 0;
+  flex: 1;
+}
+.file-name {
+  display: block;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-sub {
+  display: block;
+  font-family: var(--font-data);
+  font-size: var(--text-2xs);
+  color: var(--color-ink-2);
+}
+
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* On a phone the two actions take the row for themselves and crush the filename to
+   "Cat…", which is the one thing the row exists to show. Give the name the full width
+   and let the actions sit under it. */
+@media (max-width: 720px) {
+  .file {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .file-meta {
+    flex: 1 1 calc(100% - 56px);
+  }
+  .file-actions {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+}
+
+/* The card owns the inset — it narrows below 720px, and a literal would not follow. */
+.section-note {
+  margin: 0;
+  padding: 16px var(--card-inset) 0;
+}
+
+/* ── Estados: a Status is a 9:16 image, so the tile is one too. ── */
+.story-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  padding: 16px var(--card-inset) 24px;
+}
+.story {
+  margin: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-paper);
+}
+.story-img {
+  display: block;
+  aspect-ratio: 9 / 16;
+  background: var(--color-wash);
+}
+.story-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.story-kind {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-family: var(--font-data);
+  font-size: var(--text-2xs);
+  color: var(--color-ink-2);
+  text-transform: uppercase;
+}
+.story-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
+}
+.story-foot .file-name {
+  flex: 1;
+  font-size: var(--text-sm);
+}
+
+/* auto-fill gives one column below ~380px of content, so a 9:16 tile becomes 480px tall
+   and twenty Estados become ten thousand pixels of scrolling. Two up, like a phone's own
+   gallery. */
+@media (max-width: 720px) {
+  .story-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── The daily schedule strip ──
+   Wraps rather than overflowing: its controls used to run past the viewport at 390px. */
+.schedule {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 16px var(--card-inset) 0;
+  padding: 16px;
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--color-wash);
+}
+.schedule-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+@media (max-width: 720px) {
+  .schedule-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}
