@@ -23,6 +23,15 @@ export const RATE_ENDPOINTS: Record<
 /** How often to refresh. The rates themselves move at most once a day. */
 const REFRESH_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * How long a fetched quote is reused.
+ *
+ * Long enough that flicking through the dropdown does not hammer dolarapi, and that
+ * saving right after previewing reuses the value instead of asking twice. Far shorter
+ * than the refresh interval, so a scheduled refresh never serves a cached number.
+ */
+const QUOTE_TTL_MS = 60_000;
+
 export interface FetchedRate {
   rate: number;
   /** When the source says it last changed, not when we fetched it. */
@@ -72,6 +81,12 @@ export class RateService {
   private readonly fetchJson: (url: string) => Promise<unknown>;
   /** The refresh currently running, so concurrent callers share one outbound request. */
   private inFlight?: Promise<RefreshOutcome>;
+  /**
+   * Cached per URL, not per source: one `/dolares/` response carries both the official
+   * and the parallel rate, so flicking between them costs one request, not two.
+   */
+  private readonly cache = new Map<string, { payload: unknown; at: number }>();
+  private readonly pending = new Map<string, Promise<unknown>>();
 
   constructor(private readonly deps: RateServiceDeps) {
     this.fetchJson = deps.fetchJson ?? defaultFetchJson;
@@ -114,6 +129,60 @@ export class RateService {
     return this.inFlight;
   }
 
+  /**
+   * What a source says right now, without touching the store.
+   *
+   * The panel uses this to show the number as soon as the owner picks a source, rather
+   * than leaving the field blank until they save. Returns null when the source is not
+   * fetched at all, or when the lookup fails — the caller decides what to say.
+   */
+  async quote(source: RateSource): Promise<FetchedRate | null> {
+    if (!isFetchedSource(source)) return null;
+    try {
+      return await this.fetchSource(source as Exclude<RateSource, "custom">);
+    } catch (err) {
+      logger.warn({ err, source }, "could not quote the exchange rate");
+      return null;
+    }
+  }
+
+  /**
+   * One outbound request per source, shared by concurrent callers.
+   *
+   * @param force skip the cache. A scheduled or hand-pressed refresh asks for the
+   * current rate and should get one; only the dropdown preview settles for a recent
+   * answer, because that is the caller that can fire several times in a few seconds.
+   */
+  private async fetchSource(
+    source: Exclude<RateSource, "custom">,
+    { force = false }: { force?: boolean } = {},
+  ): Promise<FetchedRate> {
+    const endpoint = RATE_ENDPOINTS[source];
+    const payload = await this.fetchPayload(endpoint.url, force);
+    const found = pickRate(payload, endpoint.fuente);
+    if (!found) throw new Error(`no "${endpoint.fuente}" entry in the response`);
+    return found;
+  }
+
+  /** One outbound request per URL, shared by concurrent callers. */
+  private fetchPayload(url: string, force: boolean): Promise<unknown> {
+    const cached = this.cache.get(url);
+    if (!force && cached && this.now().getTime() - cached.at < QUOTE_TTL_MS) {
+      return Promise.resolve(cached.payload);
+    }
+    const inFlight = this.pending.get(url);
+    if (inFlight) return inFlight;
+
+    const request = (async () => {
+      const payload = await this.fetchJson(url);
+      this.cache.set(url, { payload, at: this.now().getTime() });
+      return payload;
+    })().finally(() => this.pending.delete(url));
+
+    this.pending.set(url, request);
+    return request;
+  }
+
   private async run(): Promise<RefreshOutcome> {
     const store = this.deps.getStore();
     if (!store) return "no_store";
@@ -122,11 +191,10 @@ export class RateService {
     // A rate the owner typed is theirs. Nothing here may overwrite it.
     if (!isFetchedSource(source)) return "manual_source";
 
-    const endpoint = RATE_ENDPOINTS[source as Exclude<RateSource, "custom">];
     try {
-      const payload = await this.fetchJson(endpoint.url);
-      const found = pickRate(payload, endpoint.fuente);
-      if (!found) throw new Error(`no "${endpoint.fuente}" entry in the response`);
+      const found = await this.fetchSource(source as Exclude<RateSource, "custom">, {
+        force: true,
+      });
 
       // Keep the last good value on failure — a stale rate the panel can flag beats no
       // rate at all, and beats a zero the bot would happily quote.

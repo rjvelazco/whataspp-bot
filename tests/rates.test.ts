@@ -237,3 +237,99 @@ describe("RateService.refresh", () => {
     expect(h.read().usd_rate).toBe(779.9522);
   });
 });
+
+describe("RateService.quote", () => {
+  function harness(json: (url: string) => Promise<unknown>, at = new Date(2026, 7, 24, 9, 0)) {
+    let now = at;
+    const service = new RateService({
+      getStore: () => store({ rate_source: "usd_oficial" }),
+      saveStore: () => undefined,
+      fetchJson: json,
+      now: () => now,
+    });
+    return { service, advance: (ms: number) => (now = new Date(now.getTime() + ms)) };
+  }
+
+  it("answers what a source quotes without saving anything", async () => {
+    let saved = 0;
+    const service = new RateService({
+      getStore: () => store({ rate_source: "usd_oficial", usd_rate: 1 }),
+      saveStore: () => {
+        saved += 1;
+      },
+      fetchJson: async () => EUROS,
+    });
+
+    expect(await service.quote("eur_oficial")).toEqual({
+      rate: 911.21815526,
+      updatedAt: "2026-08-21T00:00:00-04:00",
+    });
+    // It is a preview for the panel; the stored rate is only written on save.
+    expect(saved).toBe(0);
+  });
+
+  it("never quotes a custom rate — there is no feed to ask", async () => {
+    const fetchJson = vi.fn();
+    const h = harness(fetchJson);
+    expect(await h.service.quote("custom")).toBeNull();
+    expect(fetchJson).not.toHaveBeenCalled();
+  });
+
+  it("returns null instead of throwing when the lookup fails", async () => {
+    const h = harness(async () => {
+      throw new Error("ENOTFOUND");
+    });
+    expect(await h.service.quote("usd_oficial")).toBeNull();
+  });
+
+  it("reuses a recent answer, so flicking the dropdown does not hammer the API", async () => {
+    let calls = 0;
+    const h = harness(async () => {
+      calls += 1;
+      return DOLARES;
+    });
+
+    await h.service.quote("usd_oficial");
+    await h.service.quote("usd_oficial");
+    expect(calls).toBe(1);
+
+    // ...but a stale one is refetched.
+    h.advance(61_000);
+    await h.service.quote("usd_oficial");
+    expect(calls).toBe(2);
+  });
+
+  it("caches per source, not globally", async () => {
+    const urls: string[] = [];
+    const h = harness(async (url) => {
+      urls.push(url);
+      return url.includes("euros") ? EUROS : DOLARES;
+    });
+
+    await h.service.quote("usd_oficial");
+    await h.service.quote("eur_oficial");
+    // usd_paralelo lives in the same response as usd_oficial, so it is already cached.
+    await h.service.quote("usd_paralelo");
+    expect(urls).toEqual([
+      "https://ve.dolarapi.com/v1/dolares/",
+      "https://ve.dolarapi.com/v1/euros/",
+    ]);
+  });
+
+  it("a hand-pressed refresh ignores the cache", async () => {
+    let calls = 0;
+    const service = new RateService({
+      getStore: () => store({ rate_source: "usd_oficial" }),
+      saveStore: () => undefined,
+      fetchJson: async () => {
+        calls += 1;
+        return DOLARES;
+      },
+    });
+
+    await service.quote("usd_oficial");
+    // The owner pressed the button because they want the current number, not a recent one.
+    await service.refresh();
+    expect(calls).toBe(2);
+  });
+});

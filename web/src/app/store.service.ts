@@ -51,6 +51,13 @@ export class StoreService {
     return this.http.get<RateSourceOption[]>('/api/store/rate-sources');
   }
 
+  /** What a source quotes right now — a preview, nothing is saved. */
+  quoteRate(source: RateSource): Observable<{ rate: number | null; updated_at: string | null }> {
+    return this.http.get<{ rate: number | null; updated_at: string | null }>(
+      `/api/store/rate/quote?source=${encodeURIComponent(source)}`,
+    );
+  }
+
   refreshRate(): Observable<RateRefreshResult> {
     return this.http.post<RateRefreshResult>('/api/store/rate/refresh', {});
   }

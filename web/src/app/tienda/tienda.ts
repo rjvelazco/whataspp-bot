@@ -151,6 +151,13 @@ export class Tienda implements OnInit {
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly refreshingRate = signal(false);
+  /** A source was picked and we are asking what it quotes. */
+  protected readonly quoting = signal(false);
+  /** When the previewed source last changed, per the feed. */
+  protected readonly quotedAt = signal<string | null>(null);
+  /** What the server currently has stored, for restoring on a switch back. */
+  private readonly savedSource = signal<RateSource | null>(null);
+  private readonly savedRate = signal<number | null>(null);
   protected readonly rateUpdatedAt = signal<string | null>(null);
   protected readonly rateFailedAt = signal<string | null>(null);
   protected readonly form = signal<TiendaForm>(blank());
@@ -249,11 +256,32 @@ export class Tienda implements OnInit {
    * rate keeps whatever is there, because that number is the owner's.
    */
   protected patchRateSource(source: RateSource): void {
-    this.form.update((f) => ({
-      ...f,
-      rate_source: source,
-      usd_rate: source === 'custom' ? f.usd_rate : null,
-    }));
+    // Going back to the source that is actually saved restores its number rather than
+    // re-asking for it.
+    const saved = this.savedSource() === source ? (this.savedRate() ?? null) : null;
+    this.form.update((f) => ({ ...f, rate_source: source, usd_rate: saved }));
+    this.quotedAt.set(null);
+    // "Personalizada" starts empty unless it is the saved source: carrying the last
+    // previewed number over would show, say, a euro rate under "Bs. por $1".
+    if (source === 'custom') return;
+
+    // Ask what this source is quoting, so the field fills in immediately rather than
+    // sitting empty until the owner saves. Display only — the value that gets stored is
+    // still fetched by the server when the change is saved.
+    this.quoting.set(true);
+    this.api.quoteRate(source).subscribe({
+      next: (q) => {
+        this.quoting.set(false);
+        // Ignore a quote that arrived after the owner moved on to another source.
+        if (this.form().rate_source !== source) return;
+        this.form.update((f) => ({ ...f, usd_rate: q.rate }));
+        this.quotedAt.set(q.updated_at);
+      },
+      error: () => {
+        this.quoting.set(false);
+        this.quotedAt.set(null);
+      },
+    });
   }
   protected patchPayment(key: PaymentKey, value: string): void {
     this.form.update((f) => ({ ...f, payments: { ...f.payments, [key]: value } }));
@@ -268,6 +296,9 @@ export class Tienda implements OnInit {
   private setForm(store: Store): void {
     this.form.set(normalizeStore(store));
     this.rateUpdatedAt.set(store.usd_rate_updated_at ?? null);
+    this.quotedAt.set(null);
+    this.savedSource.set(store.rate_source ?? 'usd_oficial');
+    this.savedRate.set(store.usd_rate ?? null);
     this.rateFailedAt.set(store.rate_failed_at ?? null);
     this.savedJson.set(JSON.stringify(this.payload()));
   }

@@ -300,6 +300,7 @@ async function main() {
     disconnect: () => transport.logout(),
     postStoryNow: (storyId) => storyScheduler.postNow(storyId),
     refreshRate: () => rateService.refresh(),
+    quoteRate: (source) => rateService.quote(source),
   });
   web.listen(config.webPort, config.webHost);
 

@@ -213,8 +213,15 @@
               [disabled]="!rateIsManual()"
             />
             <span class="field-note">
-              @if (form().usd_rate === null && !rateIsManual()) {
-                Se busca la tasa de esta fuente al guardar.
+              @if (quoting()) {
+                Consultando la tasa…
+              } @else if (quotedAt()) {
+                Según la fuente, actualizada el {{ quotedAt() | date: 'd MMM, h:mm a' }}. Se guarda
+                al pulsar Guardar.
+              } @else if (rateIsManual() && form().usd_rate === null) {
+                Escribe la tasa que usa tu tienda.
+              } @else if (form().usd_rate === null && !rateIsManual()) {
+                No se pudo consultar ahora. Se intentará de nuevo al guardar.
               } @else if (rateUpdatedAt()) {
                 Actualizada el {{ rateUpdatedAt() | date: 'd MMM, h:mm a' }}.
               } @else {

@@ -55,7 +55,7 @@ import {
 import { validateFlow } from "../engine/validateFlow.js";
 import { canTransition, nextStatuses } from "../domain/orderStatus.js";
 import type { StoryPostResult } from "../services/storyScheduler.js";
-import type { RefreshOutcome } from "../services/rates.js";
+import type { FetchedRate, RefreshOutcome } from "../services/rates.js";
 import { deleteStoryAndMedia, discardDroppedMedia } from "../services/stories.js";
 import { localDateKey, parseTimeMinutes } from "../domain/storySchedule.js";
 import { DEFAULT_KEYWORDS, normalize } from "../engine/intents.js";
@@ -89,6 +89,8 @@ export interface WebDeps {
   postStoryNow: (storyId: string) => Promise<StoryPostResult>;
   /** Fetch the exchange rate now, for the "Actualizar ahora" button. */
   refreshRate: () => Promise<RefreshOutcome>;
+  /** What a source quotes right now, without persisting it. */
+  quoteRate: (source: RateSource) => Promise<FetchedRate | null>;
 }
 
 
@@ -1027,6 +1029,22 @@ export class WebServer {
      */
     app.get("/api/store/rate-sources", (_req, res) => {
       res.json(RATE_SOURCE_OPTIONS);
+    });
+
+    /**
+     * What a source is quoting right now, without saving anything.
+     *
+     * The panel asks as soon as the owner picks a source, so the field shows the number
+     * immediately instead of sitting empty until they save.
+     */
+    app.get("/api/store/rate/quote", async (req, res) => {
+      const source = String(req.query.source ?? "");
+      if (!RATE_SOURCES.includes(source as RateSource)) {
+        res.status(400).json({ error: "Fuente de tasa no válida" });
+        return;
+      }
+      const quote = await this.deps.quoteRate(source as RateSource);
+      res.json({ rate: quote?.rate ?? null, updated_at: quote?.updatedAt ?? null });
     });
 
     // Refresh the exchange rate on demand, for the "Actualizar ahora" button.
