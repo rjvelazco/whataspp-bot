@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import type { Server as HttpServer } from "node:http";
 import { config } from "../config.js";
 import { containedPath } from "../domain/uploads.js";
 import { ensureThumbnail, removeThumbnail } from "../services/thumbnails.js";
@@ -282,6 +283,8 @@ function buildItemFromBody(
  */
 export class WebServer {
   private readonly clients = new Set<Response>();
+  /** The listening socket, kept so shutdown can close it. */
+  private server?: HttpServer;
   private status: WebStatus = { state: "idle" };
 
   constructor(private readonly deps: WebDeps) {}
@@ -480,6 +483,34 @@ export class WebServer {
       logger.error({ err }, "failed to send message");
       return false;
     }
+  }
+
+  /**
+   * Stop listening and let the process exit.
+   *
+   * The SSE responses are ended explicitly: `server.close()` waits for open connections
+   * to finish, and an event stream never finishes on its own — so the admin panel
+   * sitting open in a browser tab was enough to keep the bot alive through a Ctrl+C.
+   */
+  async close(): Promise<void> {
+    for (const client of this.clients) {
+      try {
+        client.end();
+      } catch {
+        // already gone
+      }
+    }
+    this.clients.clear();
+    const server = this.server;
+    this.server = undefined;
+    if (!server) return;
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+      // Ending a response is not always enough: a client can hold the socket open in a
+      // keep-alive pool, and server.close() waits for every one of them. Shutdown has
+      // to be deterministic, so any that remain are torn down.
+      server.closeAllConnections();
+    });
   }
 
   listen(port: number, host: string = config.webHost): void {
@@ -1141,7 +1172,7 @@ export class WebServer {
     };
     app.use(onError);
 
-    app.listen(port, host, () => {
+    this.server = app.listen(port, host, () => {
       const url = `http://${LOOPBACK_HOSTS.has(host) ? "localhost" : host}:${port}`;
       logger.info(config.adminToken ? `Web UI on ${url}/?token=<ADMIN_TOKEN>` : `Web UI on ${url}`);
     });

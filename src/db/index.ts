@@ -44,3 +44,17 @@ export function migrateStoredUploads(): void {
     logger.info(migrated, "migrated stored upload paths to bare filenames");
   }
 }
+
+/**
+ * Close the SQLite connection.
+ *
+ * Called from the shutdown path so WAL is checkpointed on the way out rather than left
+ * for the next boot to recover.
+ */
+export function closeDb(): void {
+  try {
+    db.close();
+  } catch (err) {
+    logger.warn({ err }, "error closing the database");
+  }
+}
