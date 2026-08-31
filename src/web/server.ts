@@ -818,7 +818,7 @@ export class WebServer {
       res.json({ ...store, keywords: store.keywords ?? DEFAULT_KEYWORDS });
     });
 
-    app.put("/api/store", (req, res) => {
+    app.put("/api/store", async (req, res) => {
       const existing = getStoreById(this.storeId);
       if (!existing) {
         res.status(404).json({ error: "store not found" });
@@ -899,7 +899,30 @@ export class WebServer {
         rate_failed_at,
         keywords,
       };
+      // A rate belongs to the source it came from. Switching feeds used to leave the
+      // old number on screen under the new label — the dollar rate presented as
+      // "Bs. por €1" — and the bot would quote it that way to customers for up to six
+      // hours. Clear it and fetch the new one before answering.
+      const sourceChanged = rate_source !== existing.rate_source;
+      const needsFetch = sourceChanged && rate_source !== "custom";
+      if (needsFetch) {
+        updated.usd_rate = undefined;
+        updated.usd_rate_updated_at = undefined;
+      }
       upsertStore(updated);
+
+      if (needsFetch) {
+        // Awaited rather than fired and forgotten, so the response carries the rate the
+        // owner is about to see. A failure leaves the value empty and rate_failed_at
+        // set, which the panel already surfaces — better than quoting euros in dollars.
+        await this.deps.refreshRate();
+        const refreshed = getStoreById(this.storeId);
+        if (refreshed) {
+          logger.info({ source: rate_source, rate: refreshed.usd_rate }, "store config saved");
+          res.json(refreshed);
+          return;
+        }
+      }
       logger.info("store config saved");
       res.json(updated);
     });

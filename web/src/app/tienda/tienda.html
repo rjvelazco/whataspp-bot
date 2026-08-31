@@ -164,7 +164,7 @@
               optionLabel="label"
               optionValue="value"
               [ngModel]="form().rate_source"
-              (ngModelChange)="patch('rate_source', $event)"
+              (ngModelChange)="patchRateSource($event)"
             />
             <span class="field-note">{{ rateChoice()?.note }}</span>
           </label>
@@ -193,7 +193,9 @@
               [disabled]="!rateIsManual()"
             />
             <span class="field-note">
-              @if (rateUpdatedAt()) {
+              @if (form().usd_rate === null && !rateIsManual()) {
+                Se busca la tasa de esta fuente al guardar.
+              } @else if (rateUpdatedAt()) {
                 Actualizada el {{ rateUpdatedAt() | date: 'd MMM, h:mm a' }}.
               } @else {
                 Aún no hay tasa guardada.

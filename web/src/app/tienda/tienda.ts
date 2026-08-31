@@ -231,6 +231,21 @@ export class Tienda implements OnInit {
   protected patch<K extends keyof TiendaForm>(key: K, value: TiendaForm[K]): void {
     this.form.update((f) => ({ ...f, [key]: value }));
   }
+
+  /**
+   * Changing the source clears the number.
+   *
+   * The rate belongs to the feed it came from, so leaving it on screen showed the
+   * dollar rate under "Bs. por €1". The server fetches the new one on save; a custom
+   * rate keeps whatever is there, because that number is the owner's.
+   */
+  protected patchRateSource(source: RateSource): void {
+    this.form.update((f) => ({
+      ...f,
+      rate_source: source,
+      usd_rate: source === 'custom' ? f.usd_rate : null,
+    }));
+  }
   protected patchPayment(key: PaymentKey, value: string): void {
     this.form.update((f) => ({ ...f, payments: { ...f.payments, [key]: value } }));
   }
