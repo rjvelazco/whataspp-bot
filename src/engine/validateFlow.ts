@@ -29,6 +29,16 @@ function triggerWords(menu: FlowMenu): string[] {
 export function validateFlow(input: FlowMenu[], keywords?: StoreKeywords): FlowIssue[] {
   const issues: FlowIssue[] = [];
 
+  // A flow with no menus leaves the bot mute: there is nothing to greet a customer
+  // with. The panel hides the delete button on the entry menu, but a hidden button is
+  // not a guard — it depends on a fetch that can fail.
+  if (Array.isArray(input) && input.length === 0) {
+    issues.push({
+      severity: "error",
+      message: "El bot necesita al menos un menú. Sin ninguno no puede responder nada.",
+    });
+  }
+
   // --- shape: menus arrive as stored/posted JSON, so nothing is guaranteed ---
   // Every later section indexes into options, so malformed menus are reported
   // and then dropped rather than crashing the caller with a TypeError.

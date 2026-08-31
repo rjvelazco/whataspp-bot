@@ -17,7 +17,7 @@ export class App {
   /**
    * The active path, as a signal. Seeded from the browser URL because router.url
    * is still "/" until the initial navigation finishes on reload — reading only
-   * that would clobber a deep link like /dashboard/configuracion. Kept reactive
+   * that would clobber a deep link like /dashboard/menus. Kept reactive
    * afterwards so the routing effect re-runs when navigation resolves, not just
    * when the connection status changes.
    */

@@ -1,0 +1,287 @@
+<app-page-head
+  eyebrow="El bot"
+  title="Menús"
+  lede="Cada tarjeta es un menú del bot. Ábrela para editar su mensaje, las palabras que lo abren y sus opciones."
+>
+  <p-button label="Nuevo menú" icon="pi pi-plus" styleClass="new-menu" (onClick)="openNew()" />
+</app-page-head>
+
+@if (issues().length) {
+  <app-card class="block mb-6">
+    <app-toolbar>
+      <h2 class="m-0 text-lg font-semibold">Revisión del flujo</h2>
+      <p-button
+        class="ml-auto"
+        icon="pi pi-times"
+        [text]="true"
+        [rounded]="true"
+        size="small"
+        severity="secondary"
+        ariaLabel="Ocultar la revisión del flujo"
+        (onClick)="dismissIssues()"
+      />
+    </app-toolbar>
+    <ul class="issues">
+      @for (issue of issues(); track $index) {
+        <li>{{ issue.message }}</li>
+      }
+    </ul>
+  </app-card>
+}
+
+<div
+  class="menu-grid"
+  cdkDropList
+  cdkDropListOrientation="mixed"
+  (cdkDropListDropped)="dropMenu($event)"
+>
+  @for (card of cards(); track card.menu.key) {
+    <article class="menu" [class.is-entry]="card.isEntry" cdkDrag>
+      <header class="menu-head">
+        <!-- A real button, not a div with role="button": the card also holds a delete
+             button and a drag handle, and interactive elements cannot nest. -->
+        <h2 class="menu-name">
+          <button type="button" class="menu-open" (click)="openEdit(card.index)">
+            {{ card.name }}
+          </button>
+        </h2>
+        <span class="menu-actions">
+          <button
+            type="button"
+            class="menu-drag"
+            cdkDragHandle
+            [id]="'drag-' + card.menu.key"
+            pTooltip="Arrastra, o usa las flechas"
+            [attr.aria-label]="'Reordenar ' + card.name + '. Usa las flechas.'"
+            (click)="$event.stopPropagation()"
+            (keydown.arrowup)="moveMenu(card.index, -1, $event); $event.preventDefault()"
+            (keydown.arrowleft)="moveMenu(card.index, -1, $event); $event.preventDefault()"
+            (keydown.arrowdown)="moveMenu(card.index, 1, $event); $event.preventDefault()"
+            (keydown.arrowright)="moveMenu(card.index, 1, $event); $event.preventDefault()"
+          >
+            <i class="pi pi-bars" aria-hidden="true"></i>
+          </button>
+          @if (!card.isEntry) {
+            <p-button
+              icon="pi pi-trash"
+              [text]="true"
+              [rounded]="true"
+              severity="danger"
+              size="small"
+              pTooltip="Eliminar"
+              [ariaLabel]="'Eliminar ' + card.name"
+              (onClick)="deleteMenu(card.index, $event)"
+            />
+          }
+        </span>
+      </header>
+
+      @if (card.isEntry) {
+        <!-- Replaces a star icon and a bare "5/5": this says what the menu IS. -->
+        <span class="badge">Primer mensaje</span>
+      }
+
+      <p class="menu-preview">{{ card.preview }}</p>
+
+      @if (card.triggers.length) {
+        <ul class="menu-triggers">
+          @for (w of card.triggers; track w) {
+            <li>{{ w }}</li>
+          }
+        </ul>
+      }
+
+      <footer class="menu-foot">
+        <span>{{ card.optionCount }} opciones</span>
+        @if (card.unwired) {
+          <span class="unwired">{{ card.unwired }}</span>
+        }
+      </footer>
+    </article>
+  }
+
+  <!-- Dashed = creates something new. -->
+  <button type="button" class="menu-add" (click)="openNew()">
+    <i class="pi pi-plus" aria-hidden="true"></i>
+    <span>Nuevo menú</span>
+  </button>
+</div>
+
+<!-- ── Editor ────────────────────────────────────────────────────────────── -->
+<p-dialog
+  [visible]="modalOpen()"
+  (visibleChange)="!$event && cancelModal()"
+  [modal]="true"
+  [draggable]="false"
+  [dismissableMask]="false"
+  [style]="{ width: '840px', maxWidth: '96vw' }"
+  [header]="isNew() ? 'Nuevo menú' : 'Editar menú'"
+>
+  <div class="editor-grid">
+    <div class="editor-form">
+      @if (modalIssues().length) {
+        <ul class="issues issues-error">
+          @for (issue of modalIssues(); track $index) {
+            <li>{{ issue.message }}</li>
+          }
+        </ul>
+      }
+
+      <label class="field">
+        <span class="field-label">Nombre del menú</span>
+        <input pInputText type="text" [(ngModel)]="draft.name" placeholder="Menú principal" />
+        <span class="field-note">Solo lo ves tú. El cliente ve el mensaje de abajo.</span>
+      </label>
+
+      <div class="field">
+        <span class="field-label">Palabras que abren este menú</span>
+        <app-keyword-chips
+          [words]="triggerWords()"
+          (wordsChange)="setTriggers($event)"
+          label="Palabras que abren este menú"
+        />
+        <span class="field-note">
+          Aunque no sea su turno, escribir una de estas palabras trae al cliente aquí.
+        </span>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Mensaje</span>
+        <app-token-editor
+          [value]="draft.message"
+          (valueChange)="setMessage($event)"
+          [tokens]="tokenChoices"
+          label="Mensaje del menú"
+        />
+        <span class="field-note">
+          Las etiquetas verdes las completa el bot con los datos de tu tienda.
+        </span>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Recursos a enviar</span>
+        <div class="attachments">
+          @for (id of draft.attachments ?? []; track id) {
+            @if (assetById(id); as a) {
+              <p-chip
+                [label]="a.original_name"
+                [icon]="assetIsImage(a) ? 'pi pi-image' : 'pi pi-file-pdf'"
+                [removable]="true"
+                (onRemove)="removeAttachment(id)"
+              />
+            } @else {
+              <p-chip
+                label="Recurso eliminado"
+                icon="pi pi-exclamation-triangle"
+                [removable]="true"
+                (onRemove)="removeAttachment(id)"
+              />
+            }
+          }
+          @if (availableAssets().length > 0) {
+            <p-select
+              [options]="attachOptions()"
+              [(ngModel)]="attachPick"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Adjuntar…"
+              appendTo="body"
+              ariaLabel="Adjuntar un recurso"
+              (onChange)="addAttachment($event.value); attachPick = null"
+            />
+          } @else if (assets().length === 0) {
+            <span class="field-note">
+              No hay recursos aún. Súbelos en <strong>Recursos</strong> para adjuntarlos.
+            </span>
+          }
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Opciones</span>
+        <ol class="options" cdkDropList (cdkDropListDropped)="dropOption($event)">
+          @for (opt of draft.options; track $index; let oi = $index) {
+            <li class="option" cdkDrag>
+              <button
+                type="button"
+                class="option-drag"
+                cdkDragHandle
+                [attr.aria-label]="'Reordenar la opción ' + (oi + 1) + '. Usa las flechas.'"
+                (keydown.arrowup)="moveOption(oi, -1); $event.preventDefault()"
+                (keydown.arrowdown)="moveOption(oi, 1); $event.preventDefault()"
+              >
+                <i class="pi pi-bars" aria-hidden="true"></i>
+              </button>
+              <span class="option-n" aria-hidden="true">{{ oi + 1 }}</span>
+              <input
+                pInputText
+                class="option-label"
+                [(ngModel)]="opt.label"
+                (ngModelChange)="refreshDraftPreview()"
+                [attr.aria-label]="'Texto de la opción ' + (oi + 1)"
+                placeholder="Ver catálogo"
+              />
+              <p-select
+                class="option-action"
+                [options]="optionChoicesFor()"
+                [group]="true"
+                optionLabel="label"
+                optionValue="value"
+                [ngModel]="optionValue(opt)"
+                (ngModelChange)="setOptionTarget(oi, $event)"
+                placeholder="¿Qué hace?"
+                appendTo="body"
+                [attr.aria-label]="'Qué hace la opción ' + (oi + 1)"
+              />
+              @if (isCategory(opt)) {
+                <input
+                  pInputText
+                  class="option-value"
+                  [(ngModel)]="opt.value"
+                  [attr.aria-label]="'Categoría de la opción ' + (oi + 1)"
+                  placeholder="Categoría"
+                />
+              }
+              <p-button
+                icon="pi pi-times"
+                [text]="true"
+                [rounded]="true"
+                severity="secondary"
+                size="small"
+                pTooltip="Quitar opción"
+                [ariaLabel]="'Quitar la opción ' + (oi + 1)"
+                (onClick)="removeOption(oi)"
+              />
+            </li>
+          }
+        </ol>
+        <button type="button" class="option-add" (click)="addOption()">
+          <i class="pi pi-plus" aria-hidden="true"></i>
+          Agregar opción
+        </button>
+      </div>
+    </div>
+
+    <!-- The customer's side. Rendered by the bot's own builder, tokens resolved. -->
+    <aside class="editor-preview">
+      <span class="preview-title">Lo que recibe el cliente</span>
+      <div class="phone">
+        <p class="bubble">{{ draftPreview() || 'Escribe el mensaje para verlo aquí.' }}</p>
+      </div>
+      @if (isEntryDraft()) {
+        <p class="field-note">
+          Este es el primer mensaje del bot. Si lo eliminas, el bot se queda mudo.
+        </p>
+      }
+    </aside>
+  </div>
+
+  <ng-template #footer>
+    <p-button label="Cancelar" [text]="true" severity="secondary" (onClick)="cancelModal()" />
+    <p-button
+      [label]="saving() ? 'Guardando…' : 'Guardar'"
+      [disabled]="saving()"
+      (onClick)="saveModal()"
+    />
+  </ng-template>
+</p-dialog>

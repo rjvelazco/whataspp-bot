@@ -1,4 +1,5 @@
-import type { CatalogItem, FlowMenu, FlowOption, Store } from "../domain/types.js";
+import type { CatalogItem, FlowMenu, FlowOption, MessageToken, Store } from "../domain/types.js";
+import { rateLine } from "../domain/rates.js";
 import type { Intent } from "./intents.js";
 import { normalize } from "./intents.js";
 import type { EngineInput, HandlerOutput, Outgoing } from "./stateMachine.js";
@@ -145,10 +146,31 @@ function showOffers(input: EngineInput): HandlerOutput {
 // ---------- configured-menu flow ----------
 
 /** Replace {store_name} / {owner_name} placeholders in a configured message. */
+/**
+ * What each message token resolves to.
+ *
+ * Keyed by MessageToken, so a new token is a compile error here until it resolves to
+ * something. Typing {tasa} into a menu used to ship the literal text "{tasa}" to the
+ * customer, because only two of the tokens the panel offered were ever substituted.
+ */
+const TOKEN_VALUES: Record<MessageToken, (store: Store) => string> = {
+  store_name: (store) => store.store_name,
+  owner_name: (store) => store.owner_name,
+  horario: (store) => store.hours,
+  direccion: (store) => store.address ?? "",
+  // Shared with the `tasa` reply rather than rebuilt: this copy had already lost the
+  // currency fallback (a bad rate_source rendered "undefined1") and the "actualizada"
+  // suffix, which is exactly how the duplications already in CLAUDE.md started.
+  tasa: (store) => rateLine(store) ?? "",
+};
+
 export function fillPlaceholders(message: string, store: Store): string {
-  return message
-    .replaceAll("{store_name}", store.store_name)
-    .replaceAll("{owner_name}", store.owner_name);
+  return message.replace(/\{([a-z_]+)\}/g, (whole, name: string) => {
+    const resolve = TOKEN_VALUES[name as MessageToken];
+    // An unknown token is left alone rather than blanked: a customer seeing "{precio}"
+    // is a bug the owner can spot, while silently deleting it hides it.
+    return resolve ? resolve(store) : whole;
+  });
 }
 
 export function findMenuByKey(menus: FlowMenu[], key: string): FlowMenu | undefined {
@@ -177,13 +199,23 @@ export function findMenuByTrigger(menus: FlowMenu[], rawText: string): FlowMenu 
   );
 }
 
+/**
+ * The exact text a menu sends: message with its tokens resolved, then the numbered
+ * options. Split out of renderMenu so the admin panel's preview can show what the
+ * customer actually receives instead of re-typing the format.
+ */
+export function menuText(menu: FlowMenu, store: Store): string {
+  const body = fillPlaceholders(menu.message, store);
+  if (!menu.options.length) return body;
+  return (
+    `${body}\n\n${menu.options.map((o, i) => `${keycap(i + 1)} ${o.label}`).join("\n")}` +
+    `\n\nResponde con el número de la opción.`
+  );
+}
+
 /** Render a configured menu: message + numbered options, plus any attachments. */
 export function renderMenu(menu: FlowMenu, store: Store): Outgoing[] {
-  const body = fillPlaceholders(menu.message, store);
-  const full = menu.options.length
-    ? `${body}\n\n${menu.options.map((o, i) => `${keycap(i + 1)} ${o.label}`).join("\n")}` +
-      `\n\nResponde con el número de la opción.`
-    : body;
+  const full = menuText(menu, store);
   const replies: Outgoing[] = [text(full)];
   for (const id of menu.attachments ?? []) replies.push({ kind: "asset", assetId: id });
   return replies;

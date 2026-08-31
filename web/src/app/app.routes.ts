@@ -20,9 +20,13 @@ export const routes: Routes = [
         loadComponent: () => import('./recursos/recursos').then((m) => m.Recursos),
       },
       {
-        path: 'configuracion',
-        loadComponent: () => import('./configuracion/configuracion').then((m) => m.Configuracion),
+        path: 'menus',
+        loadComponent: () => import('./menus-view/menus-view').then((m) => m.MenusView),
       },
+      // "Configuración" described where the view lived in the code; "Menús" describes
+      // what the owner edits. The old path stays as a redirect so a bookmark or a deep
+      // link the owner already has keeps working.
+      { path: 'configuracion', redirectTo: 'menus', pathMatch: 'full' },
     ],
   },
   { path: '**', redirectTo: '' },

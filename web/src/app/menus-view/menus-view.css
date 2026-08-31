@@ -1,0 +1,301 @@
+:host {
+  display: block;
+}
+
+/* Dashed = creates something new, wherever it appears. */
+:host ::ng-deep .new-menu .p-button {
+  border-style: dashed;
+}
+
+.issues {
+  list-style: none;
+  margin: 0;
+  padding: 16px var(--card-inset) 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--text-sm);
+}
+.issues li {
+  padding-left: 16px;
+  border-left: 3px solid var(--color-amber);
+}
+.issues-error li {
+  border-left-color: var(--color-rose);
+}
+
+/* ── The menu cards ─────────────────────────────────────────────────────── */
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+}
+/* The bot's first message, marked by an edge rather than by a star and a ratio. */
+.menu.is-entry {
+  border-left: 3px solid var(--color-signal);
+}
+.menu-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.menu-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-base);
+}
+.menu-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.menu-open:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.menu-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.menu-drag,
+.option-drag {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  /* Every tappable control keeps a boundary at rest — there is no hover on mobile. */
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  color: var(--color-ink-3);
+  cursor: grab;
+}
+.menu-drag:focus-visible,
+.option-drag:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+.badge {
+  align-self: flex-start;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--color-signal-soft);
+  color: var(--color-signal-ink);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+}
+
+.menu-preview {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-2);
+  white-space: pre-wrap;
+  display: -webkit-box;
+  line-clamp: 3;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.menu-triggers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.menu-triggers li {
+  padding: 0 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  font-size: var(--text-2xs);
+  color: var(--color-ink-2);
+}
+
+.menu-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line-soft);
+  font-size: var(--text-2xs);
+  color: var(--color-ink-3);
+}
+/* Amber: waiting on the owner to finish something. */
+.unwired {
+  color: var(--color-amber);
+}
+
+.menu-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 160px;
+  border: 1px dashed var(--color-signal);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+  color: var(--color-signal-ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.menu-add:focus-visible,
+.option-add:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+/* ── Editor ─────────────────────────────────────────────────────────────── */
+.editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 24px;
+  align-items: start;
+}
+.editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.field-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.field-note {
+  font-size: var(--text-2xs);
+  color: var(--color-ink-3);
+}
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The customer replies with this number, so it is data. */
+.option-n {
+  flex: 0 0 24px;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-3);
+  text-align: center;
+}
+.option-label {
+  flex: 1.2 1 160px;
+  min-width: 0;
+}
+/* A basis, not just a grow factor: with min-width 0 the select collapsed to one letter
+   whenever the row also held a category field. */
+.option-action {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+.option-value {
+  flex: 0 0 120px;
+}
+.option-add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  height: 32px;
+  border: 1px dashed var(--color-signal);
+  border-radius: 999px;
+  background: var(--color-paper);
+  color: var(--color-signal-ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.editor-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+}
+.preview-title {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-3);
+}
+.phone {
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-wash);
+}
+.bubble {
+  margin: 0;
+  padding: 8px 16px;
+  border-radius: var(--radius-lg);
+  border-top-left-radius: var(--radius-sm);
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .editor-grid {
+    grid-template-columns: 1fr;
+  }
+  .editor-preview {
+    position: static;
+  }
+  .option {
+    flex-wrap: wrap;
+  }
+  .option-label,
+  .option-action {
+    flex-basis: 100%;
+  }
+}

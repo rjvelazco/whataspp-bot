@@ -23,4 +23,24 @@ export class MenusService {
   save(menus: FlowMenu[]): Observable<SaveMenusResult> {
     return this.http.put<SaveMenusResult>('/api/menus', { menus });
   }
+
+  /**
+   * Which menu is the bot's first message.
+   *
+   * Asked for rather than worked out here: the rule lived in the panel *and* in
+   * `findEntryMenu`, and CLAUDE.md lists the pair as a shipped duplication.
+   */
+  entryKey(): Observable<{ key: string | null }> {
+    return this.http.get<{ key: string | null }>('/api/menus/entry');
+  }
+
+  /** Every menu's text with its tokens resolved, keyed by menu key. */
+  previews(): Observable<Record<string, string>> {
+    return this.http.get<Record<string, string>>('/api/menus/previews');
+  }
+
+  /** What an unsaved draft would send, rendered by the bot's own builder. */
+  preview(menu: FlowMenu): Observable<{ text: string }> {
+    return this.http.post<{ text: string }>('/api/menus/preview', menu);
+  }
 }

@@ -13,6 +13,8 @@ import type {
   Asset,
   AssetCategory,
   CatalogItem,
+  FlowMenu,
+  FlowOption,
   Order,
   OrderStatus,
   Store,
@@ -60,6 +62,7 @@ import { deleteStoryAndMedia, discardDroppedMedia } from "../services/stories.js
 import { localDateKey, parseTimeMinutes } from "../domain/storySchedule.js";
 import { DEFAULT_KEYWORDS, normalize } from "../engine/intents.js";
 import { RATE_SOURCE_OPTIONS } from "../domain/rates.js";
+import { findEntryMenu, menuText } from "../engine/handlers.js";
 import {
   exchangeRate,
   paymentMethods,
@@ -1139,6 +1142,63 @@ export class WebServer {
       }
       const result = await this.deps.postStoryNow(story.id);
       res.json(result);
+    });
+
+    /**
+     * Which menu is the bot's first message.
+     *
+     * Served rather than recomputed in the panel: the rule ("triggered by hola/menu/
+     * inicio, else the first") lived in both places and CLAUDE.md lists the pair as one
+     * of this repo's shipped duplications. findEntryMenu is the bot's own function.
+     */
+    app.get("/api/menus/entry", (_req, res) => {
+      const entry = findEntryMenu(getMenus(this.storeId));
+      res.json({ key: entry?.key ?? null });
+    });
+
+    /**
+     * Every menu's rendered text, keyed by menu key, for the card previews.
+     *
+     * One request rather than resolving tokens in the panel: a second implementation of
+     * the substitution is exactly how {tasa} came to be offered by the editor and never
+     * substituted by the bot.
+     */
+    app.get("/api/menus/previews", (_req, res) => {
+      const store = getStoreById(this.storeId);
+      if (!store) {
+        res.status(404).json({ error: "store not found" });
+        return;
+      }
+      const out: Record<string, string> = {};
+      for (const menu of getMenus(this.storeId)) out[menu.key] = menuText(menu, store);
+      res.json(out);
+    });
+
+    /**
+     * What a menu would actually send, for the editor's live preview.
+     *
+     * Rendered by the bot's own menuText(), so the preview cannot drift from the
+     * format — and so tokens resolve exactly as the customer will see them.
+     */
+    app.post("/api/menus/preview", (req, res) => {
+      const store = getStoreById(this.storeId);
+      if (!store) {
+        res.status(404).json({ error: "store not found" });
+        return;
+      }
+      const b = (req.body ?? {}) as Partial<FlowMenu>;
+      const menu: FlowMenu = {
+        key: typeof b.key === "string" ? b.key : "preview",
+        name: typeof b.name === "string" ? b.name : "",
+        message: typeof b.message === "string" ? b.message : "",
+        // Element-wise, not just Array.isArray: a `[null]` reached menuText and 500'd.
+        options: Array.isArray(b.options)
+          ? b.options
+              .filter((o): o is FlowOption => !!o && typeof o === "object")
+              .map((o) => ({ ...o, label: String(o.label ?? "") }))
+          : [],
+      };
+      res.json({ text: menuText(menu, store) });
     });
 
     // --- Menus (flow builder config) ---

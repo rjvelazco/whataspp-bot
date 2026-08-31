@@ -11,6 +11,7 @@ export type {
   FlowOption,
   FlowAction,
   FlowIssue,
+  MessageToken,
   CatalogItem,
   Variant,
   Order,

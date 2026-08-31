@@ -128,24 +128,4 @@ export default tseslint.config(
     files: ['src/app/pedidos/pedidos.html'],
     rules: { '@angular-eslint/template/elements-content': 'off' },
   },
-  {
-    // Pre-existing accessibility debt, carried as warnings so `npm run lint` stays
-    // green while it is worked off. Each entry names the step that clears it; delete
-    // the entry in that same change rather than letting this block ossify.
-    //
-    // configuracion.html, three findings, all real:
-    //   - the CDK drag handle has a click handler but no keyboard path, so menu
-    //     reordering is mouse-only;
-    //   - two <label> elements are used as section headings and label nothing (the
-    //     trigger-word input is their sibling, and the attachment list has no control
-    //     at all), so a screen reader announces a label with no target.
-    // Both are cleared by PR 6, which rebuilds the menu editor (step 16) and adds a
-    // keyboard reorder affordance in the accessibility audit (step 17).
-    files: ['src/app/configuracion/configuracion.html'],
-    rules: {
-      '@angular-eslint/template/interactive-supports-focus': 'warn',
-      '@angular-eslint/template/click-events-have-key-events': 'warn',
-      '@angular-eslint/template/label-has-associated-control': 'warn',
-    },
-  },
 );
