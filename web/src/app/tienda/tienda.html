@@ -117,16 +117,36 @@
               (ngModelChange)="patch('address', $event)"
             ></textarea>
           </label>
-          <label class="field">
-            <span class="field-label">Enlace de Google Maps</span>
-            <input
-              pInputText
-              type="url"
-              placeholder="https://maps.app.goo.gl/…"
-              [ngModel]="form().maps_url"
-              (ngModelChange)="patch('maps_url', $event)"
-            />
-          </label>
+          <div class="field">
+            <label class="field-label" for="maps-url">Ubicación en el mapa</label>
+            <span class="maps-row">
+              <input
+                pInputText
+                id="maps-url"
+                type="url"
+                placeholder="https://maps.app.goo.gl/…"
+                [ngModel]="form().maps_url"
+                (ngModelChange)="patch('maps_url', $event)"
+              />
+              <p-button
+                label="Elegir en el mapa"
+                icon="pi pi-map-marker"
+                size="small"
+                [outlined]="true"
+                severity="secondary"
+                (onClick)="mapOpen.set(true)"
+              />
+            </span>
+            <span class="field-note">
+              Ponle el punto en el mapa y el enlace se llena solo. Tu dirección escrita no cambia —
+              es la que el bot le manda al cliente.
+            </span>
+            @if (form().maps_url) {
+              <a class="maps-open" [href]="form().maps_url" target="_blank" rel="noopener">
+                Abrir el enlace para comprobarlo
+              </a>
+            }
+          </div>
         </div>
       }
 
@@ -297,3 +317,9 @@
     <p class="field-note">Esto es exactamente lo que el bot envía, con tus cambios sin guardar.</p>
   }
 </p-drawer>
+
+<app-map-picker
+  [(open)]="mapOpen"
+  [current]="form().maps_url"
+  (picked)="patch('maps_url', $event)"
+/>

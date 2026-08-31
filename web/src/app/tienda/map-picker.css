@@ -1,0 +1,75 @@
+:host {
+  display: block;
+}
+
+.search {
+  position: relative;
+  margin-bottom: 16px;
+}
+.hits {
+  position: absolute;
+  z-index: 1000;
+  inset-inline: 0;
+  margin: 8px 0 0;
+  padding: 8px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-card, none);
+}
+.hits button {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.hits button:hover,
+.hits button:focus-visible {
+  background: var(--color-wash);
+  outline: none;
+}
+
+.lede {
+  margin: 8px 0;
+  font-size: var(--text-2xs);
+  color: var(--color-ink-3);
+}
+.coords {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-2);
+}
+
+.map {
+  height: 400px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  /* Rounded corners clip nothing without this, and a tile can sit outside the box. */
+  overflow: hidden;
+}
+
+/* The marker: a token-coloured dot, so no bundler-relative image has to resolve. */
+:host ::ng-deep .store-pin-dot {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--color-paper);
+  border-radius: 999px;
+  background: var(--color-signal);
+  box-shadow: 0 1px 4px var(--color-scrim);
+}
+
+@media (max-width: 720px) {
+  .map {
+    height: 280px;
+  }
+}

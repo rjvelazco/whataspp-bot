@@ -180,3 +180,19 @@
     max-width: none;
   }
 }
+
+/* ── Map link ───────────────────────────────────────────────────────────── */
+.maps-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.maps-row input {
+  flex: 1;
+  min-width: 200px;
+}
+.maps-open {
+  font-size: var(--text-2xs);
+  color: var(--color-signal-ink);
+}

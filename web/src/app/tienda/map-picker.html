@@ -1,0 +1,49 @@
+<p-dialog
+  [visible]="open()"
+  (visibleChange)="$event ? open.set(true) : cancel()"
+  [modal]="true"
+  [draggable]="false"
+  [dismissableMask]="false"
+  [style]="{ width: '720px', maxWidth: '96vw' }"
+  header="Elegir la ubicación"
+>
+  <div class="search">
+    <label class="sr-only" for="map-search">Buscar una dirección</label>
+    <input
+      pInputText
+      id="map-search"
+      type="search"
+      class="w-full"
+      placeholder="Busca tu calle, centro comercial o ciudad"
+      [(ngModel)]="query"
+      (ngModelChange)="onSearchInput()"
+    />
+    @if (hits().length) {
+      <ul class="hits">
+        @for (h of hits(); track h.label) {
+          <li>
+            <button type="button" (click)="choose(h)">{{ h.label }}</button>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+
+  <p class="lede">Toca el mapa para poner el punto exacto de tu tienda.</p>
+
+  <!-- Leaflet needs a sized container it can measure, so the height is fixed here. -->
+  <div #map class="map" role="application" aria-label="Mapa para elegir la ubicación"></div>
+
+  <p class="lede">
+    @if (point(); as p) {
+      Punto elegido:
+      <span class="coords">{{ p.lat | number: '1.5-5' }}, {{ p.lng | number: '1.5-5' }}</span>
+    } @else {
+      Aún no has elegido un punto.
+    }
+  </p>
+
+  <ng-template #footer>
+    <p-button label="Usar esta ubicación" [disabled]="!point()" (onClick)="confirm()" />
+  </ng-template>
+</p-dialog>

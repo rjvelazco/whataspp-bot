@@ -20,6 +20,7 @@ import {
 } from '../store.service';
 import { apiErrorMessage } from '../api-error';
 import { Card, KeywordChips, PageHead, Toolbar } from '../ui';
+import { MapPicker } from './map-picker';
 
 type PaymentKey = 'pago_movil' | 'zelle' | 'binance';
 type KeywordTopic = keyof StoreKeywords;
@@ -138,6 +139,7 @@ function normalizeStore(store: Store): TiendaForm {
     Card,
     Toolbar,
     KeywordChips,
+    MapPicker,
   ],
   templateUrl: './tienda.html',
   styleUrl: './tienda.css',
@@ -188,6 +190,9 @@ export class Tienda implements OnInit {
     { key: 'zelle', label: 'Zelle', placeholder: 'correo@zelle.com' },
     { key: 'binance', label: 'Binance', placeholder: 'usuario_binance' },
   ];
+
+  /** The map picker only ever writes the link; the typed address is left alone. */
+  protected readonly mapOpen = signal(false);
 
   // --- bot preview drawer ---
   protected readonly previewOpen = signal(false);
