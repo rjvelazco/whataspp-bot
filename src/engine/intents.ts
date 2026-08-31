@@ -1,3 +1,5 @@
+import type { StoreKeywords } from "../domain/types.js";
+
 /** Turn raw customer text into a normalized intent the handlers can switch on. */
 
 export type Intent =
@@ -52,45 +54,39 @@ const SIZE_GUIDE_WORDS = [
   "tabla de tallas",
 ];
 
-// Informational keywords (normalized, so accents/case already stripped). Matched by
-// substring so "cual es la tasa" and "tasa" both hit. Order matters: the first list
-// that matches wins (see parseIntent).
-const RATE_WORDS = ["tasa", "dolar", "precio del dolar", "cambio del dia"];
-const ADDRESS_WORDS = [
-  "direccion",
-  "ubicacion",
-  "donde estan",
-  "donde queda",
-  "como llego",
-  "como llegar",
-];
-const SHIPPING_WORDS = ["envio", "envios", "delivery", "despacho", "hacen envios"];
-const PAYMENT_WORDS = [
-  "pago",
-  "pagos",
-  "metodos de pago",
-  "formas de pago",
-  "como pagar",
-  "como pago",
-];
-const OFFERS_WORDS = [
-  "ofertas",
-  "oferta",
-  "promociones",
-  "promocion",
-  "promo",
-  "descuentos",
-  "rebajas",
-];
-const HOURS_WORDS = [
-  "horario",
-  "horarios",
-  "hora de atencion",
-  "horas de atencion",
-  "a que hora abren",
-];
+/**
+ * The informational keywords a store starts with.
+ *
+ * Normalized already (no accents, lowercase), and matched by substring so "cual es la
+ * tasa" and "tasa" both hit. Order matters: the first topic that matches wins, which is
+ * why shipping is checked before payment — "envíos y pagos" should answer about envíos.
+ *
+ * A store can edit these from Tienda; this is only the seed.
+ */
+export const DEFAULT_KEYWORDS: StoreKeywords = {
+  rate: ["tasa", "dolar", "precio del dolar", "cambio del dia"],
+  address: ["direccion", "ubicacion", "donde estan", "donde queda", "como llego", "como llegar"],
+  shipping: ["envio", "envios", "delivery", "despacho", "hacen envios"],
+  payment: ["pago", "pagos", "metodos de pago", "formas de pago", "como pagar", "como pago"],
+  offers: ["ofertas", "oferta", "promociones", "promocion", "promo", "descuentos", "rebajas"],
+  hours: ["horario", "horarios", "hora de atencion", "horas de atencion", "a que hora abren"],
+};
 
-export function parseIntent(rawText: string): Intent {
+/** The topic order the matcher walks, and the intent each one produces. */
+const KEYWORD_INTENTS = [
+  ["rate", "show_rate"],
+  ["address", "show_address"],
+  ["shipping", "show_shipping"],
+  ["payment", "show_payment"],
+  ["offers", "show_offers"],
+  ["hours", "hours"],
+] as const;
+
+/**
+ * @param keywords the store's own informational keywords; the seeded defaults when a
+ * store has never edited them.
+ */
+export function parseIntent(rawText: string, keywords: StoreKeywords = DEFAULT_KEYWORDS): Intent {
   const text = normalize(rawText);
 
   if (HUMAN_WORDS.some((w) => text.includes(w))) return { type: "talk_human" };
@@ -102,13 +98,24 @@ export function parseIntent(rawText: string): Intent {
   const orderMatch = text.match(/^pedir\s+([a-z0-9]+)$/);
   if (orderMatch) return { type: "order_code", code: orderMatch[1].toUpperCase() };
 
-  // Informational keywords. Shipping before payment so "envíos y pagos" resolves to shipping.
-  if (RATE_WORDS.some((w) => text.includes(w))) return { type: "show_rate" };
-  if (ADDRESS_WORDS.some((w) => text.includes(w))) return { type: "show_address" };
-  if (SHIPPING_WORDS.some((w) => text.includes(w))) return { type: "show_shipping" };
-  if (PAYMENT_WORDS.some((w) => text.includes(w))) return { type: "show_payment" };
-  if (OFFERS_WORDS.some((w) => text.includes(w))) return { type: "show_offers" };
-  if (HOURS_WORDS.some((w) => text.includes(w))) return { type: "hours" };
+  // Informational keywords, in topic order: shipping before payment, so "envíos y pagos"
+  // resolves to shipping. An owner's own words are normalized here too, so a chip typed
+  // as "Envíos" still matches.
+  for (const [topic, type] of KEYWORD_INTENTS) {
+    // Defensive about shape, not just about absence: this runs on every inbound message,
+    // so one malformed stored row would otherwise throw and silence the whole bot rather
+    // than degrade one topic.
+    const stored = keywords?.[topic];
+    const words = Array.isArray(stored) ? stored : DEFAULT_KEYWORDS[topic];
+    const hit = words.some((w) => {
+      if (typeof w !== "string") return false;
+      const needle = normalize(w);
+      // A whitespace-only word normalizes to "", and text.includes("") is always true —
+      // one blank chip would answer every message with the same canned reply.
+      return needle.length > 0 && text.includes(needle);
+    });
+    if (hit) return { type } as Intent;
+  }
 
   if (CONFIRM_WORDS.includes(text)) return { type: "confirm" };
 

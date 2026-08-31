@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import type { Server as HttpServer } from "node:http";
 import { config } from "../config.js";
 import { containedPath } from "../domain/uploads.js";
 import { ensureThumbnail, removeThumbnail } from "../services/thumbnails.js";
@@ -15,7 +16,10 @@ import type {
   Order,
   OrderStatus,
   Store,
+  KeywordTopic,
+  RateSource,
   Story,
+  StoreKeywords,
   Variant,
 } from "../domain/types.js";
 import {
@@ -51,8 +55,18 @@ import {
 import { validateFlow } from "../engine/validateFlow.js";
 import { canTransition, nextStatuses } from "../domain/orderStatus.js";
 import type { StoryPostResult } from "../services/storyScheduler.js";
+import type { FetchedRate, RefreshOutcome } from "../services/rates.js";
 import { deleteStoryAndMedia, discardDroppedMedia } from "../services/stories.js";
 import { localDateKey, parseTimeMinutes } from "../domain/storySchedule.js";
+import { DEFAULT_KEYWORDS, normalize } from "../engine/intents.js";
+import { RATE_SOURCE_OPTIONS } from "../domain/rates.js";
+import {
+  exchangeRate,
+  paymentMethods,
+  shippingInfo,
+  storeAddress,
+  storeHours,
+} from "../engine/menus.js";
 
 /** Connection status as the browser needs it (QR already rendered to a data URL). */
 export type WebStatus =
@@ -73,6 +87,10 @@ export interface WebDeps {
   disconnect: () => Promise<void>;
   /** Publish one scheduled story to WhatsApp Status right now. */
   postStoryNow: (storyId: string) => Promise<StoryPostResult>;
+  /** Fetch the exchange rate now, for the "Actualizar ahora" button. */
+  refreshRate: () => Promise<RefreshOutcome>;
+  /** What a source quotes right now, without persisting it. */
+  quoteRate: (source: RateSource) => Promise<FetchedRate | null>;
 }
 
 
@@ -101,6 +119,25 @@ const IMAGE_EXT: Record<string, string> = {
   "image/png": ".png",
   "image/webp": ".webp",
 };
+
+/**
+ * Per topic. Each word is normalized against every inbound message, and a one-letter
+ * word matches nearly everything — which, given topic order, would shadow every topic
+ * below it. Hence the two-character floor in parseKeywordsInput.
+ */
+const MAX_KEYWORDS_PER_TOPIC = 30;
+
+const RATE_SOURCES: RateSource[] = ["usd_oficial", "usd_paralelo", "eur_oficial", "custom"];
+
+/** Keep only the string-valued entries of a client-supplied object. */
+function stringsOnly(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!value || typeof value !== "object") return out;
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === "string") out[k] = v;
+  }
+  return out;
+}
 
 /** WhatsApp truncates a Status caption around here. */
 const MAX_CAPTION = 700;
@@ -248,6 +285,8 @@ function buildItemFromBody(
  */
 export class WebServer {
   private readonly clients = new Set<Response>();
+  /** The listening socket, kept so shutdown can close it. */
+  private server?: HttpServer;
   private status: WebStatus = { state: "idle" };
 
   constructor(private readonly deps: WebDeps) {}
@@ -279,6 +318,50 @@ export class WebServer {
    * legal, persist, notify the customer. Routing all of verify/cancel/ship/deliver
    * through here is what stops a finished order being moved again.
    */
+  /**
+   * Validate the editable keyword chips.
+   *
+   * Normalized on the way in — the matcher compares against normalized text, so a chip
+   * saved as "Envíos" would otherwise never match anything a customer typed.
+   */
+  private parseKeywordsInput(
+    value: unknown,
+    existing?: StoreKeywords,
+  ): { value: StoreKeywords } | { error: string } {
+    const topics: KeywordTopic[] = ["rate", "address", "shipping", "payment", "offers", "hours"];
+    const raw = (value ?? {}) as Record<string, unknown>;
+    const out = {} as StoreKeywords;
+
+    for (const topic of topics) {
+      const list = raw[topic];
+      if (list !== undefined && !Array.isArray(list)) {
+        return { error: "Las palabras clave no tienen el formato esperado." };
+      }
+      // Absent means "keep what is stored", matching the rest of this route. Falling
+      // back to the defaults would quietly discard words the owner had added to a topic
+      // they simply were not editing.
+      const fallback = existing?.[topic] ?? DEFAULT_KEYWORDS[topic];
+      const words = ((list as unknown[]) ?? fallback)
+        .map((w) => normalize(String(w)))
+        .filter((w) => w.length > 1);
+      // An empty topic would silently stop the bot answering that question at all.
+      if (words.length === 0) {
+        return { error: "Cada tema necesita al menos una palabra." };
+      }
+      if (words.some((w) => w.length > 40)) {
+        return { error: "Una palabra clave no puede pasar de 40 caracteres." };
+      }
+      const unique = [...new Set(words)];
+      // Every word is normalized against every inbound message, so the list is a cost
+      // the bot pays per message, not just storage.
+      if (unique.length > MAX_KEYWORDS_PER_TOPIC) {
+        return { error: `Cada tema admite hasta ${MAX_KEYWORDS_PER_TOPIC} palabras.` };
+      }
+      out[topic] = unique;
+    }
+    return { value: out };
+  }
+
   /**
    * Validate a story payload from the composer.
    *
@@ -402,6 +485,34 @@ export class WebServer {
       logger.error({ err }, "failed to send message");
       return false;
     }
+  }
+
+  /**
+   * Stop listening and let the process exit.
+   *
+   * The SSE responses are ended explicitly: `server.close()` waits for open connections
+   * to finish, and an event stream never finishes on its own — so the admin panel
+   * sitting open in a browser tab was enough to keep the bot alive through a Ctrl+C.
+   */
+  async close(): Promise<void> {
+    for (const client of this.clients) {
+      try {
+        client.end();
+      } catch {
+        // already gone
+      }
+    }
+    this.clients.clear();
+    const server = this.server;
+    this.server = undefined;
+    if (!server) return;
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+      // Ending a response is not always enough: a client can hold the socket open in a
+      // keep-alive pool, and server.close() waits for every one of them. Shutdown has
+      // to be deterministic, so any that remain are torn down.
+      server.closeAllConnections();
+    });
   }
 
   listen(port: number, host: string = config.webHost): void {
@@ -733,10 +844,14 @@ export class WebServer {
         res.status(404).json({ error: "store not found" });
         return;
       }
-      res.json(store);
+      // The seed has never written `keywords`, so an existing store returns undefined and
+      // the panel would render six empty topics — telling the owner the bot cannot answer
+      // questions it is in fact answering, and refusing to save until they retype all of
+      // them. Resolved here rather than in the panel so every client sees the real list.
+      res.json({ ...store, keywords: store.keywords ?? DEFAULT_KEYWORDS });
     });
 
-    app.put("/api/store", (req, res) => {
+    app.put("/api/store", async (req, res) => {
       const existing = getStoreById(this.storeId);
       if (!existing) {
         res.status(404).json({ error: "store not found" });
@@ -765,6 +880,35 @@ export class WebServer {
         }
       }
 
+      // --- rate source ---
+      let rate_source = existing.rate_source;
+      if (b.rate_source !== undefined) {
+        if (!RATE_SOURCES.includes(b.rate_source as RateSource)) {
+          res.status(400).json({ error: "Fuente de tasa no válida" });
+          return;
+        }
+        rate_source = b.rate_source as RateSource;
+      }
+      // Only a custom rate carries a label; keeping one on a fetched source would leave
+      // the bot quoting "Tasa de la tienda" for a number it pulled from the internet.
+      const rate_label = rate_source === "custom" ? opt(b.rate_label, existing.rate_label) : undefined;
+      // A failure belongs to the source that failed. Switching away from it — to another
+      // feed, or to a rate the owner types — must not leave the panel saying "no se pudo
+      // actualizar" forever.
+      const rate_failed_at =
+        rate_source === existing.rate_source ? existing.rate_failed_at : undefined;
+
+      // --- keywords ---
+      let keywords = existing.keywords;
+      if (b.keywords !== undefined) {
+        const parsed = this.parseKeywordsInput(b.keywords, existing.keywords);
+        if ("error" in parsed) {
+          res.status(400).json({ error: parsed.error });
+          return;
+        }
+        keywords = parsed.value;
+      }
+
       const payments = (b.payments ?? {}) as Record<string, unknown>;
       const updated: Store = {
         ...existing, // preserves store_id, account_id, story_schedule, size_guide, categories
@@ -783,8 +927,35 @@ export class WebServer {
         },
         usd_rate,
         usd_rate_updated_at,
+        rate_source,
+        rate_label,
+        rate_failed_at,
+        keywords,
       };
+      // A rate belongs to the source it came from. Switching feeds used to leave the
+      // old number on screen under the new label — the dollar rate presented as
+      // "Bs. por €1" — and the bot would quote it that way to customers for up to six
+      // hours. Clear it and fetch the new one before answering.
+      const sourceChanged = rate_source !== existing.rate_source;
+      const needsFetch = sourceChanged && rate_source !== "custom";
+      if (needsFetch) {
+        updated.usd_rate = undefined;
+        updated.usd_rate_updated_at = undefined;
+      }
       upsertStore(updated);
+
+      if (needsFetch) {
+        // Awaited rather than fired and forgotten, so the response carries the rate the
+        // owner is about to see. A failure leaves the value empty and rate_failed_at
+        // set, which the panel already surfaces — better than quoting euros in dollars.
+        await this.deps.refreshRate();
+        const refreshed = getStoreById(this.storeId);
+        if (refreshed) {
+          logger.info({ source: rate_source, rate: refreshed.usd_rate }, "store config saved");
+          res.json(refreshed);
+          return;
+        }
+      }
       logger.info("store config saved");
       res.json(updated);
     });
@@ -797,6 +968,95 @@ export class WebServer {
       } catch (err) {
         logger.error({ err }, "disconnect failed");
       }
+    });
+
+    /**
+     * What the bot would actually reply, for the Tienda preview drawer.
+     *
+     * Built by the real reply builders in engine/menus.ts against the *draft* the owner
+     * is editing, rather than re-typed in the UI. The panel used to keep its own copies
+     * of these strings and they had drifted from the bot — CLAUDE.md lists it as one of
+     * this repo's shipped duplications.
+     */
+    app.post("/api/store/preview", (req, res) => {
+      const existing = getStoreById(this.storeId);
+      if (!existing) {
+        res.status(404).json({ error: "store not found" });
+        return;
+      }
+      const b = (req.body ?? {}) as Partial<Store>;
+      // Only the fields the form can edit; everything else stays as stored.
+      const draft: Store = {
+        ...existing,
+        store_name: typeof b.store_name === "string" ? b.store_name : existing.store_name,
+        hours: typeof b.hours === "string" ? b.hours : existing.hours,
+        delivery_info: typeof b.delivery_info === "string" ? b.delivery_info : existing.delivery_info,
+        returns_policy:
+          typeof b.returns_policy === "string" ? b.returns_policy : existing.returns_policy,
+        address: typeof b.address === "string" ? b.address : existing.address,
+        maps_url: typeof b.maps_url === "string" ? b.maps_url : existing.maps_url,
+        // null means "clear the rate", the same as it does on PUT — otherwise the
+        // preview shows a number the save is about to delete.
+        usd_rate:
+          b.usd_rate === null
+            ? undefined
+            : typeof b.usd_rate === "number"
+              ? b.usd_rate
+              : existing.usd_rate,
+        rate_source: RATE_SOURCES.includes(b.rate_source as RateSource)
+          ? b.rate_source
+          : existing.rate_source,
+        rate_label: typeof b.rate_label === "string" ? b.rate_label : existing.rate_label,
+        // Only string values: an object would interpolate into the reply as
+        // "[object Object]".
+        payments: { ...existing.payments, ...stringsOnly(b.payments) },
+      };
+      res.json({
+        rate: exchangeRate(draft),
+        address: storeAddress(draft),
+        shipping: shippingInfo(draft),
+        payment: paymentMethods(draft),
+        hours: storeHours(draft),
+      });
+    });
+
+    /**
+     * The rate sources, with their labels, units and notes.
+     *
+     * Served rather than retyped in the panel: the labels and the "Bs. por €1" unit are
+     * derived from the same table the bot quotes from, and a second copy in the UI is
+     * exactly the shape of the duplications CLAUDE.md already lists.
+     */
+    app.get("/api/store/rate-sources", (_req, res) => {
+      res.json(RATE_SOURCE_OPTIONS);
+    });
+
+    /**
+     * What a source is quoting right now, without saving anything.
+     *
+     * The panel asks as soon as the owner picks a source, so the field shows the number
+     * immediately instead of sitting empty until they save.
+     */
+    app.get("/api/store/rate/quote", async (req, res) => {
+      const source = String(req.query.source ?? "");
+      if (!RATE_SOURCES.includes(source as RateSource)) {
+        res.status(400).json({ error: "Fuente de tasa no válida" });
+        return;
+      }
+      const quote = await this.deps.quoteRate(source as RateSource);
+      res.json({ rate: quote?.rate ?? null, updated_at: quote?.updatedAt ?? null });
+    });
+
+    // Refresh the exchange rate on demand, for the "Actualizar ahora" button.
+    app.post("/api/store/rate/refresh", async (_req, res) => {
+      const outcome = await this.deps.refreshRate();
+      const store = getStoreById(this.storeId);
+      res.json({
+        outcome,
+        usd_rate: store?.usd_rate ?? null,
+        usd_rate_updated_at: store?.usd_rate_updated_at ?? null,
+        rate_failed_at: store?.rate_failed_at ?? null,
+      });
     });
 
     // --- Contacts (numbers that have messaged the bot = Status audience) ---
@@ -893,7 +1153,7 @@ export class WebServer {
         return;
       }
       // Validate the flow: block the save on errors, allow it with warnings.
-      const issues = validateFlow(menus);
+      const issues = validateFlow(menus, getStoreById(this.storeId)?.keywords);
       const errors = issues.filter((i) => i.severity === "error");
       if (errors.length) {
         res.status(400).json({ error: "El flujo tiene errores", issues });
@@ -930,7 +1190,7 @@ export class WebServer {
     };
     app.use(onError);
 
-    app.listen(port, host, () => {
+    this.server = app.listen(port, host, () => {
       const url = `http://${LOOPBACK_HOSTS.has(host) ? "localhost" : host}:${port}`;
       logger.info(config.adminToken ? `Web UI on ${url}/?token=<ADMIN_TOKEN>` : `Web UI on ${url}`);
     });

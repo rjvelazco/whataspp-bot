@@ -61,6 +61,8 @@ export interface MessagingTransport {
   start(): Promise<void>;
   /** Unlink from WhatsApp, wipe the session, and re-init for fresh pairing. */
   logout(): Promise<void>;
+  /** Close the connection for shutdown, keeping the session so no re-pairing is needed. */
+  close(): Promise<void>;
   /** The account/number this bot is connected as (known after start()). */
   getAccountId(): string;
 }

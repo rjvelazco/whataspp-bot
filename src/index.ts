@@ -15,7 +15,7 @@ import { WebServer } from "./web/server.js";
 import { BaileysTransport } from "./transport/baileys.js";
 import type { IncomingMessage, MessagingTransport } from "./transport/types.js";
 import { seedStore } from "./services/seed.js";
-import { migrateStoredUploads } from "./db/index.js";
+import { closeDb, migrateStoredUploads } from "./db/index.js";
 import { resolveStore } from "./stores/routing.js";
 import {
   createOrder,
@@ -41,6 +41,7 @@ import {
 import { reduce, type EngineResult } from "./engine/stateMachine.js";
 import { canTransition } from "./domain/orderStatus.js";
 import { StoryScheduler } from "./services/storyScheduler.js";
+import { RateService } from "./services/rates.js";
 import {
   deleteStoryAndMedia,
   resolveStoryMedia,
@@ -286,12 +287,20 @@ async function main() {
     discardStory: (story) => deleteStoryAndMedia(story.id, config.assetsDir),
   });
 
+  // Three of the four rate sources fetch themselves; a custom rate is never touched.
+  const rateService = new RateService({
+    getStore: () => getStoreById(store.store_id),
+    saveStore: upsertStore,
+  });
+
   const web = new WebServer({
     // Read-through, so admin edits to the store take effect without a restart.
     getStore: () => getStoreById(store.store_id) ?? store,
     sendMessage: (to, body) => transport.sendText(to, body),
     disconnect: () => transport.logout(),
     postStoryNow: (storyId) => storyScheduler.postNow(storyId),
+    refreshRate: () => rateService.refresh(),
+    quoteRate: (source) => rateService.quote(source),
   });
   web.listen(config.webPort, config.webHost);
 
@@ -311,6 +320,7 @@ async function main() {
 
   await transport.start();
   storyScheduler.start();
+  rateService.start();
 
   // Bind this bot's account to the store so resolveStore() can route by account later.
   const accountId = transport.getAccountId();
@@ -319,6 +329,47 @@ async function main() {
     upsertStore({ ...persisted, account_id: accountId });
     logger.info({ accountId }, "bound bot account to store");
   }
+
+  /**
+   * Shut down in the order things depend on each other.
+   *
+   * Without this the process simply would not stop: two setIntervals, a listening
+   * socket, an open SSE stream per admin tab, and Baileys' reconnect timer all keep
+   * Node's event loop alive, so Ctrl+C left `tsx watch` force-killing a process that
+   * never exited — and every file change stacked another one on top.
+   */
+  let stopping = false;
+  const shutdown = async (signal: string): Promise<void> => {
+    if (stopping) return; // a second Ctrl+C while the first is still running
+    stopping = true;
+    logger.info({ signal }, "shutting down");
+
+    // Nothing may exit the process before the handles are released, but nothing may
+    // hang forever either: if a close stalls, take the process down anyway.
+    const guard = setTimeout(() => {
+      logger.warn("shutdown timed out — exiting anyway");
+      process.exit(0);
+    }, 4000);
+    guard.unref();
+
+    storyScheduler.stop();
+    rateService.stop();
+    try {
+      await web.close();
+      await transport.close();
+    } catch (err) {
+      logger.warn({ err }, "error during shutdown (continuing)");
+    }
+    closeDb();
+    clearTimeout(guard);
+    logger.info("stopped");
+    process.exit(0);
+  };
+
+  // once: true — tsx restarts the module on every file change, and a listener added per
+  // restart is what produced the MaxListenersExceededWarning.
+  process.once("SIGINT", () => void shutdown("SIGINT"));
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
 
   logger.info("Bot is running. Press Ctrl+C to stop.");
 }

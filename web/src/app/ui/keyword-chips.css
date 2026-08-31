@@ -1,0 +1,69 @@
+:host {
+  display: block;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Solid = acts on something that exists. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  height: 32px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-paper);
+  font-size: var(--text-sm);
+}
+.chip-x {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-ink-3);
+  cursor: pointer;
+  font-size: var(--text-2xs);
+}
+.chip-x:hover {
+  color: var(--color-rose);
+}
+
+/* Dashed = creates something new. */
+.chip-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  height: 32px;
+  border: 1px dashed var(--color-signal);
+  border-radius: 999px;
+  background: var(--color-paper);
+  color: var(--color-signal-ink);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.chip-input {
+  height: 32px;
+  width: 160px;
+  padding: 0 16px;
+  border: 1px solid var(--color-signal);
+  border-radius: 999px;
+  background: var(--color-paper);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.chip-x:focus-visible,
+.chip-add:focus-visible,
+.chip-input:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}

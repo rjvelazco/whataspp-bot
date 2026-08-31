@@ -1,4 +1,5 @@
 import type { Store } from "../domain/types.js";
+import { rateLine } from "../domain/rates.js";
 
 /** Map 1..10 to a keycap emoji for numbered menus (Baileys can't render buttons). */
 const KEYCAPS = ["0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
@@ -24,10 +25,11 @@ export function exchangeRate(store: Store): string {
   if (store.usd_rate === undefined || store.usd_rate === null) {
     return "Por ahora no tengo la tasa del día a mano. Escribe *hablar con alguien* y te ayudamos. 🙌";
   }
-  const when = store.usd_rate_updated_at
-    ? ` (actualizada ${store.usd_rate_updated_at.slice(0, 10)})`
-    : "";
-  return `💵 *Tasa del día:* Bs. ${store.usd_rate} por $1${when}.\n\nEscribe *menu* para volver.`;
+  // "Tasa del día" stays the heading for a fetched rate: the customer asked what the
+  // rate is, not which feed it came from. A custom label is different — the owner typed
+  // it deliberately, and it was being stored and shown to nobody.
+  const heading = store.rate_source === "custom" ? (store.rate_label?.trim() ?? "") : "";
+  return `💵 *${heading || "Tasa del día"}:* ${rateLine(store)}.\n\nEscribe *menu* para volver.`;
 }
 
 export function storeAddress(store: Store): string {

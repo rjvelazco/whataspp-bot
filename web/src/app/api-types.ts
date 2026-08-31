@@ -25,5 +25,11 @@ export type {
   StoryPostReason,
   StoryPostResult,
   Store,
+  StoreKeywords,
+  KeywordTopic,
+  RateSource,
+  RateSourceOption,
+  RateRefreshOutcome,
+  BotPreview,
   StorePayments,
 } from '../../../src/domain/types';

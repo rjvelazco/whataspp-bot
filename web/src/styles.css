@@ -157,6 +157,9 @@
 
   /* The prototype's three radii. Bare `rounded` and `rounded-2xl` are covered too,
      because between them they are 29 of the 47 radius usages in the templates. */
+  /* Used by small square-ish affordances (a focus ring on an inline control). It was
+     being referenced before it existed, so those corners silently fell back to 0. */
+  --radius-sm: 4px;
   --radius: 8px;
   --radius-md: 8px;
   --radius-lg: 12px;

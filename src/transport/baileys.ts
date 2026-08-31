@@ -43,6 +43,8 @@ export class BaileysTransport implements MessagingTransport {
   private onFirstOpen?: () => void;
   /** True while we're logging out and re-initializing, so stale close events are ignored. */
   private loggingOut = false;
+  /** Set while shutting down, so a closing socket is not treated as a dropped one. */
+  private closing = false;
   /** Consecutive failed reconnects, reset on a successful open. Drives the backoff. */
   private reconnectAttempts = 0;
   private reconnectTimer?: NodeJS.Timeout;
@@ -109,6 +111,25 @@ export class BaileysTransport implements MessagingTransport {
     await this.freshConnect(); // clears creds + reconnects → emits a new QR
     this.loggingOut = false;
     logger.info("logged out — showing a new QR to pair");
+  }
+
+  /**
+   * Close the connection for shutdown.
+   *
+   * Deliberately not logout(): that invalidates the session and would make the owner
+   * scan a QR again every time they restart the bot. This just ends the socket and
+   * cancels any pending reconnect, so nothing is left holding the event loop open.
+   */
+  async close(): Promise<void> {
+    this.closing = true;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
+    try {
+      this.sock?.end(undefined);
+    } catch (err) {
+      logger.warn({ err }, "error while closing the WhatsApp socket");
+    }
+    this.sock = undefined;
   }
 
   private async setupAuth(): Promise<void> {
@@ -181,6 +202,7 @@ export class BaileysTransport implements MessagingTransport {
         this.onFirstOpen = undefined;
       }
       if (connection === "close") {
+        if (this.closing) return; // we asked for this one
         if (this.loggingOut) return; // manual re-init in logout() handles this
         const code = (lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)
           ?.output?.statusCode;
