@@ -27,12 +27,12 @@ engine is transport-agnostic; Baileys is one adapter.
 | `npm run build:web` | Build the Angular bundle the server serves |
 | `npm run format` | Apply Prettier — the fix for a failing `lint` |
 | `npm start` | Run the bot once, without file-watch |
-| `npm --prefix web start` | Angular dev server on :4200 |
+| `npm --prefix web start` | Angular dev server on :4200, proxying `/api` to :3000 |
 
 `npm run lint` runs both packages and needs `web/`'s dependencies installed; run
-`npm --prefix web install` once after cloning. `npm --prefix web start` serves the UI alone
-on :4200 but has **no `/api` proxy yet**, so API calls and the `/api/events` SSE stream will
-fail there — use `npm run dev` on :3000 until the proxy lands.
+`npm --prefix web install` once after cloning. For UI work run the bot with `npm run dev`
+and the dev server with `npm --prefix web start` side by side: `web/proxy.conf.mjs` forwards
+`/api` — including the `/api/events` SSE stream — from :4200 to :3000.
 
 ## Design rules
 
@@ -42,9 +42,15 @@ These are not preferences. A change that breaks one of them is wrong.
    only exceptions are hairline borders (1px, 1.5px), border radii, and optical nudges
    inside pills. No 12px, no 20px, no 50px.
 
-   Stylelint enforces this on spacing properties in `.css` files. It does **not** see
-   Tailwind utilities in templates — `gap-1.5`, `px-3` and `p-3` are off-grid and currently
-   pass. Treat the rule as binding on you, not as covered by the linter.
+   Enforced two ways. Stylelint covers spacing properties in `.css` files;
+   `web/scripts/check-spacing-utilities.mjs` covers Tailwind utilities in templates, where
+   the real spacing decisions live. Tailwind steps are n x 4px, so **only zero and even
+   steps are on the grid** — `gap-2` is fine, `gap-3` (12px) and `gap-1.5` (6px) are not.
+
+   The template check is a ratchet against `web/spacing-baseline.json`: existing debt is
+   budgeted per file, a file over budget fails, and a file whose debt drops without its
+   budget dropping also fails. Restyling a view means lowering its number, never raising
+   it. Re-baseline a deliberate sweep with `npm run lint:spacing -- --update`.
 2. **Strict alignment.** Toolbar controls and the first cell of the table beneath them share
    one left edge, taken from the shared card inset rather than re-specified per view. The
    `app-card` / `app-toolbar` components that own it arrive with the redesign foundation;

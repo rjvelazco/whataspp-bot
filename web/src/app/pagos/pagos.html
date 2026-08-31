@@ -1,5 +1,8 @@
-<header class="flex items-center justify-between gap-4 mb-4">
-  <h1 class="text-2xl font-semibold m-0">Pagos</h1>
+<app-page-head
+  eyebrow="Cobros"
+  title="Pagos"
+  lede="Revisa los comprobantes que envían tus clientes y confirma cada cobro."
+>
   <p-button
     label="Actualizar"
     icon="pi pi-refresh"
@@ -8,30 +11,26 @@
     [disabled]="store.loading()"
     (onClick)="store.load()"
   />
-</header>
+</app-page-head>
 
-<section class="grid gap-3.5 mb-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
-  <div class="flex flex-col gap-0.5 rounded-xl border border-surface-200 bg-surface-0 p-4">
-    <span class="text-xs text-muted-color">Pedidos</span>
-    <span class="text-2xl font-semibold">{{ store.total() }}</span>
-    <span class="text-xs text-muted-color">Total recibidos</span>
-  </div>
-  <div class="flex flex-col gap-0.5 rounded-xl border border-surface-200 bg-surface-0 p-4">
-    <span class="text-xs text-muted-color">Por verificar</span>
-    <span class="text-2xl font-semibold" [class.text-warn]="store.pendingVerify() > 0">
-      {{ store.pendingVerify() }}
-    </span>
-    <span class="text-xs text-muted-color">Requieren tu revisión</span>
-  </div>
-  <div class="flex flex-col gap-0.5 rounded-xl border border-surface-200 bg-surface-0 p-4">
-    <span class="text-xs text-muted-color">Confirmados</span>
-    <span class="text-2xl font-semibold">{{ store.verifiedCount() }}</span>
-    <span class="text-xs text-muted-color">Pago verificado</span>
-  </div>
-</section>
+<app-stat-row>
+  <app-stat-card label="Pedidos" [value]="store.total()" note="Total recibidos" />
+  <app-stat-card
+    label="Por verificar"
+    [value]="store.pendingVerify()"
+    note="Requieren tu revisión"
+    [tone]="store.pendingVerify() > 0 ? 'amber' : 'neutral'"
+  />
+  <app-stat-card
+    label="Confirmados"
+    [value]="store.verifiedCount()"
+    note="Pago verificado"
+    tone="signal"
+  />
+</app-stat-row>
 
-<section class="rounded-xl border border-surface-200 bg-surface-0 overflow-hidden">
-  <div class="p-3.5 border-b border-surface-200">
+<app-card>
+  <app-toolbar>
     <p-selectbutton
       [options]="filterOptions"
       [ngModel]="filter()"
@@ -40,7 +39,7 @@
       optionValue="value"
       [allowEmpty]="false"
     />
-  </div>
+  </app-toolbar>
 
   <p-table
     [value]="filteredRows()"
@@ -153,4 +152,4 @@
       </tr>
     </ng-template>
   </p-table>
-</section>
+</app-card>

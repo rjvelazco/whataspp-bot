@@ -36,8 +36,10 @@ A small Angular app (in `web/`) runs on the same Node process as the bot:
 - **Now:** live QR pairing / connection status, streamed over Server-Sent Events (`/api/events`).
 - **Planned:** a payments dashboard — list orders with receipt photos and a "verify payment" button.
 
-Build it with `npm run build:web`; the bot serves the built files. For live UI development you can run
-`npm --prefix web start` (Angular dev server on :4200) alongside the bot — proxy `/api` to :3000.
+Build it with `npm run build:web`; the bot serves the built files. For live UI development run
+`npm run dev` and `npm --prefix web start` side by side: the Angular dev server comes up on
+:4200 and `web/proxy.conf.mjs` forwards `/api` — including the `/api/events` SSE stream — to
+the bot on :3000.
 
 ## Scripts
 

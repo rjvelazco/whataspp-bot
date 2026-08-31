@@ -9,8 +9,14 @@
 
 /** Every multiple of 8 up to 256px. Generated, so there are no arbitrary gaps. */
 const STEPS = Array.from({ length: 32 }, (_, i) => (i + 1) * 8);
-/** One permitted length: zero, a multiple of 8, a token, or a keyword. */
-const LEN = String.raw`(?:0|0px|(?:${STEPS.join('|')})px|var\(--[a-z0-9-]+\)|auto|inherit)`;
+/** A literal length: zero, a (possibly negative) multiple of 8, or a keyword.
+    Negative values are on the grid too — a -8px bleed is how you cancel padding. */
+const BARE = String.raw`(?:0|-?0px|-?(?:${STEPS.join('|')})px|auto|inherit)`;
+/** A token, optionally with a fallback — which is itself checked, so
+    `var(--card-inset, 16px)` passes and `var(--card-inset, 12px)` does not. */
+const TOKEN = String.raw`var\(--[a-z0-9-]+(?:,\s*${BARE})?\)`;
+/** One permitted length. */
+const LEN = String.raw`(?:${BARE}|${TOKEN})`;
 /** A shorthand of up to four such lengths. */
 const SPACING = new RegExp(String.raw`^${LEN}(?:\s+${LEN}){0,3}$`);
 
@@ -45,13 +51,25 @@ export default {
     // Colour is defined in src/styles.css (@theme) and src/app/theme/app-preset.ts,
     // and nowhere else. See CLAUDE.md rule 4.
     'color-no-hex': [true, { message: 'No raw hex. Define the colour as a token and use it.' }],
-    'color-named': ['never', { message: 'No named colours. Define the colour as a token and use it.' }],
+    'color-named': [
+      'never',
+      { message: 'No named colours. Define the colour as a token and use it.' },
+    ],
     'function-disallowed-list': [
       ['rgb', 'rgba', 'hsl', 'hsla'],
       { message: 'No literal colour functions. Define the colour as a token and use it.' },
     ],
 
     'declaration-property-value-allowed-list': [SPACING_PROPERTIES, { message: SPACING_MESSAGE }],
+
+    // @apply is a hole in both fences: this file only checks declarations, and the
+    // template checker only walks .html/.ts — so `@apply p-3 gap-3` in a stylesheet is
+    // invisible to each. It is unused today and the views are pure utilities, so ban it
+    // rather than teach two tools to parse it.
+    'at-rule-disallowed-list': [
+      ['apply'],
+      { message: 'No @apply — put utilities in the template, where the grid check can see them.' },
+    ],
   },
 
   overrides: [
@@ -59,22 +77,6 @@ export default {
       // The token file IS where colours are defined — including the shadow's rgb().
       files: ['src/styles.css'],
       rules: { 'color-no-hex': null, 'color-named': null, 'function-disallowed-list': null },
-    },
-    {
-      // The app shell is the one part of the UI the Tailwind migration never reached,
-      // and it carries ten off-grid values (7px, 9px, 10px, 12px, 20px, 2px, 6px).
-      // Step 3 in PR 1 rewrites the shell responsively and puts it on the grid; delete
-      // this override in that same change rather than letting it ossify.
-      //
-      // The warning count is pinned by --max-warnings in package.json, so this override
-      // grandfathers the existing values without licensing new ones.
-      files: ['src/styles.css', 'src/app/dashboard/dashboard.css'],
-      rules: {
-        'declaration-property-value-allowed-list': [
-          SPACING_PROPERTIES,
-          { message: SPACING_MESSAGE, severity: 'warning' },
-        ],
-      },
     },
   ],
 };

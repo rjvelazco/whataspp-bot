@@ -5,168 +5,559 @@
 @import 'tailwindcss';
 @plugin 'tailwindcss-primeui';
 
-/* Status colours as first-class Tailwind tokens (text-success, bg-warn-subtle, …).
-   The plugin already supplies primary-* and surface-*; these complete the set so
-   templates never reach for a raw emerald/amber/red shade. */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-var-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-var-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/dm-mono-400-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/dm-mono-400-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/dm-mono-500-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/dm-mono-500-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/instrument-sans-var-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/instrument-sans-var-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TOKENS. This block and src/app/theme/app-preset.ts are the only two places a
+   colour, font or radius may be defined. See ../../CLAUDE.md rule 4.
+
+   Values come from plan/design-tokens.css. Colour is semantic, never decorative:
+     signal (emerald) — the bot handled it, or a human verified it
+     amber            — waiting on the user to act
+     rose             — cancelled, destructive, error
+   ───────────────────────────────────────────────────────────────────────────── */
 @theme {
-  --color-success: #12813c;
-  --color-success-subtle: #e7f6ec;
-  --color-warn: #a86413;
-  --color-warn-subtle: #fdf3e3;
-  --color-danger: #c0392b;
-  --color-danger-subtle: #fdecec;
-}
+  /* Drop Tailwind's stock palette so bg-rose-600 and text-amber-500 cannot be written
+     by accident — they are off-brand and confusingly adjacent to our own rose/amber. */
+  --color-*: initial;
 
-/* ---- Design tokens (used by the app shell below) ---- */
-:root {
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* Ink, lines and surfaces. */
+  --color-ink: #101a21;
+  --color-ink-2: #41585f;
+  --color-ink-3: #7d9199;
+  --color-line: #dce4e1;
+  --color-line-soft: #eaefec;
+  --color-paper: #ffffff;
+  --color-wash: #eef2ee;
+
+  /* The three semantic roles. */
+  --color-signal: #0a6c48;
+  --color-signal-ink: #075437;
+  --color-signal-soft: #dceee3;
+  --color-amber: #8f5300;
+  --color-amber-soft: #fbeacc;
+  --color-rose: #9e241b;
+  --color-rose-soft: #fadfdc;
+
+  /* success/warn/danger stay as aliases of the three roles: 17 template usages
+     already say text-success or bg-success-subtle, and pointing the aliases at the
+     new palette re-tints them without touching those files. Tailwind follows a var()
+     chain when tree-shaking, so the targets survive even once the shell CSS that
+     also references them is gone. Prefer the role names in new code. */
+  --color-success: var(--color-signal-ink);
+  --color-success-subtle: var(--color-signal-soft);
+  --color-warn: var(--color-amber);
+  --color-warn-subtle: var(--color-amber-soft);
+  --color-danger: var(--color-rose);
+  --color-danger-subtle: var(--color-rose-soft);
+
+  /* Type. Display for headings and stat numbers, body for prose, data for anything
+     the reader compares column to column or copies. */
+  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-data: 'DM Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Alias Tailwind's own namespaces, for the same reason the colours are aliased:
+     8 templates say font-mono, and without this they render Menlo next to .pill's
+     DM Mono — two mono faces on one screen. */
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-data);
+
+  /* Type scale. Tailwind's ramp has no 11px or 13px, which was already leaking as
+     text-[15px]; and its --text-base was 16px while body text is 15px, so text-base
+     rendered LARGER than default text. These three close both gaps. */
+  --text-2xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+
+  /* The prototype's three radii. Bare `rounded` and `rounded-2xl` are covered too,
+     because between them they are 29 of the 47 radius usages in the templates. */
   --radius: 8px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 16px;
 
-  /* surfaces */
-  --surface-0: #ffffff;
-  --surface-1: #f5f6f8;
-  --surface-2: #fafbfc;
-  --border: #e6e8eb;
-  --fill-control: #eceef1;
-
-  /* text */
-  --text-primary: #1a1d21;
-  --text-secondary: #5b6570;
-  --text-accent: #4f46e5;
-
-  /* tinted states */
-  --bg-accent: #eef0fe;
-  --bg-success: #e7f6ec;
-  --text-success: #12813c;
-  --bg-warning: #fdf3e3;
-  --text-warning: #a86413;
-  --bg-danger: #fdecec;
-  --text-danger: #c0392b;
+  --shadow-card: 0 1px 2px rgb(16 26 33 / 0.05), 0 8px 24px -16px rgb(16 26 33 / 0.28);
 }
 
-* {
-  box-sizing: border-box;
+/* The focus ring, as one definition rather than per-component.
+   `outline` rather than `box-shadow`, for three reasons: a box-shadow is beaten by any
+   component that sets its own (app-card does, so a focusable card lost its ring
+   entirely); outlines are the only ring rendered in Windows forced-colors mode; and an
+   outline follows the element's own border box, so the rule does not have to impose a
+   border-radius and deform round controls. Solid signal, not 22% of it — the old
+   translucent shadow composited to about 1.4:1 on paper, below the 3:1 that
+   WCAG 1.4.11 requires of a focus indicator. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-signal);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
 }
-
 html,
 body {
   margin: 0;
   height: 100%;
-  font-family: var(--font-sans);
-  font-size: 14px;
-  color: var(--text-primary);
-  background: var(--surface-1);
 }
 
-/* ================= App shell (sidebar + content) =================
-   The one global layer that survives the Tailwind/PrimeNG migration —
-   it wraps the routed views, which are themselves Tailwind + PrimeNG. */
+/* font-size goes on body, never on html: rem is root-relative, so sizing html would
+   rescale every rem-based Tailwind utility — including the 0.25rem spacing step the
+   8-point grid is built on. */
+body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  background: var(--color-wash);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visually hidden, but present for assistive technology. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   APP SHELL. The one hand-written layer left: it wraps the routed views, which
+   are Tailwind + PrimeNG. Everything here reads @theme tokens directly — the
+   legacy :root alias block it used to depend on is gone.
+
+   Two breakpoints, and no others (../../CLAUDE.md):
+     960px — the rail becomes a sticky horizontal top bar
+     720px — tighter gutters and a smaller page title
+
+   Note on scrolling: the document is the scroller at every width. .content used to
+   declare `overflow: auto` and never actually scrolled (its height is content-driven),
+   which made tienda.ts's scrollRoot() hand its IntersectionObserver a root that never
+   moves — so the scroll-spy silently did nothing above 960px. Dropping the declaration
+   lets scrollRoot() return null and observe the viewport, which works at every width.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --rail: 256px; /* 32 x 8 */
+  --gutter: 32px;
+}
+
 .admin {
   display: flex;
-  height: 100%;
-  background: var(--surface-0);
+  min-height: 100%;
+  background: var(--color-wash);
 }
 
 .sidebar {
-  width: 200px;
-  flex-shrink: 0;
-  background: var(--surface-1);
-  border-right: 1px solid var(--border);
+  width: var(--rail);
+  flex: 0 0 var(--rail);
+  background: var(--color-paper);
+  border-right: 1px solid var(--color-line);
   display: flex;
   flex-direction: column;
-  padding: 16px 12px;
+  gap: 24px;
+  padding: 24px 16px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
+
 .brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 8px 16px;
+  padding: 0 8px;
+}
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 10px;
+  background: var(--color-signal);
+  color: var(--color-paper);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 800;
   font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
 }
-.brand .pi {
-  font-size: 18px;
-  color: var(--text-accent);
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
 }
+.brand-sub {
+  font-family: var(--font-data);
+  font-size: 11px;
+  /* ink-2, not ink-3: at 11px, AA needs 4.5:1 and ink-3 gives 3.29:1 on paper.
+     ink-3 is reserved for large text and non-text. Same rule in the column headers
+     below, in app-page-head's eyebrow and in app-stat-card's label. */
+  color: var(--color-ink-2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
 }
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-  border-radius: var(--radius);
-  color: var(--text-secondary);
-  font-size: 13px;
-  cursor: default;
-  user-select: none;
+  gap: 16px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  color: var(--color-ink-2);
+  font-weight: 500;
   text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
 }
 .nav-item .pi {
   font-size: 16px;
+  flex: 0 0 16px;
 }
-.nav-item.clickable {
-  cursor: pointer;
-}
-.nav-item.clickable:hover {
-  background: var(--surface-2);
+.nav-item:hover {
+  background: var(--color-line-soft);
+  color: var(--color-ink);
 }
 .nav-item.active,
 .nav-item.active:hover {
-  background: var(--bg-accent);
-  color: var(--text-accent);
-  font-weight: 500;
+  background: var(--color-signal-soft);
+  color: var(--color-signal-ink);
+  font-weight: 600;
 }
+
+/* Counts are data, so they get the data face and tabular figures. */
 .pill {
   margin-left: auto;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
+  /* DM Mono has no 600, and .nav-item.active sets one — without this the active
+     count renders synthetically emboldened. */
   font-weight: 500;
-  padding: 1px 7px;
-  border-radius: 10px;
 }
 .pill.warn {
-  background: var(--bg-warning);
-  color: var(--text-warning);
+  color: var(--color-amber);
 }
 .pill.info {
-  background: var(--bg-accent);
-  color: var(--text-accent);
+  color: var(--color-ink-2);
 }
-.conn {
+
+.rail-foot {
   margin-top: auto;
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.conn {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
-  border-radius: var(--radius);
-  font-size: 12px;
-  background: var(--fill-control);
-  color: var(--text-secondary);
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-line-soft);
+  color: var(--color-ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .conn.ok {
-  background: var(--bg-success);
-  color: var(--text-success);
+  background: var(--color-signal-soft);
+  color: var(--color-signal-ink);
 }
 .conn .dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
   border-radius: 50%;
   background: currentColor;
-  flex-shrink: 0;
 }
+/* Only the live state pulses; a dead connection should not look busy. */
+.conn.ok .dot {
+  background: var(--color-signal);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-signal) 50%, transparent);
+  animation: conn-pulse 2.4s infinite;
+}
+@keyframes conn-pulse {
+  70% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-signal) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-signal) 0%, transparent);
+  }
+}
+
+/* Ghost button: keeps a hairline border at rest, so it never reads as plain text.
+   There is no hover on touch. See ../../CLAUDE.md rule 6. */
+.disconnect-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-ink-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
+}
+.disconnect-btn:hover {
+  background: var(--color-rose-soft);
+  border-color: var(--color-rose);
+  color: var(--color-rose);
+}
+
 .content {
   flex: 1;
   min-width: 0;
-  overflow: auto;
-  padding: 20px 24px;
-  background: var(--surface-2);
+  padding: 32px var(--gutter) 64px;
 }
 
-/* CDK inserts the drag preview into <body>, outside any component's styles. */
+/* The prototype centres the page and caps its measure; without this the views run
+   edge to edge on a wide monitor. */
+.content-inner {
+  max-width: 1200px;
+  margin-inline: auto;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TABLE ALIGNMENT. PrimeNG owns its cell padding, and a component stylesheet
+   cannot reach into it, so this is the one place the alignment rule can be
+   expressed for tables. It reads --card-inset from <app-card>, which is also what
+   <app-toolbar> pads by — so the toolbar's first control and the table's first
+   column share one edge, defined once. See ../../CLAUDE.md rule 2.
+
+   Scoped to app-card deliberately, with no fallback value. Unscoped, it also hit the
+   one table not yet inside a card (Productos), where --card-inset is undefined: the
+   first column took the fallback while every other cell kept PrimeNG's 8px, so the
+   rule *created* a misalignment in the only view it could not align.
+   ───────────────────────────────────────────────────────────────────────────── */
+app-card .p-datatable-thead > tr > th:first-child,
+app-card .p-datatable-tbody > tr > td:first-child {
+  padding-left: var(--card-inset);
+}
+app-card .p-datatable-thead > tr > th:last-child,
+app-card .p-datatable-tbody > tr > td:last-child {
+  padding-right: var(--card-inset);
+}
+
+/* Column headers as quiet labels rather than competing with the data. */
+.p-datatable-thead > tr > th {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+  white-space: nowrap;
+}
+
+/* ── 960px: the rail becomes a top bar ───────────────────────────────────── */
+@media (max-width: 960px) {
+  :root {
+    --gutter: 24px;
+    /* The document is the scroller here and the bar is sticky, so without this a
+       control focused by keyboard can be scrolled to sit behind the bar. */
+    scroll-padding-top: 64px;
+  }
+  .admin {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .sidebar {
+    width: 100%;
+    flex: none;
+    height: auto;
+    z-index: 30;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .brand-sub {
+    display: none;
+  }
+  .nav {
+    flex-direction: row;
+    flex: 1;
+    gap: 0;
+    overflow-x: auto;
+    /* Slack so a 2px ring with a 2px offset is not clipped by the scrollport, whose
+       height would otherwise equal the item height exactly. */
+    padding-block: 8px;
+    margin-block: -8px;
+  }
+  .nav-item {
+    width: auto;
+    padding: 0 16px;
+    gap: 8px;
+  }
+  /* Icon-only, except the current page, which keeps its label for orientation.
+     Clipped rather than display:none — display:none removes the text from the
+     accessibility tree, which left four of the six links with no accessible name
+     at all. Sighted users see an icon; a screen reader still hears the page. */
+  .nav-item:not(.active) .nav-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .pill {
+    margin-left: 0;
+  }
+  .rail-foot {
+    margin: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  /* Icon-only rather than hidden: disconnecting must stay reachable on a phone.
+     Both labels are clipped rather than display:none, so the connection state and the
+     button's purpose stay in the accessibility tree. */
+  .conn {
+    padding: 0 8px;
+  }
+  .conn .conn-label,
+  .disconnect-btn .disconnect-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .disconnect-btn {
+    width: 40px;
+    padding: 0;
+  }
+  .content {
+    overflow: visible;
+  }
+}
+
+/* ── 720px: tighter still ────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .content {
+    padding: 24px var(--gutter) 48px;
+  }
+}
+
 .cdk-drag-preview {
   border-radius: 12px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);

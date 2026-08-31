@@ -57,11 +57,19 @@ Stylelint enforces this on the `padding`, `margin` and `gap` properties (shortha
 longhands) inside `.css` files. If you genuinely need an off-grid value, the disable comment
 must say why.
 
-**Know the gap.** Stylelint cannot parse Angular templates, so off-grid *Tailwind utilities*
-are not checked — there are ~115 of them today (`gap-1.5`, `gap-3`, `px-3`, `p-3`). The real
-fix is to make the utility scale itself the grid by overriding Tailwind's `--spacing` in the
-`@theme` block, which turns an off-grid utility into one that does not exist. That lands with
-the redesign foundation. Until then a green stylelint run does **not** mean the grid holds.
+Stylelint only sees `.css` files, and the views are pure Tailwind — their stylesheets are
+28-byte stubs. So the class names carry every real spacing decision, and
+`web/scripts/check-spacing-utilities.mjs` checks those. Tailwind steps are n x 4px, which
+makes the rule simple: **zero and even steps are on the grid, everything else is not.**
+
+It is a ratchet rather than a wall. `web/spacing-baseline.json` budgets the 128 off-grid
+utilities that exist today across 7 templates — sweeping them all at once would mean
+rewriting every view in one commit. A file over budget fails; so does a file whose debt drops
+without its budget following, which stops the ratchet slipping. Each PR that restyles a view
+lowers its entry, and the one that reaches zero deletes it.
+
+Once every entry is gone, the scale itself can be narrowed in `@theme` so an off-grid utility
+simply fails to generate. Until then the checker is what holds the line.
 
 ### The alignment rule
 
