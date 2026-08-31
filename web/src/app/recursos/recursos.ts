@@ -9,7 +9,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { AssetsService, type Asset, type AssetCategory } from '../assets.service';
 import { SettingsService } from '../settings.service';
 import { StoriesService, type Story, type StoryPostReason } from '../stories.service';
-import { apiErrorMessage } from '../api-error';
+import { apiErrorMessage, apiFailureReason } from '../api-error';
 import { storyStatusLine } from '../story-display';
 import { StoryComposer } from '../story-composer/story-composer';
 import { Card, PageHead, Toolbar } from '../ui';
@@ -202,8 +202,14 @@ export class Recursos implements OnInit {
   private loadStories(): void {
     this.storiesApi.list().subscribe({
       next: (list) => this.stories.set(list),
-      error: () =>
-        this.messages.add({ severity: 'error', summary: 'No se pudieron cargar las historias' }),
+      error: (e) =>
+        this.messages.add({
+          severity: 'error',
+          summary: 'No se pudieron cargar las historias',
+          // Without a reason this reads as "your stories are broken", when the usual
+          // cause is that the bot is restarting and nothing answered.
+          detail: apiFailureReason(e),
+        }),
     });
   }
 
