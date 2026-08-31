@@ -112,6 +112,8 @@
   --color-line-soft: #eaefec;
   --color-paper: #ffffff;
   --color-wash: #eef2ee;
+  /* Ink at low alpha, for an overlay that has to stay legible on any photo. */
+  --color-scrim: rgb(16 26 33 / 32%);
 
   /* The three semantic roles. */
   --color-signal: #0a6c48;

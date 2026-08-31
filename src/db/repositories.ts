@@ -8,6 +8,9 @@ import type {
   FlowMenu,
   Order,
   OrderStatus,
+  Story,
+  StoryMediaItem,
+  StoryMode,
   Store,
 } from "../domain/types.js";
 
@@ -228,6 +231,170 @@ export function getAsset(id: string): Asset | undefined {
 
 export function deleteAsset(id: string): void {
   db.prepare(`DELETE FROM assets WHERE id = ?`).run(id);
+}
+
+// ---------- meta (migration markers) ----------
+
+export function getMeta(key: string): string | undefined {
+  const row = db.prepare(`SELECT value FROM app_meta WHERE key = ?`).get(key) as
+    { value: string } | undefined;
+  return row?.value;
+}
+
+export function setMeta(key: string, value: string): void {
+  db.prepare(
+    `INSERT INTO app_meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(key, value);
+}
+
+// ---------- stories (scheduled Estados) ----------
+
+/**
+ * The stories table as SQLite holds it: weekdays as a CSV string and the booleans as
+ * 0/1, because SQLite has neither. `toStory` is the only place that mapping lives.
+ */
+interface StoryRow {
+  id: string;
+  store_id: string;
+  caption: string;
+  mode: string;
+  weekdays: string;
+  post_date: string | null;
+  post_time: string;
+  delete_after: number;
+  enabled: number;
+  last_posted_at: string | null;
+  created_at: string;
+}
+
+/** "1,3,5" -> [1, 3, 5], dropping anything that is not a weekday. */
+function parseWeekdays(csv: string): number[] {
+  return csv
+    .split(",")
+    .map((n) => Number(n.trim()))
+    .filter((n) => Number.isInteger(n) && n >= 1 && n <= 7);
+}
+
+function toStory(row: StoryRow, media: StoryMediaItem[]): Story {
+  return {
+    id: row.id,
+    store_id: row.store_id,
+    caption: row.caption,
+    mode: row.mode as StoryMode,
+    weekdays: parseWeekdays(row.weekdays),
+    post_date: row.post_date,
+    post_time: row.post_time,
+    delete_after: row.delete_after === 1,
+    enabled: row.enabled === 1,
+    last_posted_at: row.last_posted_at,
+    created_at: row.created_at,
+    media,
+  };
+}
+
+/** Every story for a store, media included, newest first. */
+export function listStories(storeId: string): Story[] {
+  const rows = db
+    .prepare(`SELECT * FROM stories WHERE store_id = ? ORDER BY created_at DESC`)
+    .all(storeId) as StoryRow[];
+  if (rows.length === 0) return [];
+
+  // One query for all the media rather than one per story: the scheduler reads this
+  // every tick.
+  const media = db
+    .prepare(
+      `SELECT m.story_id, m.asset_id, m.position
+         FROM story_media m
+         JOIN stories s ON s.id = m.story_id
+        WHERE s.store_id = ?
+        ORDER BY m.position`,
+    )
+    .all(storeId) as (StoryMediaItem & { story_id: string })[];
+
+  const byStory = new Map<string, StoryMediaItem[]>();
+  for (const { story_id, asset_id, position } of media) {
+    const list = byStory.get(story_id) ?? [];
+    list.push({ asset_id, position });
+    byStory.set(story_id, list);
+  }
+  return rows.map((row) => toStory(row, byStory.get(row.id) ?? []));
+}
+
+export function getStory(id: string): Story | undefined {
+  const row = db.prepare(`SELECT * FROM stories WHERE id = ?`).get(id) as StoryRow | undefined;
+  if (!row) return undefined;
+  const media = db
+    .prepare(`SELECT asset_id, position FROM story_media WHERE story_id = ? ORDER BY position`)
+    .all(id) as StoryMediaItem[];
+  return toStory(row, media);
+}
+
+/**
+ * Insert or replace a story and its media together.
+ *
+ * One transaction: a story whose media rows failed to write would post nothing, and a
+ * half-written edit is worse than a rejected one.
+ */
+export const saveStory = db.transaction((story: Story): void => {
+  db.prepare(
+    `INSERT INTO stories
+       (id, store_id, caption, mode, weekdays, post_date, post_time, delete_after,
+        enabled, last_posted_at, created_at)
+     VALUES
+       (@id, @store_id, @caption, @mode, @weekdays, @post_date, @post_time, @delete_after,
+        @enabled, @last_posted_at, @created_at)
+     ON CONFLICT(id) DO UPDATE SET
+       caption = excluded.caption,
+       mode = excluded.mode,
+       weekdays = excluded.weekdays,
+       post_date = excluded.post_date,
+       post_time = excluded.post_time,
+       delete_after = excluded.delete_after,
+       enabled = excluded.enabled,
+       last_posted_at = excluded.last_posted_at`,
+  ).run({
+    id: story.id,
+    store_id: story.store_id,
+    caption: story.caption,
+    mode: story.mode,
+    weekdays: story.weekdays.join(","),
+    post_date: story.post_date,
+    post_time: story.post_time,
+    delete_after: story.delete_after ? 1 : 0,
+    enabled: story.enabled ? 1 : 0,
+    last_posted_at: story.last_posted_at,
+    created_at: story.created_at,
+  });
+
+  db.prepare(`DELETE FROM story_media WHERE story_id = ?`).run(story.id);
+  const insert = db.prepare(
+    `INSERT INTO story_media (story_id, asset_id, position) VALUES (?, ?, ?)`,
+  );
+  story.media.forEach((item, index) => insert.run(story.id, item.asset_id, index));
+});
+
+export function deleteStory(id: string): void {
+  // story_media cascades — foreign_keys is ON in db/index.ts.
+  db.prepare(`DELETE FROM stories WHERE id = ?`).run(id);
+}
+
+/**
+ * Whether any story still uses this asset.
+ *
+ * Story media are not reachable on their own, so a media file dropped from a story has
+ * to be deleted with it — but only once nothing else points at it.
+ */
+export function assetInUse(assetId: string, exceptStoryId?: string): boolean {
+  const row = db
+    .prepare(`SELECT COUNT(*) AS n FROM story_media WHERE asset_id = ? AND story_id IS NOT ?`)
+    .get(assetId, exceptStoryId ?? null) as { n: number };
+  return row.n > 0;
+}
+
+/** Record a successful publish. This stamp is the once-per-day guard. */
+export function markStoryPosted(id: string, at: string | null): void {
+  db.prepare(`UPDATE stories SET last_posted_at = ? WHERE id = ?`).run(at, id);
 }
 
 // ---------- menus (flow builder) ----------

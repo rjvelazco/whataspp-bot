@@ -45,11 +45,67 @@ export interface StorePayments {
   binance?: string;
 }
 
-/** Daily auto-post of "story" assets as WhatsApp Status (Estados). */
+/**
+ * Daily auto-post of "story" assets as WhatsApp Status (Estados).
+ *
+ * @deprecated Superseded by the `stories` table, which schedules each Status
+ * separately. Still read once at boot to fold the old setting into a story; nothing
+ * writes it any more.
+ */
 export interface StorySchedule {
   enabled: boolean;
   /** Local time "HH:MM" (24h) when stories post each day, e.g. "09:00". */
   time: string;
+}
+
+/** Why a publish attempt ended the way it did. */
+export type StoryPostReason = "ok" | "disconnected" | "no_media" | "busy" | "not_found";
+
+export interface StoryPostResult {
+  posted: number;
+  /** How many contacts the Status was sent to. */
+  audience: number;
+  reason: StoryPostReason;
+}
+
+/** How often a story republishes. */
+export type StoryMode = "daily" | "weekly" | "once";
+
+/** One media file in a story, in the order it posts. */
+export interface StoryMediaItem {
+  asset_id: string;
+  position: number;
+}
+
+/**
+ * A scheduled WhatsApp Status: some media, a caption, and when it goes out.
+ *
+ * Replaces the single store-wide `story_schedule`, which posted every story asset
+ * every day at one time and kept its "already posted today" guard in memory — so a
+ * restart re-posted the day's Status to every customer.
+ */
+export interface Story {
+  id: string;
+  store_id: string;
+  caption: string;
+  mode: StoryMode;
+  /** ISO weekday numbers, 1 = Monday … 7 = Sunday. Only read when mode is "weekly". */
+  weekdays: number[];
+  /** Local date "YYYY-MM-DD". Only read when mode is "once". */
+  post_date: string | null;
+  /** Local time "HH:MM" (24h). */
+  post_time: string;
+  /**
+   * Delete the media once it has published. Only offered for "once" — on a repeating
+   * story it would delete the files it needs for the next run.
+   */
+  delete_after: boolean;
+  enabled: boolean;
+  /** ISO timestamp of the last successful publish; the once-per-day guard reads this. */
+  last_posted_at: string | null;
+  created_at: string;
+  /** The media, in posting order. */
+  media: StoryMediaItem[];
 }
 
 /** Per-store config — the "build once" payoff (§3.1). */

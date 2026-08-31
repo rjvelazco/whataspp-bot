@@ -1,0 +1,111 @@
+:host {
+  display: block;
+}
+
+/* Five rows visible; the middle one is the value. 5 x 40px. */
+.wheel {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
+  height: 200px;
+  padding: 0 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+}
+
+/* The band marking the selected row. Behind the columns, hence the negative z. */
+.wheel-band {
+  position: absolute;
+  inset-inline: 8px;
+  top: 80px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-wash);
+  z-index: 0;
+}
+
+.col {
+  position: relative;
+  z-index: 1;
+  width: 64px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  text-align: center;
+  /* Fade the rows away from the centre, so the band reads as the value. */
+  /* currentColor rather than a literal: this is a mask, so only the alpha matters,
+     and a colour here would be a colour outside the token files. */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    currentColor 72px,
+    currentColor 128px,
+    transparent 200px
+  );
+}
+.col::-webkit-scrollbar {
+  display: none;
+}
+.col-narrow {
+  width: 56px;
+}
+
+/* Two rows of padding at each end, so the first and last value can reach the band. */
+.pad {
+  height: 80px;
+}
+
+.cell {
+  height: 40px;
+  /* The values are click targets, and they have to look like it — the wheel used to be
+     operable only by dragging or by arrow keys, with nothing on screen saying so. */
+  cursor: pointer;
+  /* center, not start: the selected value sits under the band in the middle of the
+     column, so the snap point has to be the cell's centre. With `start` the browser
+     aligns it to the top of the column instead, and the first two values can never
+     reach the band at all — a wheel set to 09:00 displayed 02 minutes. */
+  scroll-snap-align: center;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-data);
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-3);
+  transition: color 120ms ease;
+}
+.cell.is-active {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.cell:hover {
+  color: var(--color-signal-ink);
+}
+
+.colon {
+  align-self: center;
+  font-family: var(--font-data);
+  color: var(--color-ink-2);
+}
+
+/* The columns are focusable, so they need a ring like every other control. */
+.col:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell {
+    transition: none;
+  }
+}
+
+/* Says out loud what the control accepts, rather than leaving it to be discovered. */
+.wheel-hint {
+  margin: 8px 0 0;
+  font-size: var(--text-2xs);
+  color: var(--color-ink-3);
+}

@@ -86,82 +86,111 @@
   padding: 16px var(--card-inset) 0;
 }
 
-/* ── Estados: a Status is a 9:16 image, so the tile is one too. ── */
-.story-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px;
-  padding: 16px var(--card-inset) 24px;
-}
-.story {
+/* ── Estados: a row per scheduled story ── */
+.story-list {
+  list-style: none;
   margin: 0;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--color-paper);
+  padding: 0;
 }
-.story-img {
+.story-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px var(--card-inset);
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.story-card:last-child {
+  border-bottom: 0;
+}
+.story-card.is-paused .story-strip,
+.story-card.is-paused .story-caption {
+  opacity: 0.6;
+}
+.story-strip {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+.story-thumb {
+  position: relative;
   display: block;
-  aspect-ratio: 9 / 16;
+  width: 40px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+  overflow: hidden;
   background: var(--color-wash);
 }
-.story-img img {
+.story-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.story-kind {
+/* A video thumbnail is a still, so it needs to say that it is a video. */
+.story-video {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
+  color: var(--color-paper);
+  background: var(--color-scrim);
+  font-size: var(--text-2xs);
+}
+.story-blank {
+  display: grid;
+  place-items: center;
+  width: 100%;
   height: 100%;
+  color: var(--color-ink-3);
+  font-size: var(--text-2xs);
+}
+.story-more {
   font-family: var(--font-data);
   font-size: var(--text-2xs);
   color: var(--color-ink-2);
-  text-transform: uppercase;
 }
-.story-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 8px 8px 16px;
-}
-.story-foot .file-name {
+.story-meta {
   flex: 1;
-  font-size: var(--text-sm);
+  min-width: 0;
 }
-
-/* auto-fill gives one column below ~380px of content, so a 9:16 tile becomes 480px tall
-   and twenty Estados become ten thousand pixels of scrolling. Two up, like a phone's own
-   gallery. */
-@media (max-width: 720px) {
-  .story-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.story-caption {
+  display: block;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-/* ── The daily schedule strip ──
-   Wraps rather than overflowing: its controls used to run past the viewport at 390px. */
-.schedule {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin: 16px var(--card-inset) 0;
-  padding: 16px;
-  border: 1px solid var(--color-line-soft);
-  border-radius: var(--radius-lg);
-  background: var(--color-wash);
+.story-status {
+  display: block;
+  font-size: var(--text-2xs);
+  color: var(--color-ink-2);
 }
-.schedule-actions {
+.story-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
 }
+.story-toggle {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Dashed border = creates something new, the same rule the rest of the panel follows. */
+:host ::ng-deep .new-story {
+  border-style: dashed;
+}
+
 @media (max-width: 720px) {
-  .schedule-actions {
-    margin-left: 0;
+  .story-card {
+    flex-wrap: wrap;
+  }
+  .story-meta {
+    flex-basis: calc(100% - 56px);
+  }
+  .story-actions {
     width: 100%;
+    flex-wrap: wrap;
   }
 }

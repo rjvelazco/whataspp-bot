@@ -24,10 +24,16 @@ import {
   getConversation,
   getMenus,
   getOrder,
+  getMeta,
+  getStory,
   getStoreById,
   listAssets,
   listContacts,
+  listStories,
+  markStoryPosted,
   saveConversation,
+  saveStory,
+  setMeta,
   updateOrder,
   upsertContact,
   upsertStore,
@@ -35,6 +41,12 @@ import {
 import { reduce, type EngineResult } from "./engine/stateMachine.js";
 import { canTransition } from "./domain/orderStatus.js";
 import { StoryScheduler } from "./services/storyScheduler.js";
+import {
+  deleteStoryAndMedia,
+  resolveStoryMedia,
+  sweepOrphanStoryMedia,
+} from "./services/stories.js";
+import { LEGACY_STORY_MIGRATION_KEY, migrateLegacyStorySchedule } from "./db/migrateStories.js";
 import { ownerHandoffMessage, ownerOrderMessage } from "./services/notify.js";
 import type { Conversation, Store } from "./domain/types.js";
 
@@ -227,15 +239,36 @@ async function main() {
   const store = seedStore(config.storeId);
   logger.info({ store: store.store_name }, "store ready");
 
+  // The store-wide daily schedule became one scheduled story. Runs after seedStore,
+  // which is what guarantees the store row exists to read the old setting from.
+  migrateLegacyStorySchedule({
+    getStore: () => getStoreById(store.store_id),
+    hasRun: () => getMeta(LEGACY_STORY_MIGRATION_KEY) !== undefined,
+    markRun: (migrated) => {
+      setMeta(LEGACY_STORY_MIGRATION_KEY, new Date().toISOString());
+      // Clear the old setting too, so nothing can read a stale "enabled" later.
+      if (migrated.story_schedule) upsertStore({ ...migrated, story_schedule: undefined });
+    },
+    listStoryAssets: () => listAssets(store.store_id).filter((a) => a.category === "story"),
+    listStories: () => listStories(store.store_id),
+    saveStory,
+    newId: () => randomUUID(),
+    now: () => new Date(),
+  });
+
+  // Runs after the fold, or it would sweep the very assets the migration is about to
+  // adopt. Story media is unreachable once no story points at it.
+  sweepOrphanStoryMedia(store.store_id, config.assetsDir);
+
   const transport: MessagingTransport = new BaileysTransport(config.authDir, config.pairPhone);
   transport.onMessage((msg) => serialize(msg.from, () => handleMessage(transport, msg)));
 
   let connected = false;
 
-  // Posts the store's "story" assets to WhatsApp Status daily at the configured time.
+  // Publishes scheduled Estados to WhatsApp Status.
   const storyScheduler = new StoryScheduler({
-    getStore: () => getStoreById(store.store_id),
-    listStories: () => listAssets(store.store_id).filter((a) => a.category === "story"),
+    listStories: () => listStories(store.store_id),
+    getStory,
     // Status recipients must be phone jids (@s.whatsapp.net). Use the contacts table,
     // dropping legacy @lid entries, and always include the bot's own number.
     listAudience: () => {
@@ -246,8 +279,11 @@ async function main() {
       return [...new Set([own, ...customers].filter(Boolean))];
     },
     postImage: (path, audience, caption) => transport.postStatusImage(path, audience, caption),
+    postVideo: (path, audience, caption) => transport.postStatusVideo(path, audience, caption),
     isConnected: () => connected,
-    uploadsDir: config.uploadsDir,
+    resolveMedia: (story) => resolveStoryMedia(story, config.assetsDir),
+    markPosted: markStoryPosted,
+    discardStory: (story) => deleteStoryAndMedia(story.id, config.assetsDir),
   });
 
   const web = new WebServer({
@@ -255,7 +291,7 @@ async function main() {
     getStore: () => getStoreById(store.store_id) ?? store,
     sendMessage: (to, body) => transport.sendText(to, body),
     disconnect: () => transport.logout(),
-    postStoryNow: () => storyScheduler.postNow(),
+    postStoryNow: (storyId) => storyScheduler.postNow(storyId),
   });
   web.listen(config.webPort, config.webHost);
 
