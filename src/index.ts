@@ -1,13 +1,21 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import QRCode from "qrcode";
 import { config } from "./config.js";
+import {
+  containedPath,
+  isSupportedReceiptType,
+  productPhotoSource,
+  receiptFilename,
+} from "./domain/uploads.js";
 import { logger } from "./logger.js";
 import { silenceSignalNoise } from "./transport/silence-signal.js";
 import { WebServer } from "./web/server.js";
 import { BaileysTransport } from "./transport/baileys.js";
 import type { IncomingMessage, MessagingTransport } from "./transport/types.js";
 import { seedStore } from "./services/seed.js";
+import { migrateStoredUploads } from "./db/index.js";
 import { resolveStore } from "./stores/routing.js";
 import {
   createOrder,
@@ -96,9 +104,27 @@ async function handleMessage(transport: MessagingTransport, msg: IncomingMessage
 
   for (const reply of result.replies) {
     if (reply.kind === "text") await transport.sendText(msg.from, reply.body);
-    else if (reply.kind === "image") await transport.sendImage(msg.from, reply.url, reply.caption);
+    else if (reply.kind === "image") await sendProductPhoto(transport, msg.from, reply);
     else await sendAsset(transport, msg.from, reply.assetId);
   }
+}
+
+/**
+ * Send a product photo. `photo_url` holds a bare filename (or a remote URL for seeded
+ * products), so it has to be rejoined with productsDir before the transport sees it —
+ * exactly what sendAsset below already does for library files.
+ */
+async function sendProductPhoto(
+  transport: MessagingTransport,
+  to: string,
+  reply: { url: string; caption?: string },
+): Promise<void> {
+  const source = productPhotoSource(reply.url, config.productsDir);
+  if (!source) {
+    logger.warn({ photo: reply.url }, "skipping product photo outside uploads/products");
+    return;
+  }
+  await transport.sendImage(to, source, reply.caption);
 }
 
 /** Send an uploaded asset (catalog/promo/story) as an image or document. */
@@ -109,7 +135,7 @@ async function sendAsset(
 ): Promise<void> {
   const asset = getAsset(assetId);
   if (!asset) return; // deleted from the library — skip silently
-  const path = join(config.uploadsDir, "assets", asset.filename);
+  const path = join(config.assetsDir, asset.filename);
   if (asset.mimetype.startsWith("image/")) {
     await transport.sendImage(to, path);
   } else {
@@ -138,12 +164,34 @@ async function performEffects(
         if (!orderId || !msg.image) break;
         const order = getOrder(orderId);
         if (!order) break;
+        if (!isSupportedReceiptType(msg.image.mimetype)) {
+          // Storing it anyway would mean guessing an extension, and the file is served
+          // with nosniff and a type inferred from that extension — so a wrong guess is a
+          // receipt the browser refuses to render.
+          logger.warn({ orderId, mimetype: msg.image.mimetype }, "unsupported receipt type");
+          break;
+        }
         const buffer = await msg.image.download();
-        const ext = msg.image.mimetype.split("/")[1] ?? "jpg";
-        const path = join(config.uploadsDir, `receipt-${orderId}.${ext}`);
-        writeFileSync(path, buffer);
-        updateOrder({ ...order, receipt_url: path, status: "payment_submitted" });
-        logger.info({ orderId, path }, "receipt saved");
+        // Store the bare filename; the directory is rejoined at read time. See
+        // src/domain/uploads.ts for why an absolute path here was a bug.
+        const filename = receiptFilename(orderId, msg.image.mimetype);
+        mkdirSync(config.receiptsDir, { recursive: true });
+        // Write to a temporary name and rename into place: the filename is deterministic
+        // per order, so a re-sent comprobante overwrites the previous one, and the admin
+        // could otherwise read a half-written image.
+        const target = join(config.receiptsDir, filename);
+        const staging = `${target}.tmp-${randomUUID()}`;
+        writeFileSync(staging, buffer);
+        renameSync(staging, target);
+        // A re-send under a different mimetype lands on a different name, which would
+        // leave the old file behind with nothing pointing at it.
+        const previous = order.receipt_url;
+        if (previous && previous !== filename) {
+          const stale = containedPath(config.receiptsDir, previous);
+          if (stale) rmSync(stale, { force: true });
+        }
+        updateOrder({ ...order, receipt_url: filename, status: "payment_submitted" });
+        logger.info({ orderId, filename }, "receipt saved");
         break;
       }
       case "notifyOwner": {
@@ -173,6 +221,8 @@ async function performEffects(
 async function main() {
   silenceSignalNoise();
   mkdirSync(config.uploadsDir, { recursive: true });
+  mkdirSync(config.receiptsDir, { recursive: true });
+  migrateStoredUploads();
 
   const store = seedStore(config.storeId);
   logger.info({ store: store.store_name }, "store ready");

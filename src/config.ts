@@ -1,12 +1,22 @@
 import "dotenv/config";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
+
+const uploadsDir = resolve(process.env.UPLOADS_DIR ?? "./uploads");
 
 /** Runtime configuration, loaded once from environment (.env). */
 export const config = {
   storeId: process.env.STORE_ID ?? "novamoda",
   dbPath: resolve(process.env.DB_PATH ?? "./store-bot.sqlite"),
   authDir: resolve(process.env.AUTH_DIR ?? "./auth"),
-  uploadsDir: resolve(process.env.UPLOADS_DIR ?? "./uploads"),
+  uploadsDir,
+  /**
+   * The three upload directories. The database stores only a filename within one of
+   * these; it is rejoined here at read time. Derived from uploadsDir rather than each
+   * repeating the default, so there is one source for the layout.
+   */
+  receiptsDir: join(uploadsDir, "receipts"),
+  assetsDir: join(uploadsDir, "assets"),
+  productsDir: join(uploadsDir, "products"),
   logLevel: process.env.LOG_LEVEL ?? "info",
   /** Level for Baileys' own internal logs. Defaults to "silent" — its decrypt
    * failures for Status/other-recipient messages are expected noise. Set to

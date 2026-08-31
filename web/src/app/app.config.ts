@@ -5,11 +5,20 @@ import {
 } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
+import { registerLocaleData } from '@angular/common';
+import localeEs from '@angular/common/locales/es';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { providePrimeNG } from 'primeng/config';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { AppPreset } from './theme/app-preset';
 import { routes } from './app.routes';
+
+/**
+ * Spanish date formatting. Registered rather than set as LOCALE_ID: the views ask for
+ * 'es' explicitly where they want Spanish month names, while money keeps the "$12.00"
+ * form the design uses. A global LOCALE_ID would also turn every amount into "12,00 US$".
+ */
+registerLocaleData(localeEs);
 
 export const appConfig: ApplicationConfig = {
   providers: [

@@ -8,6 +8,7 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 import { OrdersStore } from '../orders.store';
 import { customerNumber, isVerified, waLink } from '../order-display';
 import { StatusTag } from '../status-tag/status-tag';
+import { PayBadge } from '../pay-badge/pay-badge';
 import { PageHead, StatCard, StatRow } from '../ui';
 
 type FulfillFilter = 'all' | 'toship' | 'shipped' | 'delivered';
@@ -23,6 +24,7 @@ type FulfillFilter = 'all' | 'toship' | 'shipped' | 'delivered';
     AvatarModule,
     SelectButtonModule,
     StatusTag,
+    PayBadge,
     PageHead,
     StatCard,
     StatRow,

@@ -1,0 +1,122 @@
+<p-dialog
+  [visible]="!!order()"
+  (visibleChange)="!$event && close()"
+  [modal]="true"
+  [draggable]="false"
+  [dismissableMask]="true"
+  [style]="{ width: '32rem' }"
+  styleClass="receipt-dialog"
+  closeAriaLabel="Cerrar el comprobante"
+  (onShow)="focusPrimaryAction()"
+  (onHide)="restoreFocus()"
+>
+  <ng-template pTemplate="header">
+    <h2 class="m-0 text-lg font-semibold">Comprobante</h2>
+  </ng-template>
+
+  @if (order(); as o) {
+    <div class="receipt">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="receipt-id">#{{ o.order_id }}</div>
+          <div class="text-2xs text-ink-2 font-data">
+            {{ o.created_at | date: 'd MMM y, h:mm a' : undefined : 'es' }}
+          </div>
+        </div>
+        <app-pay-badge [order]="o" [hasReceipt]="store.hasReceipt(o)" />
+      </div>
+
+      <hr class="rule" />
+
+      <dl class="ledger">
+        <div>
+          <dt>Cliente</dt>
+          <dd>{{ o.customer_name || 'Sin nombre' }}</dd>
+        </div>
+        <div>
+          <dt>Teléfono</dt>
+          <dd>{{ customerNumber(o.customer_wa) }}</dd>
+        </div>
+        <div>
+          <dt>Entrega</dt>
+          <dd>{{ o.delivery_address || 'A coordinar' }}</dd>
+        </div>
+        @if (hasShipmentState()) {
+          <div>
+            <dt>Estado</dt>
+            <dd>{{ statusLabel(o.status) }}</dd>
+          </div>
+        }
+      </dl>
+
+      <hr class="rule" />
+
+      <dl class="ledger">
+        @for (item of o.items; track item.code + item.size + item.color) {
+          <div>
+            <dt>{{ item.name || item.code }} · {{ item.size }}/{{ item.color }} ×{{ item.qty }}</dt>
+            <dd>{{ item.price * item.qty | currency: 'USD' }}</dd>
+          </div>
+        }
+        <div class="total">
+          <dt>Total</dt>
+          <dd>{{ o.subtotal | currency: 'USD' }}</dd>
+        </div>
+      </dl>
+
+      <hr class="rule" />
+
+      <div class="proof">
+        @if (store.hasReceipt(o)) {
+          <p-image
+            [src]="store.receiptUrl(o.order_id)"
+            [preview]="true"
+            alt="Comprobante enviado por el cliente"
+            imageClass="proof-img"
+            (onImageError)="store.markReceiptMissing(o.order_id)"
+          />
+        } @else if (o.receipt_url) {
+          <!-- A receipt was sent but its file could not be served. "No lo envió" would be
+               untrue here, and it used to sit under a "Por verificar" badge. -->
+          <p class="m-0 text-sm text-ink-2">
+            El comprobante no se pudo cargar. Pídele al cliente que lo envíe de nuevo.
+          </p>
+        } @else {
+          <p class="m-0 text-sm text-ink-2">El cliente todavía no envió un comprobante.</p>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- A direct child of p-dialog: PrimeNG discovers pTemplate by querying its own
+       content children, so a template nested inside @if is never found and the footer
+       silently renders empty. -->
+  <ng-template pTemplate="footer">
+    @if (order(); as o) {
+      <div class="flex gap-2 w-full">
+        @if (!verified()) {
+          <p-button
+            label="Verificar pago"
+            icon="pi pi-check"
+            styleClass="w-full"
+            class="flex-1"
+            (onClick)="verify(o)"
+          />
+        }
+        <a
+          pButton
+          class="flex-1"
+          styleClass="w-full"
+          severity="secondary"
+          [outlined]="true"
+          [href]="whatsappLink()"
+          target="_blank"
+          rel="noopener"
+        >
+          <i class="pi pi-whatsapp" aria-hidden="true"></i>
+          <span>Escribir al cliente</span>
+        </a>
+      </div>
+    }
+  </ng-template>
+</p-dialog>

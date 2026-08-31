@@ -4,6 +4,17 @@
   lede="Revisa los comprobantes que envían tus clientes y confirma cada cobro."
 >
   <p-button
+    label="Exportar a Excel"
+    icon="pi pi-download"
+    pTooltip="Exporta las filas que ves, con el filtro y el orden actuales"
+    tooltipPosition="bottom"
+    severity="secondary"
+    [outlined]="true"
+    [loading]="exporting()"
+    [disabled]="!filteredRows().length"
+    (onClick)="exportToExcel()"
+  />
+  <p-button
     label="Actualizar"
     icon="pi pi-refresh"
     [outlined]="true"
@@ -14,17 +25,17 @@
 </app-page-head>
 
 <app-stat-row>
-  <app-stat-card label="Pedidos" [value]="store.total()" note="Total recibidos" />
   <app-stat-card
     label="Por verificar"
     [value]="store.pendingVerify()"
-    note="Requieren tu revisión"
+    note="Enviaron comprobante"
     [tone]="store.pendingVerify() > 0 ? 'amber' : 'neutral'"
   />
+  <app-stat-card label="Sin comprobante" [value]="store.noReceiptCount()" note="Todavía no pagan" />
   <app-stat-card
-    label="Confirmados"
+    label="Verificados"
     [value]="store.verifiedCount()"
-    note="Pago verificado"
+    note="Cobro confirmado"
     tone="signal"
   />
 </app-stat-row>
@@ -34,7 +45,7 @@
     <p-selectbutton
       [options]="filterOptions"
       [ngModel]="filter()"
-      (ngModelChange)="filter.set($event)"
+      (ngModelChange)="setFilter($event)"
       optionLabel="label"
       optionValue="value"
       [allowEmpty]="false"
@@ -43,55 +54,94 @@
 
   <p-table
     [value]="filteredRows()"
-    [paginator]="filteredRows().length > 10"
+    [paginator]="filteredRows().length > PAGE_SIZE"
     [rows]="PAGE_SIZE"
+    [first]="first()"
+    (onPage)="first.set($event.first ?? 0)"
     dataKey="order_id"
-    styleClass="p-datatable-sm"
+    styleClass="p-datatable-sm table-restack"
   >
     <ng-template pTemplate="header">
       <tr>
-        <th>Pedido</th>
-        <th>Fecha</th>
-        <th>Cliente</th>
-        <th>Artículos</th>
-        <th>Total</th>
-        <th>Estado</th>
-        <th>Comprobante</th>
-        <th>Acción</th>
+        <th scope="col" appSortable key="id" numeric [sort]="sort()" (sortChange)="setSort($event)">
+          Recibo
+        </th>
+        <th
+          scope="col"
+          appSortable
+          key="date"
+          numeric
+          [sort]="sort()"
+          (sortChange)="setSort($event)"
+        >
+          Fecha
+        </th>
+        <th scope="col" appSortable key="name" [sort]="sort()" (sortChange)="setSort($event)">
+          Cliente
+        </th>
+        <th
+          scope="col"
+          class="num"
+          appSortable
+          key="total"
+          numeric
+          [sort]="sort()"
+          (sortChange)="setSort($event)"
+        >
+          Total
+        </th>
+        <th scope="col" appSortable key="pay" [sort]="sort()" (sortChange)="setSort($event)">
+          Pago
+        </th>
+        <!-- Only earn their space once the table restacks into cards. -->
+        <th scope="col" class="on-mobile">Artículos</th>
+        <th scope="col" class="on-mobile">Entrega</th>
+        <th scope="col"><span class="sr-only">Acciones</span></th>
       </tr>
     </ng-template>
     <ng-template pTemplate="body" let-order>
-      <tr>
-        <td>#{{ order.order_id }}</td>
-        <td>{{ order.created_at | date: 'short' }}</td>
-        <td>
-          <div class="flex items-center gap-2.5">
-            <p-avatar [label]="order.customer_name.slice(0, 2)" shape="circle" />
-            <span>
-              <span class="block font-medium">{{ order.customer_name }}</span>
-              <span class="block text-xs text-muted-color">
-                {{ customerNumber(order.customer_wa) }}
-              </span>
-            </span>
-          </div>
+      <!-- Clicking the row is a pointer convenience only. The row keeps its table
+           semantics: role="button" on a <tr> makes assistive tech report a button whose
+           cells are generic, and nests buttons inside a button. The keyboard-and-AT path
+           is the real button in the Recibo cell below. -->
+      <tr class="is-clickable" (click)="open(order, $event)">
+        <td data-label="Recibo">
+          <button type="button" class="receipt-link font-data text-sm" (click)="open(order)">
+            #{{ order.order_id }}
+            <span class="sr-only">— ver comprobante</span>
+          </button>
         </td>
-        <td class="max-w-60 text-sm text-color">{{ items(order) }}</td>
-        <td>{{ order.subtotal | currency: 'USD' }}</td>
-        <td><app-status-tag [status]="order.status" /></td>
-        <td>
-          @if (order.receipt_url) {
-            <p-image
-              [src]="store.receiptUrl(order.order_id)"
-              [preview]="true"
-              width="44"
-              alt="Comprobante"
-            />
+        <td data-label="Fecha" class="text-sm text-color">
+          {{ order.created_at | date: 'd MMM y, h:mm a' : undefined : 'es' }}
+        </td>
+        <td data-label="Cliente">
+          <!-- One wrapper, so the restacked row has a single value to right-align
+               instead of spreading the name and the number apart. -->
+          <span class="cell-stack">
+            <span class="block font-medium leading-tight">{{
+              order.customer_name || 'Sin nombre'
+            }}</span>
+            <span class="block font-data text-2xs text-ink-2 leading-tight">
+              {{ customerNumber(order.customer_wa) }}
+            </span>
+          </span>
+        </td>
+        <td data-label="Total" class="num">{{ order.subtotal | currency: 'USD' }}</td>
+        <td data-label="Pago">
+          <app-pay-badge [order]="order" [hasReceipt]="store.hasReceipt(order)" />
+        </td>
+        <td data-label="Artículos" class="on-mobile text-sm text-color">{{ items(order) }}</td>
+        <td data-label="Entrega" class="on-mobile">
+          <!-- Only once there is a shipment to describe. Before payment clears, the
+               delivery label repeats the Pago badge two rows above it. -->
+          @if (hasShipmentState(order)) {
+            <app-status-tag [status]="order.status" />
           } @else {
             <span class="text-muted-color">—</span>
           }
         </td>
-        <td>
-          <div class="flex gap-2 flex-wrap">
+        <td data-label="" class="num">
+          <div class="row-actions flex gap-2 flex-wrap justify-end">
             @switch (order.status) {
               @case ('payment_submitted') {
                 <p-button
@@ -142,14 +192,16 @@
       <tr>
         <td colspan="8" class="p-8 text-center text-muted-color">
           @if (filter() === 'verified') {
-            Aún no hay pagos verificados.
+            Todavía no has verificado ningún pago.
           } @else if (filter() === 'pending') {
-            No hay pagos por verificar. ✅
+            Nada por verificar. Todo al día.
           } @else {
-            Aún no hay pedidos. Cuando un cliente compre, aparecerá aquí.
+            Aún no ha llegado ningún pedido.
           }
         </td>
       </tr>
     </ng-template>
   </p-table>
 </app-card>
+
+<app-receipt-dialog [order]="selected()" (closed)="selected.set(null)" />

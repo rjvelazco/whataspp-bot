@@ -29,7 +29,10 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       eqeqeq: ['error', 'smart'],
-      'no-console': 'error',
+      // The browser has no logger, and swallowing a failure to keep this rule quiet is
+      // worse than the rule: an operation that fails deterministically needs a trace
+      // somewhere. console.log debugging is still banned.
+      'no-console': ['error', { allow: ['error', 'warn'] }],
 
       // Colour lives in the two token files and nowhere else. See ../CLAUDE.md rule 4.
       'no-restricted-syntax': [
@@ -53,10 +56,37 @@ export default tseslint.config(
     rules: { 'no-restricted-syntax': 'off' },
   },
   {
-    // console.error in the bootstrap catch is correct — there is no logger in the
-    // browser, and a failed bootstrap has no UI left to report through.
-    files: ['src/main.ts'],
-    rules: { 'no-console': 'off' },
+    files: ['**/*.html'],
+    extends: [...angular.configs.templateRecommended],
+    rules: {
+      // Accessibility floor from ../CLAUDE.md. A named list rather than
+      // templateAccessibility, so adding a rule here is a deliberate decision.
+      '@angular-eslint/template/interactive-supports-focus': 'error',
+      '@angular-eslint/template/click-events-have-key-events': 'error',
+      '@angular-eslint/template/alt-text': 'error',
+      '@angular-eslint/template/valid-aria': 'error',
+      '@angular-eslint/template/role-has-required-aria': 'error',
+
+      // A <label> wrapping its control is valid implicit labelling, but the rule only
+      // recognises native form elements. Teach it the PrimeNG controls this app uses.
+      '@angular-eslint/template/label-has-associated-control': [
+        'error',
+        {
+          controlComponents: [
+            'p-select',
+            'p-inputnumber',
+            'p-toggleswitch',
+            'p-datepicker',
+            'p-selectbutton',
+            'p-textarea',
+            'p-checkbox',
+            'p-fileupload',
+          ],
+        },
+      ],
+
+      '@angular-eslint/template/elements-content': 'error',
+    },
   },
   {
     files: ['**/*.html'],
