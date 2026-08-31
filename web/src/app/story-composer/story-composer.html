@@ -188,7 +188,6 @@
       @if (step() > 1) {
         <p-button label="Atrás" severity="secondary" [text]="true" (onClick)="back()" />
       }
-      <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="cancel()" />
       @if (step() < 3) {
         <p-button label="Continuar" [disabled]="!canContinue()" (onClick)="next()" />
       } @else {

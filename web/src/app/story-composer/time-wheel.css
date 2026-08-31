@@ -60,6 +60,9 @@
 
 .cell {
   height: 40px;
+  /* The values are click targets, and they have to look like it — the wheel used to be
+     operable only by dragging or by arrow keys, with nothing on screen saying so. */
+  cursor: pointer;
   /* center, not start: the selected value sits under the band in the middle of the
      column, so the snap point has to be the cell's centre. With `start` the browser
      aligns it to the top of the column instead, and the first two values can never
@@ -76,6 +79,9 @@
 .cell.is-active {
   color: var(--color-ink);
   font-weight: 500;
+}
+.cell:hover {
+  color: var(--color-signal-ink);
 }
 
 .colon {
@@ -95,4 +101,11 @@
   .cell {
     transition: none;
   }
+}
+
+/* Says out loud what the control accepts, rather than leaving it to be discovered. */
+.wheel-hint {
+  margin: 8px 0 0;
+  font-size: var(--text-2xs);
+  color: var(--color-ink-3);
 }

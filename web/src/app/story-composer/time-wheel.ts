@@ -64,18 +64,26 @@ function toTime(parts: Parts): string {
       <div
         #hourCol
         class="col"
-        role="spinbutton"
+        role="listbox"
         tabindex="0"
         aria-label="Hora"
-        [attr.aria-valuenow]="parts().hour"
-        [attr.aria-valuemin]="1"
-        [attr.aria-valuemax]="12"
+        [attr.aria-activedescendant]="'hour-' + parts().hour"
         (scroll)="onScroll()"
+        (click)="onPick($event, 'hour')"
         (keydown)="onKey($event, 'hour')"
       >
         <div class="pad"></div>
         @for (h of hours; track h) {
-          <div class="cell" [class.is-active]="h === parts().hour">{{ h }}</div>
+          <div
+            class="cell"
+            role="option"
+            [id]="'hour-' + h"
+            [attr.data-value]="h"
+            [attr.aria-selected]="h === parts().hour"
+            [class.is-active]="h === parts().hour"
+          >
+            {{ h }}
+          </div>
         }
         <div class="pad"></div>
       </div>
@@ -85,19 +93,26 @@ function toTime(parts: Parts): string {
       <div
         #minuteCol
         class="col"
-        role="spinbutton"
+        role="listbox"
         tabindex="0"
         aria-label="Minutos"
-        [attr.aria-valuenow]="parts().minute"
-        [attr.aria-valuemin]="0"
-        [attr.aria-valuemax]="59"
-        [attr.aria-valuetext]="pad(parts().minute)"
+        [attr.aria-activedescendant]="'minute-' + parts().minute"
         (scroll)="onScroll()"
+        (click)="onPick($event, 'minute')"
         (keydown)="onKey($event, 'minute')"
       >
         <div class="pad"></div>
         @for (m of minutes; track m) {
-          <div class="cell" [class.is-active]="m === parts().minute">{{ pad(m) }}</div>
+          <div
+            class="cell"
+            role="option"
+            [id]="'minute-' + m"
+            [attr.data-value]="m"
+            [attr.aria-selected]="m === parts().minute"
+            [class.is-active]="m === parts().minute"
+          >
+            {{ pad(m) }}
+          </div>
         }
         <div class="pad"></div>
       </div>
@@ -105,23 +120,31 @@ function toTime(parts: Parts): string {
       <div
         #meridiemCol
         class="col col-narrow"
-        role="spinbutton"
+        role="listbox"
         tabindex="0"
         aria-label="Mañana o tarde"
-        [attr.aria-valuenow]="parts().meridiem"
-        [attr.aria-valuemin]="0"
-        [attr.aria-valuemax]="1"
-        [attr.aria-valuetext]="meridiems[parts().meridiem]"
+        [attr.aria-activedescendant]="'meridiem-' + parts().meridiem"
         (scroll)="onScroll()"
+        (click)="onPick($event, 'meridiem')"
         (keydown)="onKey($event, 'meridiem')"
       >
         <div class="pad"></div>
         @for (mer of meridiems; track mer; let i = $index) {
-          <div class="cell" [class.is-active]="i === parts().meridiem">{{ mer }}</div>
+          <div
+            class="cell"
+            role="option"
+            [id]="'meridiem-' + i"
+            [attr.data-value]="i"
+            [attr.aria-selected]="i === parts().meridiem"
+            [class.is-active]="i === parts().meridiem"
+          >
+            {{ mer }}
+          </div>
         }
         <div class="pad"></div>
       </div>
     </div>
+    <p class="wheel-hint">Toca la hora que quieres, o desliza cada columna.</p>
   `,
   styleUrl: './time-wheel.css',
 })
@@ -258,6 +281,30 @@ export class TimeWheel {
     if (next === this.value()) return;
     this.committing = true;
     this.value.set(next);
+  }
+
+  /**
+   * Pick a value by clicking it.
+   *
+   * Delegated to the column rather than bound per cell: the column is the control that
+   * takes focus and handles the arrow keys, and putting sixty click targets in the tab
+   * order would make the wheel unusable with a keyboard.
+   */
+  protected onPick(event: MouseEvent, column: keyof Parts): void {
+    const cell = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-value]');
+    const raw = cell?.dataset['value'];
+    if (raw === undefined) return;
+
+    const value = Number(raw);
+    if (!Number.isFinite(value)) return;
+
+    const next: Parts = { ...this.parts() };
+    if (column === 'hour') next.hour = value;
+    if (column === 'minute') next.minute = value;
+    if (column === 'meridiem') next.meridiem = (value === 1 ? 1 : 0) as 0 | 1;
+
+    this.commit(next);
+    this.position(next, 'smooth');
   }
 
   protected onKey(event: KeyboardEvent, column: keyof Parts): void {
