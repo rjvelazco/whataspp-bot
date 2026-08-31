@@ -1,3 +1,4 @@
+import { CurrencyPipe } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -10,9 +11,48 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { SelectModule } from 'primeng/select';
 import { FileUploadModule, type FileUploadHandlerEvent } from 'primeng/fileupload';
 import { TooltipModule } from 'primeng/tooltip';
+import { TagModule } from 'primeng/tag';
 import { CatalogService, type CatalogItem } from '../catalog.service';
 import { StoreService } from '../store.service';
 import { apiErrorMessage } from '../api-error';
+import { stockOf, type StockLevel } from './stock';
+import {
+  Card,
+  DataTable,
+  PageHead,
+  SortableTh,
+  TableSearch,
+  TableState,
+  Toolbar,
+  filterAndSort,
+} from '../ui';
+
+/**
+ * A row as the table needs it: the item plus the values derived from it.
+ *
+ * `totalStock` used to be a method called from the template, twice per row — once for the
+ * value and once for the class — on every change-detection pass. Deriving it once here
+ * also gives sorting something to sort by without recomputing.
+ */
+interface ProductRow {
+  readonly item: CatalogItem;
+  readonly stock: number;
+  /** out = nothing left, low = at or under the threshold, ok = plain number. */
+  readonly stockLevel: StockLevel;
+  /** Ready-to-use image URL, or null when the product has no photo. */
+  readonly photo: string | null;
+}
+
+type SortKey = 'name' | 'code' | 'cat' | 'price' | 'stock';
+
+/** Shown in the toolbar so the active sort is visible without reading the arrows. */
+const SORT_LABEL: Record<SortKey, string> = {
+  name: 'Producto',
+  code: 'Código',
+  cat: 'Categoría',
+  price: 'Precio',
+  stock: 'Stock',
+};
 
 function emptyDraft(): CatalogItem {
   return {
@@ -41,13 +81,19 @@ function emptyDraft(): CatalogItem {
     SelectModule,
     FileUploadModule,
     TooltipModule,
+    CurrencyPipe,
+    TagModule,
+    PageHead,
+    Card,
+    Toolbar,
+    SortableTh,
+    DataTable,
+    TableSearch,
   ],
   templateUrl: './productos.html',
   styleUrl: './productos.css',
 })
 export class Productos implements OnInit {
-  /** Rows per page in the table. */
-  protected readonly PAGE_SIZE = 10;
   private readonly api = inject(CatalogService);
   private readonly storeApi = inject(StoreService);
   private readonly messages = inject(MessageService);
@@ -58,6 +104,46 @@ export class Productos implements OnInit {
 
   protected readonly items = signal<CatalogItem[]>([]);
   protected readonly loading = signal(true);
+
+  /** Search, sort and page — shared with every other list view. */
+  protected readonly table = new TableState<SortKey>({ key: 'name', dir: 'asc' }, SORT_LABEL);
+  /** The row being written to, so its switch can be disabled for the round trip. */
+  protected readonly busyId = signal<string | null>(null);
+
+  protected readonly sortLabel = computed(() => this.table.label());
+
+  /** Every item as a row, with its stock derived once. */
+  private readonly rows = computed<ProductRow[]>(() =>
+    this.items().map((item) => {
+      const { stock, level } = stockOf(item.variants);
+      // The photo URL is derived here too, rather than being a method the template calls
+      // per row on every change-detection pass.
+      return {
+        item,
+        stock,
+        stockLevel: level,
+        photo: item.photo_url ? this.api.photoUrl(item.item_id) : null,
+      };
+    }),
+  );
+
+  private readonly sortValue: Record<SortKey, (r: ProductRow) => string | number> = {
+    name: (r) => r.item.name,
+    code: (r) => r.item.code,
+    cat: (r) => r.item.category,
+    price: (r) => r.item.price,
+    stock: (r) => r.stock,
+  };
+
+  protected readonly visibleRows = computed(() =>
+    filterAndSort(
+      this.rows(),
+      this.table.search(),
+      this.table.sort(),
+      (r) => `${r.item.name} ${r.item.code} ${r.item.category}`,
+      this.sortValue,
+    ),
+  );
   protected readonly showDialog = signal(false);
   protected readonly isNew = signal(true);
   protected readonly saving = signal(false);
@@ -95,10 +181,6 @@ export class Productos implements OnInit {
         this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los productos' });
       },
     });
-  }
-
-  protected totalStock(item: CatalogItem): number {
-    return item.variants.reduce((n, v) => n + (Number(v.stock) || 0), 0);
   }
 
   protected hasPhoto(item: CatalogItem): boolean {
@@ -182,11 +264,27 @@ export class Productos implements OnInit {
     });
   }
 
+  /**
+   * Flip whether the bot shows this product.
+   *
+   * The switch is disabled for the round trip: it PUTs the whole item and then refetches
+   * the list, so without a busy state a second click races the first and the two writes
+   * can land in either order.
+   */
   protected toggleActive(item: CatalogItem): void {
+    // Per item, not global: guarding on any in-flight write meant clicking a second row
+    // was silently swallowed — no request, no toast, and the switch snapped back when the
+    // first row's reload landed.
+    if (this.busyId() === item.item_id) return;
+    this.busyId.set(item.item_id);
     const updated: CatalogItem = { ...item, active: !item.active };
     this.api.update(item.item_id, updated).subscribe({
-      next: () => this.load(),
+      next: () => {
+        this.busyId.set(null);
+        this.load();
+      },
       error: (e) => {
+        this.busyId.set(null);
         this.messages.add({
           severity: 'error',
           summary: 'No se pudo actualizar',

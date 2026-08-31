@@ -19,13 +19,22 @@ import { Component } from '@angular/core';
       padding: 16px var(--card-inset, 24px);
       border-bottom: 1px solid var(--color-line-soft);
     }
-    /* On a phone a segmented filter would wrap its labels onto two lines and lose the
-       pill shape. Scroll the strip instead, and let each control keep its own width. */
+    /* On a phone the strip gains rows, and the search takes one to itself so its width
+       does not depend on what else happens to be beside it.
+       overflow-x stays: app-card clips (overflow: hidden), so a control wider than the
+       card — a three-chip segmented filter is ~318px — becomes permanently unreachable
+       without it rather than merely scrolled. Wrapping and scrolling are not
+       alternatives here; the scroll is the fallback for the row that cannot wrap. */
     @media (max-width: 720px) {
       :host {
-        flex-wrap: nowrap;
+        row-gap: 8px;
         overflow-x: auto;
-        scrollbar-width: thin;
+      }
+      :host ::ng-deep app-table-search {
+        flex-basis: 100%;
+      }
+      :host ::ng-deep p-selectbutton {
+        flex: 0 0 auto;
       }
       :host ::ng-deep .p-togglebutton-label {
         white-space: nowrap;

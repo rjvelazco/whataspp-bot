@@ -6,7 +6,7 @@
   <p-button
     label="Exportar a Excel"
     icon="pi pi-download"
-    pTooltip="Exporta las filas que ves, con el filtro y el orden actuales"
+    pTooltip="Exporta las filas que ves, con la búsqueda, el filtro y el orden actuales"
     tooltipPosition="bottom"
     severity="secondary"
     [outlined]="true"
@@ -42,6 +42,11 @@
 
 <app-card>
   <app-toolbar>
+    <app-table-search
+      [state]="table"
+      placeholder="Buscar"
+      ariaLabel="Buscar por cliente, recibo o artículo"
+    />
     <p-selectbutton
       [options]="filterOptions"
       [ngModel]="filter()"
@@ -52,54 +57,21 @@
     />
   </app-toolbar>
 
-  <p-table
-    [value]="filteredRows()"
-    [paginator]="filteredRows().length > PAGE_SIZE"
-    [rows]="PAGE_SIZE"
-    [first]="first()"
-    (onPage)="first.set($event.first ?? 0)"
-    dataKey="order_id"
-    styleClass="p-datatable-sm table-restack"
-  >
-    <ng-template pTemplate="header">
+  <app-data-table [rows]="filteredRows()" [state]="table" [loading]="store.loading()">
+    <ng-template #header>
       <tr>
-        <th scope="col" appSortable key="id" numeric [sort]="sort()" (sortChange)="setSort($event)">
-          Recibo
-        </th>
-        <th
-          scope="col"
-          appSortable
-          key="date"
-          numeric
-          [sort]="sort()"
-          (sortChange)="setSort($event)"
-        >
-          Fecha
-        </th>
-        <th scope="col" appSortable key="name" [sort]="sort()" (sortChange)="setSort($event)">
-          Cliente
-        </th>
-        <th
-          scope="col"
-          class="num"
-          appSortable
-          key="total"
-          numeric
-          [sort]="sort()"
-          (sortChange)="setSort($event)"
-        >
-          Total
-        </th>
-        <th scope="col" appSortable key="pay" [sort]="sort()" (sortChange)="setSort($event)">
-          Pago
-        </th>
+        <th scope="col" appSortable key="id" numeric [state]="table">Recibo</th>
+        <th scope="col" appSortable key="date" numeric [state]="table">Fecha</th>
+        <th scope="col" appSortable key="name" [state]="table">Cliente</th>
+        <th scope="col" class="num" appSortable key="total" numeric [state]="table">Total</th>
+        <th scope="col" appSortable key="pay" [state]="table">Pago</th>
         <!-- Only earn their space once the table restacks into cards. -->
         <th scope="col" class="on-mobile">Artículos</th>
         <th scope="col" class="on-mobile">Entrega</th>
         <th scope="col"><span class="sr-only">Acciones</span></th>
       </tr>
     </ng-template>
-    <ng-template pTemplate="body" let-order>
+    <ng-template #body let-order>
       <!-- Clicking the row is a pointer convenience only. The row keeps its table
            semantics: role="button" on a <tr> makes assistive tech report a button whose
            cells are generic, and nests buttons inside a button. The keyboard-and-AT path
@@ -188,20 +160,18 @@
         </td>
       </tr>
     </ng-template>
-    <ng-template pTemplate="emptymessage">
-      <tr>
-        <td colspan="8" class="p-8 text-center text-muted-color">
-          @if (filter() === 'verified') {
-            Todavía no has verificado ningún pago.
-          } @else if (filter() === 'pending') {
-            Nada por verificar. Todo al día.
-          } @else {
-            Aún no ha llegado ningún pedido.
-          }
-        </td>
-      </tr>
+    <ng-template #empty>
+      @if (table.search()) {
+        Ningún pago coincide con “{{ table.search() }}”.
+      } @else if (filter() === 'verified') {
+        Todavía no has verificado ningún pago.
+      } @else if (filter() === 'pending') {
+        Nada por verificar. Todo al día.
+      } @else {
+        Aún no ha llegado ningún pedido.
+      }
     </ng-template>
-  </p-table>
+  </app-data-table>
 </app-card>
 
 <app-receipt-dialog [order]="selected()" (closed)="selected.set(null)" />

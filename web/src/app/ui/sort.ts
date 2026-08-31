@@ -47,3 +47,36 @@ export function sortBy<T>(
     return (x - y) * sign;
   });
 }
+
+/**
+ * The search-then-sort pipeline every list view runs.
+ *
+ * Extracted because both views had it near-verbatim, including the trim/lowercase
+ * normalisation — and that is the part that can drift behaviourally, unlike the p-table
+ * config. `text` returns the haystack for a row; `sortValue` maps a sort key to the value
+ * being compared.
+ */
+export function filterAndSort<T, K extends string>(
+  rows: readonly T[],
+  query: string,
+  sort: SortState<K>,
+  text: (row: T) => string,
+  sortValue: Record<K, (row: T) => string | number>,
+): T[] {
+  const q = normalize(query);
+  const matched = q ? rows.filter((row) => normalize(text(row)).includes(q)) : rows;
+  return sortBy(matched, sortValue[sort.key], sort.dir);
+}
+
+/**
+ * Fold case and strip accents, so searching "basico" finds "Top Básico".
+ *
+ * A Spanish catalogue is full of accents that nobody types into a search box.
+ */
+function normalize(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}

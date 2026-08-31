@@ -12,4 +12,7 @@ export { StatRow } from './stat-row';
 export { Card } from './card';
 export { Toolbar } from './toolbar';
 export { SortableTh } from './sortable-th';
-export { nextSort, sortBy, type SortState } from './sort';
+export { filterAndSort, nextSort, sortBy, type SortState } from './sort';
+export { DataTable } from './data-table';
+export { TableSearch } from './table-search';
+export { TableState } from './table-state';
