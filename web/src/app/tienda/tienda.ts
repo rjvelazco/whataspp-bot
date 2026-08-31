@@ -18,7 +18,7 @@ import {
   type StoreKeywords,
   type StoreUpdate,
 } from '../store.service';
-import { apiErrorMessage } from '../api-error';
+import { apiErrorMessage, apiFailureReason } from '../api-error';
 import { Card, KeywordChips, PageHead, Toolbar } from '../ui';
 import { MapPicker } from './map-picker';
 
@@ -217,8 +217,12 @@ export class Tienda implements OnInit {
   ngOnInit(): void {
     this.api.rateSources().subscribe({
       next: (sources) => this.rateSources.set(sources),
-      error: () =>
-        this.messages.add({ severity: 'error', summary: 'No se pudieron cargar las tasas' }),
+      error: (e) =>
+        this.messages.add({
+          severity: 'error',
+          summary: 'No se pudieron cargar las tasas',
+          detail: apiFailureReason(e),
+        }),
     });
     this.api.get().subscribe({
       next: (store) => {
